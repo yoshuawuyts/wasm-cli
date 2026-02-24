@@ -1,4 +1,4 @@
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, Value};
+use sea_orm::DatabaseConnection;
 
 /// The type of a tag, used to distinguish release tags from signatures and attestations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,61 +84,77 @@ impl KnownPackage {
         tag: Option<&str>,
         description: Option<&str>,
     ) -> anyhow::Result<()> {
-        conn.execute(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO known_package (registry, repository, description) VALUES (?, ?, ?)
-             ON CONFLICT(registry, repository) DO UPDATE SET 
-                last_seen_at = datetime('now'),
-                description = COALESCE(excluded.description, known_package.description)",
-            vec![
-                Value::from(registry.to_string()),
-                Value::from(repository.to_string()),
-                Value::from(description.map(|s| s.to_string())),
-            ],
-        ))
-        .await?;
+        use crate::storage::entities::{known_package, known_package_tag};
+        use sea_orm::{ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+
+        let model = known_package::ActiveModel {
+            registry: Set(registry.to_string()),
+            repository: Set(repository.to_string()),
+            description: Set(description.map(|s| s.to_string())),
+            ..Default::default()
+        };
+
+        let on_conflict = sea_orm::sea_query::OnConflict::columns([
+            known_package::Column::Registry,
+            known_package::Column::Repository,
+        ])
+        .value(
+            known_package::Column::LastSeenAt,
+            sea_orm::sea_query::Expr::cust("datetime('now')"),
+        )
+        .value(
+            known_package::Column::Description,
+            sea_orm::sea_query::Expr::cust(
+                "COALESCE(excluded.description, known_package.description)",
+            ),
+        )
+        .to_owned();
+
+        known_package::Entity::insert(model)
+            .on_conflict(on_conflict)
+            .exec(conn)
+            .await?;
 
         // If a tag was provided, add it to the tags table with its type
         if let Some(tag) = tag {
-            let package_id: i64 = conn
-                .query_one(Statement::from_sql_and_values(
-                    DbBackend::Sqlite,
-                    "SELECT id FROM known_package WHERE registry = ? AND repository = ?",
-                    vec![
-                        Value::from(registry.to_string()),
-                        Value::from(repository.to_string()),
-                    ],
-                ))
+            let package = known_package::Entity::find()
+                .filter(known_package::Column::Registry.eq(registry))
+                .filter(known_package::Column::Repository.eq(repository))
+                .one(conn)
                 .await?
-                .expect("Package should exist after upsert")
-                .try_get_by_index::<i64>(0)?;
+                .expect("Package should exist after upsert");
 
             let tag_type = TagType::from_tag(tag);
-            conn.execute(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "INSERT INTO known_package_tag (known_package_id, tag, tag_type) VALUES (?, ?, ?)
-                 ON CONFLICT(known_package_id, tag) DO UPDATE SET last_seen_at = datetime('now'), tag_type = ?",
-                vec![
-                    Value::from(package_id),
-                    Value::from(tag.to_string()),
-                    Value::from(tag_type.as_str().to_string()),
-                    Value::from(tag_type.as_str().to_string()),
-                ],
-            ))
-            .await?;
+            let tag_model = known_package_tag::ActiveModel {
+                known_package_id: Set(package.id),
+                tag: Set(tag.to_string()),
+                tag_type: Set(tag_type.as_str().to_string()),
+                ..Default::default()
+            };
+
+            let tag_on_conflict = sea_orm::sea_query::OnConflict::columns([
+                known_package_tag::Column::KnownPackageId,
+                known_package_tag::Column::Tag,
+            ])
+            .value(
+                known_package_tag::Column::LastSeenAt,
+                sea_orm::sea_query::Expr::cust("datetime('now')"),
+            )
+            .update_column(known_package_tag::Column::TagType)
+            .to_owned();
+
+            known_package_tag::Entity::insert(tag_model)
+                .on_conflict(tag_on_conflict)
+                .exec(conn)
+                .await?;
         }
 
         Ok(())
     }
 
-    /// Helper to build a KnownPackage from a package model and its tags.
-    fn from_package_and_tags(
-        id: i64,
-        registry: String,
-        repository: String,
-        description: Option<String>,
-        last_seen_at: String,
-        created_at: String,
+    /// Convert a known package entity model and its tags to a KnownPackage.
+    fn from_model(
+        model: crate::storage::entities::known_package::Model,
         tags: Vec<(String, String)>,
     ) -> Self {
         let mut release_tags = Vec::new();
@@ -154,62 +170,42 @@ impl KnownPackage {
         }
 
         KnownPackage {
-            id,
-            registry,
-            repository,
-            description,
+            id: model.id,
+            registry: model.registry,
+            repository: model.repository,
+            description: model.description,
             tags: release_tags,
             signature_tags,
             attestation_tags,
-            last_seen_at,
-            created_at,
+            last_seen_at: model.last_seen_at,
+            created_at: model.created_at,
         }
     }
 
     /// Helper to fetch tags for a package by its ID, as (tag, tag_type) pairs.
     async fn fetch_tags(conn: &DatabaseConnection, package_id: i64) -> Vec<(String, String)> {
-        let rows = conn
-            .query_all(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT tag, tag_type FROM known_package_tag WHERE known_package_id = ? ORDER BY last_seen_at DESC",
-                vec![Value::from(package_id)],
-            ))
+        use crate::storage::entities::known_package_tag;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
+        let models = known_package_tag::Entity::find()
+            .filter(known_package_tag::Column::KnownPackageId.eq(package_id))
+            .order_by_desc(known_package_tag::Column::LastSeenAt)
+            .all(conn)
             .await
             .unwrap_or_default();
 
-        rows.iter()
-            .filter_map(|row| {
-                let tag: String = row.try_get_by_index(0).ok()?;
-                let tag_type: String = row.try_get_by_index(1).ok()?;
-                Some((tag, tag_type))
-            })
-            .collect()
+        models.into_iter().map(|m| (m.tag, m.tag_type)).collect()
     }
 
-    /// Helper to fetch packages from a query result set.
-    async fn fetch_packages(
+    /// Helper to fetch and build packages from entity models.
+    async fn fetch_packages_from_models(
         conn: &DatabaseConnection,
-        rows: Vec<sea_orm::QueryResult>,
+        models: Vec<crate::storage::entities::known_package::Model>,
     ) -> anyhow::Result<Vec<KnownPackage>> {
         let mut packages = Vec::new();
-        for row in rows {
-            let id: i64 = row.try_get_by_index(0)?;
-            let registry: String = row.try_get_by_index(1)?;
-            let repository: String = row.try_get_by_index(2)?;
-            let description: Option<String> = row.try_get_by_index(3)?;
-            let last_seen_at: String = row.try_get_by_index(4)?;
-            let created_at: String = row.try_get_by_index(5)?;
-
-            let tags = Self::fetch_tags(conn, id).await;
-            packages.push(Self::from_package_and_tags(
-                id,
-                registry,
-                repository,
-                description,
-                last_seen_at,
-                created_at,
-                tags,
-            ));
+        for model in models {
+            let tags = Self::fetch_tags(conn, model.id).await;
+            packages.push(Self::from_model(model, tags));
         }
         Ok(packages)
     }
@@ -220,39 +216,37 @@ impl KnownPackage {
         conn: &DatabaseConnection,
         query: &str,
     ) -> anyhow::Result<Vec<KnownPackage>> {
-        let search_pattern = format!("%{query}%");
-        let rows = conn
-            .query_all(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT id, registry, repository, description, last_seen_at, created_at 
-                 FROM known_package 
-                 WHERE registry LIKE ? OR repository LIKE ?
-                 ORDER BY repository ASC, registry ASC
-                 LIMIT 100",
-                vec![
-                    Value::from(search_pattern.clone()),
-                    Value::from(search_pattern),
-                ],
-            ))
+        use crate::storage::entities::known_package;
+        use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+
+        let models = known_package::Entity::find()
+            .filter(
+                Condition::any()
+                    .add(known_package::Column::Registry.contains(query))
+                    .add(known_package::Column::Repository.contains(query)),
+            )
+            .order_by_asc(known_package::Column::Repository)
+            .order_by_asc(known_package::Column::Registry)
+            .limit(100)
+            .all(conn)
             .await?;
 
-        Self::fetch_packages(conn, rows).await
+        Self::fetch_packages_from_models(conn, models).await
     }
 
     /// Get all known packages, ordered alphabetically by repository.
     pub(crate) async fn get_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<KnownPackage>> {
-        let rows = conn
-            .query_all(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT id, registry, repository, description, last_seen_at, created_at 
-                 FROM known_package 
-                 ORDER BY repository ASC, registry ASC
-                 LIMIT 100",
-                vec![],
-            ))
+        use crate::storage::entities::known_package;
+        use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
+
+        let models = known_package::Entity::find()
+            .order_by_asc(known_package::Column::Repository)
+            .order_by_asc(known_package::Column::Registry)
+            .limit(100)
+            .all(conn)
             .await?;
 
-        Self::fetch_packages(conn, rows).await
+        Self::fetch_packages_from_models(conn, models).await
     }
 
     /// Get a known package by registry and repository.
@@ -262,38 +256,19 @@ impl KnownPackage {
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<Option<KnownPackage>> {
-        let row = conn
-            .query_one(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT id, registry, repository, description, last_seen_at, created_at 
-                 FROM known_package 
-                 WHERE registry = ? AND repository = ?",
-                vec![
-                    Value::from(registry.to_string()),
-                    Value::from(repository.to_string()),
-                ],
-            ))
+        use crate::storage::entities::known_package;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        let model = known_package::Entity::find()
+            .filter(known_package::Column::Registry.eq(registry))
+            .filter(known_package::Column::Repository.eq(repository))
+            .one(conn)
             .await?;
 
-        match row {
-            Some(row) => {
-                let id: i64 = row.try_get_by_index(0)?;
-                let registry: String = row.try_get_by_index(1)?;
-                let repository: String = row.try_get_by_index(2)?;
-                let description: Option<String> = row.try_get_by_index(3)?;
-                let last_seen_at: String = row.try_get_by_index(4)?;
-                let created_at: String = row.try_get_by_index(5)?;
-
-                let tags = Self::fetch_tags(conn, id).await;
-                Ok(Some(Self::from_package_and_tags(
-                    id,
-                    registry,
-                    repository,
-                    description,
-                    last_seen_at,
-                    created_at,
-                    tags,
-                )))
+        match model {
+            Some(model) => {
+                let tags = Self::fetch_tags(conn, model.id).await;
+                Ok(Some(Self::from_model(model, tags)))
             }
             None => Ok(None),
         }

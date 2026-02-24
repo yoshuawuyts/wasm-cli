@@ -7,7 +7,7 @@ use super::models::{ImageEntry, InsertResult, KnownPackage, Migrations, TagType,
 use super::wit_parser::extract_wit_metadata;
 use futures_concurrency::prelude::*;
 use oci_client::{Reference, client::ImageData};
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement, Value};
+use sea_orm::{Database, DatabaseConnection};
 
 /// Calculate the total size of a directory recursively
 async fn dir_size(path: &Path) -> u64 {
@@ -241,50 +241,29 @@ impl Store {
     /// - Tags ending in ".att" are classified as "attestation"
     /// - All other tags are classified as "release"
     pub(crate) async fn rescan_known_package_tags(&self) -> anyhow::Result<usize> {
-        // Get all unique package IDs and their tags
-        let rows = self
-            .conn
-            .query_all(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT DISTINCT kpt.known_package_id, kpt.tag FROM known_package_tag kpt",
-                vec![],
-            ))
-            .await?;
+        use crate::storage::entities::known_package_tag;
+        use sea_orm::{
+            ActiveModelTrait,
+            ActiveValue::{Set, Unchanged},
+            EntityTrait,
+        };
 
-        let tags: Vec<(i64, String)> = rows
-            .iter()
-            .filter_map(|row| {
-                let id: i64 = row.try_get_by_index(0).ok()?;
-                let tag: String = row.try_get_by_index(1).ok()?;
-                Some((id, tag))
-            })
-            .collect();
+        let tags = known_package_tag::Entity::find().all(&self.conn).await?;
 
         let mut updated_count = 0;
 
         // Re-process each tag to ensure it has the correct tag_type
-        for (package_id, tag) in tags {
-            // Determine the correct tag type using existing logic
-            let tag_type = TagType::from_tag(&tag).as_str();
+        for tag_model in tags {
+            let correct_type = TagType::from_tag(&tag_model.tag).as_str().to_string();
 
             // Update the tag type if needed
-            let result = self
-                .conn
-                .execute(Statement::from_sql_and_values(
-                    DbBackend::Sqlite,
-                    "UPDATE known_package_tag 
-                     SET tag_type = ? 
-                     WHERE known_package_id = ? AND tag = ? AND tag_type != ?",
-                    vec![
-                        Value::from(tag_type.to_string()),
-                        Value::from(package_id),
-                        Value::from(tag),
-                        Value::from(tag_type.to_string()),
-                    ],
-                ))
-                .await?;
-
-            if result.rows_affected() > 0 {
+            if tag_model.tag_type != correct_type {
+                let active_model = known_package_tag::ActiveModel {
+                    id: Unchanged(tag_model.id),
+                    tag_type: Set(correct_type),
+                    ..Default::default()
+                };
+                active_model.update(&self.conn).await?;
                 updated_count += 1;
             }
         }

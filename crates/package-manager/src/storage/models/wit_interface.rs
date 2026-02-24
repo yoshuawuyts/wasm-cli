@@ -1,4 +1,4 @@
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, Value};
+use sea_orm::DatabaseConnection;
 
 /// A WIT interface extracted from a WebAssembly component.
 #[derive(Debug, Clone)]
@@ -47,6 +47,19 @@ impl WitInterface {
         }
     }
 
+    /// Convert a SeaORM wit_interface model to a WitInterface.
+    fn from_model(model: crate::storage::entities::wit_interface::Model) -> Self {
+        Self {
+            id: model.id,
+            package_name: model.package_name,
+            wit_text: model.wit_text,
+            world_name: model.world_name,
+            import_count: model.import_count,
+            export_count: model.export_count,
+            created_at: model.created_at,
+        }
+    }
+
     /// Insert a new WIT interface and return its ID.
     /// Uses content-addressable storage - if the same WIT text already exists, returns existing ID.
     pub(crate) async fn insert(
@@ -57,43 +70,31 @@ impl WitInterface {
         import_count: i32,
         export_count: i32,
     ) -> anyhow::Result<i64> {
+        use crate::storage::entities::wit_interface;
+        use sea_orm::{ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+
         // Check if this exact WIT text already exists
-        let existing = conn
-            .query_one(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT id FROM wit_interface WHERE wit_text = ?",
-                vec![Value::from(wit_text.to_string())],
-            ))
+        let existing = wit_interface::Entity::find()
+            .filter(wit_interface::Column::WitText.eq(wit_text))
+            .one(conn)
             .await?;
 
-        if let Some(row) = existing {
-            return Ok(row.try_get_by_index::<i64>(0)?);
+        if let Some(model) = existing {
+            return Ok(model.id);
         }
 
         // Insert new WIT interface
-        conn.execute(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO wit_interface (wit_text, package_name, world_name, import_count, export_count) VALUES (?, ?, ?, ?, ?)",
-            vec![
-                Value::from(wit_text.to_string()),
-                Value::from(package_name.map(|s| s.to_string())),
-                Value::from(world_name.map(|s| s.to_string())),
-                Value::from(import_count),
-                Value::from(export_count),
-            ],
-        ))
-        .await?;
+        let model = wit_interface::ActiveModel {
+            wit_text: Set(wit_text.to_string()),
+            package_name: Set(package_name.map(|s| s.to_string())),
+            world_name: Set(world_name.map(|s| s.to_string())),
+            import_count: Set(import_count),
+            export_count: Set(export_count),
+            ..Default::default()
+        };
 
-        // Get the last inserted ID
-        let row = conn
-            .query_one(Statement::from_string(
-                DbBackend::Sqlite,
-                "SELECT last_insert_rowid()".to_owned(),
-            ))
-            .await?
-            .expect("last_insert_rowid should always return a row");
-
-        Ok(row.try_get_by_index::<i64>(0)?)
+        let result = wit_interface::Entity::insert(model).exec(conn).await?;
+        Ok(result.last_insert_id)
     }
 
     /// Link an image to a WIT interface.
@@ -102,13 +103,30 @@ impl WitInterface {
         image_id: i64,
         wit_interface_id: i64,
     ) -> anyhow::Result<()> {
-        conn.execute(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT OR IGNORE INTO image_wit_interface (image_id, wit_interface_id) VALUES (?, ?)",
-            vec![Value::from(image_id), Value::from(wit_interface_id)],
-        ))
-        .await?;
-        Ok(())
+        use crate::storage::entities::image_wit_interface;
+        use sea_orm::{ActiveValue::Set, EntityTrait};
+
+        let model = image_wit_interface::ActiveModel {
+            image_id: Set(image_id),
+            wit_interface_id: Set(wit_interface_id),
+        };
+
+        let on_conflict = sea_orm::sea_query::OnConflict::columns([
+            image_wit_interface::Column::ImageId,
+            image_wit_interface::Column::WitInterfaceId,
+        ])
+        .do_nothing()
+        .to_owned();
+
+        // INSERT OR IGNORE semantics: ignore RecordNotInserted errors
+        match image_wit_interface::Entity::insert(model)
+            .on_conflict(on_conflict)
+            .exec(conn)
+            .await
+        {
+            Ok(_) | Err(sea_orm::DbErr::RecordNotInserted) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Get WIT interface for an image by image ID.
@@ -117,92 +135,74 @@ impl WitInterface {
         conn: &DatabaseConnection,
         image_id: i64,
     ) -> anyhow::Result<Option<Self>> {
-        let row = conn
-            .query_one(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT w.id, w.package_name, w.wit_text, w.world_name, w.import_count, w.export_count, w.created_at
-                 FROM wit_interface w
-                 JOIN image_wit_interface iwi ON w.id = iwi.wit_interface_id
-                 WHERE iwi.image_id = ?",
-                vec![Value::from(image_id)],
-            ))
+        use crate::storage::entities::{image_wit_interface, wit_interface};
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        let model = wit_interface::Entity::find()
+            .inner_join(image_wit_interface::Entity)
+            .filter(image_wit_interface::Column::ImageId.eq(image_id))
+            .one(conn)
             .await?;
 
-        match row {
-            Some(row) => Ok(Some(Self::from_query_result(&row)?)),
-            None => Ok(None),
-        }
+        Ok(model.map(Self::from_model))
     }
 
     /// Get all WIT interfaces with their associated image references.
     pub(crate) async fn get_all_with_images(
         conn: &DatabaseConnection,
     ) -> anyhow::Result<Vec<(Self, String)>> {
-        let rows = conn
-            .query_all(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT w.id, w.package_name, w.wit_text, w.world_name, w.import_count, w.export_count, w.created_at,
-                        i.ref_registry || '/' || i.ref_repository || COALESCE(':' || i.ref_tag, '') as reference
-                 FROM wit_interface w
-                 JOIN image_wit_interface iwi ON w.id = iwi.wit_interface_id
-                 JOIN image i ON iwi.image_id = i.id
-                 ORDER BY w.package_name ASC, w.world_name ASC, i.ref_repository ASC",
-                vec![],
-            ))
+        use crate::storage::entities::{image, wit_interface};
+        use sea_orm::{EntityTrait, QueryOrder};
+
+        let results: Vec<(wit_interface::Model, Vec<image::Model>)> = wit_interface::Entity::find()
+            .find_with_related(image::Entity)
+            .order_by_asc(wit_interface::Column::PackageName)
+            .order_by_asc(wit_interface::Column::WorldName)
+            .all(conn)
             .await?;
 
-        let mut result = Vec::new();
-        for row in &rows {
-            let interface = Self::from_query_result(row)?;
-            let reference: String = row.try_get_by_index(7)?;
-            result.push((interface, reference));
+        let mut output = Vec::new();
+        for (wit_model, mut image_models) in results {
+            // Skip wit interfaces without images (equivalent to INNER JOIN)
+            if image_models.is_empty() {
+                continue;
+            }
+            // Sort images by repository to match original ordering
+            image_models.sort_by(|a, b| a.ref_repository.cmp(&b.ref_repository));
+            for img in image_models {
+                let mut reference = format!("{}/{}", img.ref_registry, img.ref_repository);
+                if let Some(tag) = &img.ref_tag {
+                    reference.push(':');
+                    reference.push_str(tag);
+                }
+                output.push((Self::from_model(wit_model.clone()), reference));
+            }
         }
-        Ok(result)
+        Ok(output)
     }
 
     /// Get all unique WIT interfaces.
     #[allow(dead_code)]
     pub(crate) async fn get_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<Self>> {
-        let rows = conn
-            .query_all(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "SELECT id, package_name, wit_text, world_name, import_count, export_count, created_at
-                 FROM wit_interface
-                 ORDER BY package_name ASC, world_name ASC",
-                vec![],
-            ))
+        use crate::storage::entities::wit_interface;
+        use sea_orm::{EntityTrait, QueryOrder};
+
+        let models = wit_interface::Entity::find()
+            .order_by_asc(wit_interface::Column::PackageName)
+            .order_by_asc(wit_interface::Column::WorldName)
+            .all(conn)
             .await?;
 
-        let mut result = Vec::new();
-        for row in &rows {
-            result.push(Self::from_query_result(row)?);
-        }
-        Ok(result)
+        Ok(models.into_iter().map(Self::from_model).collect())
     }
 
     /// Delete a WIT interface by ID (also removes links).
     #[allow(dead_code)]
     pub(crate) async fn delete(conn: &DatabaseConnection, id: i64) -> anyhow::Result<bool> {
-        let result = conn
-            .execute(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "DELETE FROM wit_interface WHERE id = ?",
-                vec![Value::from(id)],
-            ))
-            .await?;
-        Ok(result.rows_affected() > 0)
-    }
+        use crate::storage::entities::wit_interface;
+        use sea_orm::EntityTrait;
 
-    /// Helper to construct a WitInterface from a query result row.
-    fn from_query_result(row: &sea_orm::QueryResult) -> anyhow::Result<Self> {
-        Ok(Self {
-            id: row.try_get_by_index(0)?,
-            package_name: row.try_get_by_index(1)?,
-            wit_text: row.try_get_by_index(2)?,
-            world_name: row.try_get_by_index(3)?,
-            import_count: row.try_get_by_index(4)?,
-            export_count: row.try_get_by_index(5)?,
-            created_at: row.try_get_by_index(6)?,
-        })
+        let result = wit_interface::Entity::delete_by_id(id).exec(conn).await?;
+        Ok(result.rows_affected > 0)
     }
 }
