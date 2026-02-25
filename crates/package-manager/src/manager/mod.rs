@@ -1,8 +1,10 @@
 use oci_client::Reference;
 use oci_client::manifest::OciImageManifest;
 use std::path::Path;
+use tokio_stream::StreamExt;
 
 use crate::network::Client;
+use crate::progress::ProgressEvent;
 use crate::storage::{ImageEntry, InsertResult, KnownPackage, StateInfo, Store, WitInterface};
 
 /// Result of a pull operation.
@@ -136,6 +138,119 @@ impl Manager {
         })
     }
 
+    /// Pull a package from the registry with per-layer progress reporting.
+    ///
+    /// This method streams layers individually and sends `ProgressEvent`s
+    /// via the provided channel to enable progress bar rendering.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if offline mode is enabled or if any network/storage
+    /// operation fails.
+    pub async fn pull_with_progress(
+        &self,
+        reference: Reference,
+        progress_tx: &tokio::sync::mpsc::Sender<ProgressEvent>,
+    ) -> anyhow::Result<PullResult> {
+        if self.offline {
+            anyhow::bail!("cannot pull packages in offline mode");
+        }
+
+        // Fetch manifest and config
+        let (manifest, digest) = self.client.pull_manifest(&reference).await?;
+
+        let layer_count = manifest.layers.len();
+        let _ = progress_tx
+            .send(ProgressEvent::ManifestFetched { layer_count })
+            .await;
+
+        // Calculate total size from manifest layer descriptors
+        let size_on_disk: u64 = manifest.layers.iter().map(|l| l.size.max(0) as u64).sum();
+
+        // Insert metadata into the database
+        let (result, image_id) =
+            self.store
+                .insert_metadata(&reference, Some(&digest), &manifest, size_on_disk)?;
+
+        if result == InsertResult::Inserted {
+            // Stream and store each layer individually with progress
+            for (index, layer_descriptor) in manifest.layers.iter().enumerate() {
+                let total_bytes = if layer_descriptor.size > 0 {
+                    Some(layer_descriptor.size as u64)
+                } else {
+                    None
+                };
+
+                let _ = progress_tx
+                    .send(ProgressEvent::LayerStarted {
+                        index,
+                        digest: layer_descriptor.digest.clone(),
+                        total_bytes,
+                    })
+                    .await;
+
+                // Stream the layer data
+                let mut stream = self
+                    .client
+                    .pull_layer_stream(&reference, layer_descriptor)
+                    .await?;
+
+                let mut layer_data = Vec::new();
+                let mut bytes_downloaded: u64 = 0;
+
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk?;
+                    bytes_downloaded += chunk.len() as u64;
+                    layer_data.extend_from_slice(&chunk);
+
+                    let _ = progress_tx
+                        .send(ProgressEvent::LayerProgress {
+                            index,
+                            bytes_downloaded,
+                        })
+                        .await;
+                }
+
+                let _ = progress_tx
+                    .send(ProgressEvent::LayerDownloaded { index })
+                    .await;
+
+                // Store the layer
+                self.store
+                    .insert_layer(&layer_descriptor.digest, &layer_data, image_id)
+                    .await?;
+
+                let _ = progress_tx.send(ProgressEvent::LayerStored { index }).await;
+            }
+        }
+
+        // Add to known packages when pulling (with tag if present)
+        self.store.add_known_package(
+            reference.registry(),
+            reference.repository(),
+            reference.tag(),
+            None,
+        )?;
+
+        // Fetch all related tags and store them as known packages
+        if let Ok(tags) = self.client.list_tags(&reference).await {
+            for tag in tags {
+                self.store.add_known_package(
+                    reference.registry(),
+                    reference.repository(),
+                    Some(&tag),
+                    None,
+                )?;
+            }
+        }
+
+        Ok(PullResult {
+            insert_result: result,
+            digest: Some(digest),
+            manifest: Some(manifest),
+        })
+    }
+
     /// Hard-link a cached layer to a destination path.
     ///
     /// Uses `cacache::hard_link` to create a hard-link from the global cache
@@ -221,6 +336,77 @@ impl Manager {
         })
     }
 
+    /// Install a package from the registry with per-layer progress reporting.
+    ///
+    /// Like [`install`](Self::install), but sends `ProgressEvent`s via the provided
+    /// channel to enable progress bar rendering in the CLI or TUI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if pulling, vendoring, or filesystem operations fail.
+    pub async fn install_with_progress(
+        &self,
+        reference: Reference,
+        vendor_dir: &Path,
+        progress_tx: &tokio::sync::mpsc::Sender<ProgressEvent>,
+    ) -> anyhow::Result<InstallResult> {
+        use crate::storage::wit_parser::extract_wit_metadata;
+
+        let pull_result = self
+            .pull_with_progress(reference.clone(), progress_tx)
+            .await?;
+
+        let mut vendored_files = Vec::new();
+        let mut package_name = None;
+
+        // Pre-compute filename parts from the OCI reference and image digest.
+        let registry_part = reference.registry().replace('.', "-");
+        let repo_part = reference.repository().replace('/', "-");
+        let tag_part = reference.tag().map(|t| format!("-{t}")).unwrap_or_default();
+        let digest_for_name = pull_result.digest.as_deref().unwrap_or("unknown");
+        let sha_part = digest_for_name
+            .strip_prefix("sha256:")
+            .unwrap_or(digest_for_name);
+        let short_sha = sha_part.get(..12).unwrap_or(sha_part);
+
+        if let Some(ref manifest) = pull_result.manifest {
+            for layer in &manifest.layers {
+                if layer.media_type == "application/wasm" {
+                    let filename =
+                        format!("{registry_part}-{repo_part}{tag_part}-{short_sha}.wasm");
+                    let dest = vendor_dir.join(&filename);
+
+                    // Ensure vendor directory exists
+                    tokio::fs::create_dir_all(vendor_dir).await?;
+
+                    // Remove existing file if present (hard-link requires non-existent target)
+                    let _ = tokio::fs::remove_file(&dest).await;
+
+                    self.vendor(&layer.digest, &dest).await?;
+                    vendored_files.push(dest);
+
+                    // Try to extract WIT package name from the layer data
+                    if package_name.is_none()
+                        && let Ok(data) = self.get(&layer.digest).await
+                        && let Some(metadata) = extract_wit_metadata(&data)
+                    {
+                        package_name = metadata.package_name;
+                    }
+                }
+            }
+        }
+
+        let _ = progress_tx.send(ProgressEvent::InstallComplete).await;
+
+        Ok(InstallResult {
+            registry: reference.registry().to_string(),
+            repository: reference.repository().to_string(),
+            tag: reference.tag().map(|s| s.to_string()),
+            digest: pull_result.digest,
+            package_name,
+            vendored_files,
+        })
+    }
     /// List all stored images and their metadata.
     pub fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
         self.store.list_all()

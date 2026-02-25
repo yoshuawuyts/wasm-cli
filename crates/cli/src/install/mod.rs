@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
-use wasm_package_manager::{Manager, Reference};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use wasm_package_manager::{Manager, ProgressEvent, Reference};
 
 use crate::util::write_lock_file;
 
@@ -46,8 +47,29 @@ impl Opts {
             Manager::open().await?
         };
 
-        // Install the package
-        let result = manager.install(self.reference.clone(), &vendor_dir).await?;
+        // Install the package with progress reporting
+        let result = if offline {
+            // No progress bars in offline mode
+            manager.install(self.reference.clone(), &vendor_dir).await?
+        } else {
+            let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
+            let multi = MultiProgress::new();
+
+            // Spawn progress rendering task
+            let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
+
+            let result = manager
+                .install_with_progress(self.reference.clone(), &vendor_dir, &progress_tx)
+                .await;
+
+            // Drop the sender to signal the progress task to finish
+            drop(progress_tx);
+
+            // Wait for progress bars to finish rendering
+            let _ = progress_handle.await;
+
+            result?
+        };
 
         // Use the package name from WIT metadata if available,
         // otherwise fall back to the full OCI path (registry/repository).
@@ -115,5 +137,88 @@ impl Opts {
         }
 
         Ok(())
+    }
+}
+
+/// Consume progress events and render multi-progress bars.
+async fn run_progress_bars(
+    multi: MultiProgress,
+    mut rx: tokio::sync::mpsc::Receiver<ProgressEvent>,
+) {
+    let mut bars: Vec<ProgressBar> = Vec::new();
+
+    let bar_style_sized = ProgressStyle::with_template(
+        "{spinner:.green} {prefix} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})",
+    )
+    .expect("valid progress bar template")
+    .progress_chars("=>-");
+
+    let bar_style_spinner =
+        ProgressStyle::with_template("{spinner:.green} {prefix} {bytes} (unknown size)")
+            .expect("valid progress bar template");
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            ProgressEvent::ManifestFetched { .. } => {
+                // Bars will be created on LayerStarted
+            }
+            ProgressEvent::LayerStarted {
+                index,
+                ref digest,
+                total_bytes,
+            } => {
+                // Use short digest as prefix
+                let short_digest = digest
+                    .strip_prefix("sha256:")
+                    .unwrap_or(digest)
+                    .get(..12)
+                    .unwrap_or(digest);
+                let prefix = format!("{short_digest}:");
+
+                let pb = if let Some(total) = total_bytes {
+                    let pb = multi.add(ProgressBar::new(total));
+                    pb.set_style(bar_style_sized.clone());
+                    pb
+                } else {
+                    let pb = multi.add(ProgressBar::new_spinner());
+                    pb.set_style(bar_style_spinner.clone());
+                    pb
+                };
+                pb.set_prefix(prefix);
+
+                // Ensure the bars vec is large enough
+                while bars.len() <= index {
+                    bars.push(ProgressBar::hidden());
+                }
+                if let Some(slot) = bars.get_mut(index) {
+                    *slot = pb;
+                }
+            }
+            ProgressEvent::LayerProgress {
+                index,
+                bytes_downloaded,
+            } => {
+                if let Some(pb) = bars.get(index) {
+                    pb.set_position(bytes_downloaded);
+                }
+            }
+            ProgressEvent::LayerDownloaded { index } => {
+                if let Some(pb) = bars.get(index) {
+                    pb.set_message("storing...");
+                }
+            }
+            ProgressEvent::LayerStored { index } => {
+                if let Some(pb) = bars.get(index) {
+                    pb.finish_with_message("✓ done");
+                }
+            }
+            ProgressEvent::InstallComplete => {
+                for pb in &bars {
+                    if !pb.is_finished() {
+                        pb.finish_with_message("✓ done");
+                    }
+                }
+            }
+        }
     }
 }

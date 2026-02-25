@@ -138,6 +138,47 @@ impl Store {
         Ok((result, digest, manifest))
     }
 
+    /// Insert only the metadata (SQLite entry) for an image, without storing layers.
+    ///
+    /// Returns the insert result and the optional image ID.
+    pub(crate) fn insert_metadata(
+        &self,
+        reference: &Reference,
+        digest: Option<&str>,
+        manifest: &OciImageManifest,
+        size_on_disk: u64,
+    ) -> anyhow::Result<(InsertResult, Option<i64>)> {
+        let manifest_str = serde_json::to_string(manifest)?;
+        ImageEntry::insert(
+            &self.conn,
+            reference.registry(),
+            reference.repository(),
+            reference.tag(),
+            digest,
+            &manifest_str,
+            size_on_disk,
+        )
+    }
+
+    /// Insert a single layer into the content-addressable store.
+    ///
+    /// Optionally extracts WIT interface metadata if an `image_id` is provided.
+    pub(crate) async fn insert_layer(
+        &self,
+        layer_digest: &str,
+        data: &[u8],
+        image_id: Option<i64>,
+    ) -> anyhow::Result<()> {
+        let cache = self.state_info.store_dir();
+        let _integrity = cacache::write(&cache, layer_digest, data).await?;
+
+        if let Some(image_id) = image_id {
+            self.try_extract_wit_interface(image_id, data);
+        }
+
+        Ok(())
+    }
+
     /// Attempt to extract WIT interface from wasm component bytes.
     /// This is best-effort - if extraction fails, we log a warning and skip.
     fn try_extract_wit_interface(&self, image_id: i64, wasm_bytes: &[u8]) {

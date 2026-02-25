@@ -5,10 +5,12 @@
 
 mod manager;
 mod network;
+mod progress;
 mod storage;
 
 pub use manager::{InstallResult, Manager, PullResult};
 pub use oci_client::Reference;
+pub use progress::ProgressEvent;
 pub use storage::{ImageEntry, InsertResult, KnownPackage, StateInfo, WitInterface};
 
 /// Format a byte size as a human-readable string (B, KB, MB, GB).

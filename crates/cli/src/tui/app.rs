@@ -328,6 +328,9 @@ impl App {
                 ManagerEvent::LocalWasmList(files) => {
                     self.local_wasm_files = files;
                 }
+                ManagerEvent::PullProgress(_progress) => {
+                    // Progress events received — TUI rendering deferred to follow-up
+                }
             }
         }
     }
