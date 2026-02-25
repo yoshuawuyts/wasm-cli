@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use wasm_package_manager::{Manager, Reference};
 
 use crate::util::write_lock_file;
@@ -17,12 +17,26 @@ impl Opts {
         let lockfile_path = deps.join("wasm.lock.toml");
         let vendor_dir = deps.join("vendor/wasm");
 
-        // Read existing manifest
-        let manifest_str = tokio::fs::read_to_string(&manifest_path).await?;
+        // Read existing manifest — error if not found, recommend `wasm init`
+        let manifest_str = tokio::fs::read_to_string(&manifest_path)
+            .await
+            .with_context(|| {
+                format!(
+                    "could not read '{}'. Run `wasm init` first to create the project files",
+                    manifest_path.display()
+                )
+            })?;
         let mut manifest: wasm_manifest::Manifest = toml::from_str(&manifest_str)?;
 
-        // Read existing lockfile
-        let lockfile_str = tokio::fs::read_to_string(&lockfile_path).await?;
+        // Read existing lockfile — error if not found, recommend `wasm init`
+        let lockfile_str = tokio::fs::read_to_string(&lockfile_path)
+            .await
+            .with_context(|| {
+                format!(
+                    "could not read '{}'. Run `wasm init` first to create the project files",
+                    lockfile_path.display()
+                )
+            })?;
         let mut lockfile: wasm_manifest::Lockfile = toml::from_str(&lockfile_str)?;
 
         // Open manager
@@ -35,9 +49,12 @@ impl Opts {
         // Install the package
         let result = manager.install(self.reference.clone(), &vendor_dir).await?;
 
-        // Derive the dependency name from the repository path
-        // e.g., "webassembly/wasi-logging" -> "wasi:logging" (use last segment, replace - with :)
-        let dep_name = derive_dependency_name(&result.repository);
+        // Use the package name from WIT metadata if available,
+        // otherwise fall back to the full OCI path (registry/repository)
+        let dep_name = result
+            .package_name
+            .clone()
+            .unwrap_or_else(|| format!("{}/{}", result.registry, result.repository));
 
         // Determine the version from the tag
         let version = result.tag.clone().unwrap_or_default();
@@ -95,32 +112,5 @@ impl Opts {
         }
 
         Ok(())
-    }
-}
-
-/// Derive a dependency name from a repository path.
-///
-/// Takes a repository path like "webassembly/wasi-logging" and converts it
-/// to a dependency name like "wasi-logging" (the last path segment).
-fn derive_dependency_name(repository: &str) -> String {
-    repository
-        .rsplit('/')
-        .next()
-        .unwrap_or(repository)
-        .to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_derive_dependency_name() {
-        assert_eq!(
-            derive_dependency_name("webassembly/wasi-logging"),
-            "wasi-logging"
-        );
-        assert_eq!(derive_dependency_name("user/my-component"), "my-component");
-        assert_eq!(derive_dependency_name("simple"), "simple");
     }
 }

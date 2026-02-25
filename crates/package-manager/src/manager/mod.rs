@@ -33,6 +33,8 @@ pub struct InstallResult {
     pub tag: Option<String>,
     /// The content digest of the image.
     pub digest: Option<String>,
+    /// The WIT package name if available (e.g., "wasi:logging@0.1.0").
+    pub package_name: Option<String>,
     /// The list of vendored file paths.
     pub vendored_files: Vec<std::path::PathBuf>,
 }
@@ -164,9 +166,12 @@ impl Manager {
         reference: Reference,
         vendor_dir: &Path,
     ) -> anyhow::Result<InstallResult> {
+        use crate::storage::wit_parser::extract_wit_metadata;
+
         let pull_result = self.pull(reference.clone()).await?;
 
         let mut vendored_files = Vec::new();
+        let mut package_name = None;
 
         if let Some(ref manifest) = pull_result.manifest {
             for layer in &manifest.layers {
@@ -183,6 +188,14 @@ impl Manager {
 
                     self.vendor(&layer.digest, &dest).await?;
                     vendored_files.push(dest);
+
+                    // Try to extract WIT package name from the layer data
+                    if package_name.is_none()
+                        && let Ok(data) = self.get(&layer.digest).await
+                        && let Some(metadata) = extract_wit_metadata(&data)
+                    {
+                        package_name = metadata.package_name;
+                    }
                 }
             }
         }
@@ -192,6 +205,7 @@ impl Manager {
             repository: reference.repository().to_string(),
             tag: reference.tag().map(|s| s.to_string()),
             digest: pull_result.digest,
+            package_name,
             vendored_files,
         })
     }
