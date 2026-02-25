@@ -54,12 +54,11 @@ impl Opts {
         } else {
             let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
             let multi = MultiProgress::new();
-
-            // Print the OCI URL above the progress bars
-            multi.println(self.reference.whole())?;
+            let reference_str = self.reference.whole().to_string();
 
             // Spawn progress rendering task
-            let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
+            let progress_handle =
+                tokio::task::spawn(run_progress_bars(multi, progress_rx, reference_str));
 
             let result = manager
                 .install_with_progress(self.reference.clone(), &vendor_dir, &progress_tx)
@@ -143,27 +142,44 @@ impl Opts {
     }
 }
 
-/// Consume progress events and render multi-progress bars.
+/// Consume progress events and render tree-style multi-progress bars.
 async fn run_progress_bars(
     multi: MultiProgress,
     mut rx: tokio::sync::mpsc::Receiver<ProgressEvent>,
+    reference: String,
 ) {
     let mut bars: Vec<ProgressBar> = Vec::new();
+    let mut layer_count: usize = 0;
 
-    let bar_style_sized = ProgressStyle::with_template(
-        "{spinner:.green} {prefix} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})",
+    // In-progress style: yellow tree prefix + bar + bytes + eta
+    let bar_style_progress = ProgressStyle::with_template(
+        "{prefix:.yellow} {bar:12.yellow} {bytes}/{total_bytes} {eta}",
     )
     .expect("valid progress bar template")
-    .progress_chars("=>-");
+    .progress_chars("━━┄");
 
+    // In-progress spinner style (unknown size)
     let bar_style_spinner =
-        ProgressStyle::with_template("{spinner:.green} {prefix} {bytes} (unknown size)")
+        ProgressStyle::with_template("{prefix:.yellow} {spinner:.yellow} {bytes}")
             .expect("valid progress bar template");
+
+    // Completed style: green tree prefix + checkmark + total bytes
+    let bar_style_done = ProgressStyle::with_template("{prefix:.green} ✓ {bytes:.green}")
+        .expect("valid progress bar template");
 
     while let Some(event) = rx.recv().await {
         match event {
-            ProgressEvent::ManifestFetched { .. } => {
-                // Bars will be created on LayerStarted
+            ProgressEvent::ManifestFetched {
+                layer_count: count,
+                ref image_digest,
+            } => {
+                layer_count = count;
+                let short_digest = image_digest
+                    .strip_prefix("sha256:")
+                    .unwrap_or(image_digest)
+                    .get(..5)
+                    .unwrap_or(image_digest);
+                let _ = multi.println(format!("{reference} [{short_digest}]"));
             }
             ProgressEvent::LayerStarted {
                 index,
@@ -172,7 +188,13 @@ async fn run_progress_bars(
                 ref title,
                 ref media_type,
             } => {
-                // Use short digest for differentiation
+                // Tree glyph: ├── for non-last, └── for last
+                let tree_glyph = if layer_count > 0 && index + 1 < layer_count {
+                    "├──"
+                } else {
+                    "└──"
+                };
+
                 let short_digest = digest
                     .strip_prefix("sha256:")
                     .unwrap_or(digest)
@@ -180,16 +202,12 @@ async fn run_progress_bars(
                     .unwrap_or(digest);
 
                 // Prefer title annotation, fall back to media type
-                let label = if let Some(t) = title {
-                    t.clone()
-                } else {
-                    media_type.clone()
-                };
-                let prefix = format!("{label} ({short_digest}):");
+                let label = title.as_deref().unwrap_or(media_type);
+                let prefix = format!("{tree_glyph} [{short_digest}] {label}");
 
                 let pb = if let Some(total) = total_bytes {
                     let pb = multi.add(ProgressBar::new(total));
-                    pb.set_style(bar_style_sized.clone());
+                    pb.set_style(bar_style_progress.clone());
                     pb
                 } else {
                     let pb = multi.add(ProgressBar::new_spinner());
@@ -214,20 +232,20 @@ async fn run_progress_bars(
                     pb.set_position(bytes_downloaded);
                 }
             }
-            ProgressEvent::LayerDownloaded { index } => {
-                if let Some(pb) = bars.get(index) {
-                    pb.set_message("storing...");
-                }
+            ProgressEvent::LayerDownloaded { .. } => {
+                // Download complete — will be marked done on LayerStored
             }
             ProgressEvent::LayerStored { index } => {
                 if let Some(pb) = bars.get(index) {
-                    pb.finish_with_message("✓ done");
+                    pb.set_style(bar_style_done.clone());
+                    pb.finish();
                 }
             }
             ProgressEvent::InstallComplete => {
                 for pb in &bars {
                     if !pb.is_finished() {
-                        pb.finish_with_message("✓ done");
+                        pb.set_style(bar_style_done.clone());
+                        pb.finish();
                     }
                 }
             }

@@ -161,7 +161,10 @@ impl Manager {
 
         let layer_count = manifest.layers.len();
         let _ = progress_tx
-            .send(ProgressEvent::ManifestFetched { layer_count })
+            .send(ProgressEvent::ManifestFetched {
+                layer_count,
+                image_digest: digest.clone(),
+            })
             .await;
 
         // Calculate total size from manifest layer descriptors
@@ -224,6 +227,30 @@ impl Manager {
                 self.store
                     .insert_layer(&layer_descriptor.digest, &layer_data, image_id)
                     .await?;
+
+                let _ = progress_tx.send(ProgressEvent::LayerStored { index }).await;
+            }
+        } else {
+            // Package already cached — show layers as completed
+            for (index, layer_descriptor) in manifest.layers.iter().enumerate() {
+                let total_bytes = if layer_descriptor.size > 0 {
+                    Some(layer_descriptor.size as u64)
+                } else {
+                    None
+                };
+
+                let _ = progress_tx
+                    .send(ProgressEvent::LayerStarted {
+                        index,
+                        digest: layer_descriptor.digest.clone(),
+                        total_bytes,
+                        title: layer_descriptor
+                            .annotations
+                            .as_ref()
+                            .and_then(|a| a.get("org.opencontainers.image.title").cloned()),
+                        media_type: layer_descriptor.media_type.clone(),
+                    })
+                    .await;
 
                 let _ = progress_tx.send(ProgressEvent::LayerStored { index }).await;
             }

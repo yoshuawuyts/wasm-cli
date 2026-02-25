@@ -8,6 +8,8 @@ pub enum ProgressEvent {
     ManifestFetched {
         /// The number of layers in the manifest.
         layer_count: usize,
+        /// The content digest of the image (e.g., "sha256:abc123...").
+        image_digest: String,
     },
     /// A layer download has started.
     LayerStarted {
