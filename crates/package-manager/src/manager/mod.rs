@@ -61,6 +61,7 @@ impl Manager {
             client,
             store,
             config,
+            offline: false,
         })
     }
 
