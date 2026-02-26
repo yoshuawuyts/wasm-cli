@@ -549,6 +549,80 @@ impl Manager {
         self.store.rescan_known_package_tags()
     }
 
+    /// Get a known package by registry and repository.
+    pub fn get_known_package(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Option<KnownPackage>> {
+        self.store.get_known_package(registry, repository)
+    }
+
+    /// Index a package from the registry without downloading layers.
+    ///
+    /// Fetches the manifest and config to extract metadata (description from
+    /// OCI annotations), lists all tags, and upserts into the known packages
+    /// table. This is useful for building a search index without storing
+    /// actual wasm content.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if offline mode is enabled or if network operations fail.
+    pub async fn index_package(&self, reference: &Reference) -> anyhow::Result<KnownPackage> {
+        if self.offline {
+            anyhow::bail!("cannot index packages in offline mode");
+        }
+
+        // Discover available tags first — the reference may not carry a valid
+        // tag (e.g. the default "latest" might not exist).
+        let tags = self.client.list_tags(reference).await?;
+        anyhow::ensure!(
+            !tags.is_empty(),
+            "no tags found for {}/{}",
+            reference.registry(),
+            reference.repository()
+        );
+
+        // Pick the tag to use for pulling metadata: prefer the tag on the
+        // reference if it exists in the remote, otherwise fall back to the
+        // first available tag.
+        let meta_tag = reference
+            .tag()
+            .filter(|t| tags.iter().any(|remote| remote == *t))
+            .unwrap_or_else(|| tags.first().expect("tags verified non-empty"));
+
+        // Build a reference with the chosen tag so we can pull its manifest.
+        let meta_ref: Reference = format!(
+            "{}/{}:{}",
+            reference.registry(),
+            reference.repository(),
+            meta_tag
+        )
+        .parse()?;
+
+        // Fetch manifest to extract metadata (e.g. description).
+        let (manifest, _digest) = self.client.pull_manifest(&meta_ref).await?;
+        let description = manifest
+            .annotations
+            .as_ref()
+            .and_then(|a| a.get("org.opencontainers.image.description").cloned());
+
+        // Store every discovered tag.
+        for tag in &tags {
+            self.store.add_known_package(
+                reference.registry(),
+                reference.repository(),
+                Some(tag),
+                description.as_deref(),
+            )?;
+        }
+
+        // Return the indexed package.
+        self.store
+            .get_known_package(reference.registry(), reference.repository())?
+            .ok_or_else(|| anyhow::anyhow!("failed to retrieve indexed package"))
+    }
+
     /// Get all WIT interfaces with their associated component references.
     pub fn list_wit_interfaces_with_components(
         &self,

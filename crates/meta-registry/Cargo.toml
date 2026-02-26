@@ -1,0 +1,39 @@
+[package]
+name = "wasm-meta-registry"
+description = "An HTTP server that indexes OCI registries for WebAssembly package metadata and exposes a search API"
+readme = "README.md"
+repository = { workspace = true }
+documentation = { workspace = true }
+version = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+categories = { workspace = true }
+keywords = { workspace = true }
+
+[[bin]]
+name = "wasm-meta-registry"
+path = "src/main.rs"
+
+[lib]
+name = "wasm_meta_registry"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+toml = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+wasm-package-manager = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+reqwest = { workspace = true }
+
+[lints]
+workspace = true
