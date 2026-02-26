@@ -564,7 +564,12 @@ impl Manager {
         // Discover available tags first — the reference may not carry a valid
         // tag (e.g. the default "latest" might not exist).
         let tags = self.client.list_tags(reference).await?;
-        anyhow::ensure!(!tags.is_empty(), "no tags found for {}/{}", reference.registry(), reference.repository());
+        anyhow::ensure!(
+            !tags.is_empty(),
+            "no tags found for {}/{}",
+            reference.registry(),
+            reference.repository()
+        );
 
         // Pick the tag to use for pulling metadata: prefer the tag on the
         // reference if it exists in the remote, otherwise fall back to the
