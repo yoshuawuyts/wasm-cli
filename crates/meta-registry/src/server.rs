@@ -144,9 +144,7 @@ mod tests {
 
         // Spawn the server in a background task.
         let server = tokio::spawn(async move {
-            axum::serve(listener, app)
-                .await
-                .expect("server error");
+            axum::serve(listener, app).await.expect("server error");
         });
 
         // Hit the health endpoint.
