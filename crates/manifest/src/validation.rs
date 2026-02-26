@@ -59,14 +59,14 @@ impl std::error::Error for ValidationError {}
 /// use wasm_manifest::{Manifest, Lockfile, validate};
 ///
 /// let manifest_toml = r#"
-/// [dependencies]
+/// [interfaces]
 /// "wasi:logging" = "ghcr.io/webassembly/wasi-logging:1.0.0"
 /// "#;
 ///
 /// let lockfile_toml = r#"
-/// version = 1
+/// lockfile_version = 2
 ///
-/// [[package]]
+/// [[interfaces]]
 /// name = "wasi:logging"
 /// version = "1.0.0"
 /// registry = "ghcr.io/webassembly/wasi-logging"
@@ -86,13 +86,21 @@ impl std::error::Error for ValidationError {}
 pub fn validate(manifest: &Manifest, lockfile: &Lockfile) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
 
-    // Build a set of package names from the lockfile for quick lookup
-    let lockfile_packages: HashSet<&str> =
-        lockfile.packages.iter().map(|p| p.name.as_str()).collect();
+    // Build a set of all dependency names from the manifest
+    let manifest_deps: HashSet<&str> = manifest
+        .all_dependencies()
+        .map(|(name, _, _)| name.as_str())
+        .collect();
+
+    // Build a set of all package names from the lockfile for quick lookup
+    let lockfile_packages: HashSet<&str> = lockfile
+        .all_packages()
+        .map(|(p, _)| p.name.as_str())
+        .collect();
 
     // Check that all packages in the lockfile exist in the manifest
-    for package in &lockfile.packages {
-        if !manifest.dependencies.contains_key(&package.name) {
+    for (package, _pkg_type) in lockfile.all_packages() {
+        if !manifest_deps.contains(package.name.as_str()) {
             errors.push(ValidationError::MissingDependency {
                 name: package.name.clone(),
             });
@@ -124,21 +132,25 @@ mod tests {
 
     #[test]
     fn test_validate_success() {
-        let mut dependencies = HashMap::new();
-        dependencies.insert(
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
             "wasi:logging".to_string(),
             Dependency::Compact("ghcr.io/webassembly/wasi-logging:1.0.0".to_string()),
         );
-        dependencies.insert(
+        interfaces.insert(
             "wasi:key-value".to_string(),
             Dependency::Compact("ghcr.io/webassembly/wasi-key-value:2.0.0".to_string()),
         );
 
-        let manifest = Manifest { dependencies };
+        let manifest = Manifest {
+            interfaces,
+            ..Default::default()
+        };
 
         let lockfile = Lockfile {
-            version: 1,
-            packages: vec![
+            lockfile_version: 2,
+            components: vec![],
+            interfaces: vec![
                 Package {
                     name: "wasi:logging".to_string(),
                     version: "1.0.0".to_string(),
@@ -164,18 +176,22 @@ mod tests {
 
     #[test]
     fn test_validate_missing_dependency() {
-        let mut dependencies = HashMap::new();
-        dependencies.insert(
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
             "wasi:logging".to_string(),
             Dependency::Compact("ghcr.io/webassembly/wasi-logging:1.0.0".to_string()),
         );
         // Missing wasi:key-value in manifest
 
-        let manifest = Manifest { dependencies };
+        let manifest = Manifest {
+            interfaces,
+            ..Default::default()
+        };
 
         let lockfile = Lockfile {
-            version: 1,
-            packages: vec![
+            lockfile_version: 2,
+            components: vec![],
+            interfaces: vec![
                 Package {
                     name: "wasi:logging".to_string(),
                     version: "1.0.0".to_string(),
@@ -208,21 +224,25 @@ mod tests {
 
     #[test]
     fn test_validate_invalid_dependency() {
-        let mut dependencies = HashMap::new();
-        dependencies.insert(
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
             "wasi:logging".to_string(),
             Dependency::Compact("ghcr.io/webassembly/wasi-logging:1.0.0".to_string()),
         );
-        dependencies.insert(
+        interfaces.insert(
             "wasi:key-value".to_string(),
             Dependency::Compact("ghcr.io/webassembly/wasi-key-value:2.0.0".to_string()),
         );
 
-        let manifest = Manifest { dependencies };
+        let manifest = Manifest {
+            interfaces,
+            ..Default::default()
+        };
 
         let lockfile = Lockfile {
-            version: 1,
-            packages: vec![
+            lockfile_version: 2,
+            components: vec![],
+            interfaces: vec![
                 Package {
                     name: "wasi:logging".to_string(),
                     version: "1.0.0".to_string(),
@@ -265,13 +285,12 @@ mod tests {
 
     #[test]
     fn test_validate_empty() {
-        let manifest = Manifest {
-            dependencies: HashMap::new(),
-        };
+        let manifest = Manifest::default();
 
         let lockfile = Lockfile {
-            version: 1,
-            packages: vec![],
+            lockfile_version: 2,
+            components: vec![],
+            interfaces: vec![],
         };
 
         assert!(validate(&manifest, &lockfile).is_ok());
@@ -295,5 +314,44 @@ mod tests {
             err2.to_string(),
             "Package 'wasi:key-value' depends on 'wasi:http' which doesn't exist in the lockfile"
         );
+    }
+
+    #[test]
+    fn test_validate_components_and_interfaces() {
+        let mut components = HashMap::new();
+        components.insert(
+            "root:component".to_string(),
+            Dependency::Compact("ghcr.io/example/component:0.1.0".to_string()),
+        );
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
+            "wasi:logging".to_string(),
+            Dependency::Compact("ghcr.io/webassembly/wasi-logging:1.0.0".to_string()),
+        );
+
+        let manifest = Manifest {
+            components,
+            interfaces,
+        };
+
+        let lockfile = Lockfile {
+            lockfile_version: 2,
+            components: vec![Package {
+                name: "root:component".to_string(),
+                version: "0.1.0".to_string(),
+                registry: "ghcr.io/example/component".to_string(),
+                digest: "sha256:comp123".to_string(),
+                dependencies: vec![],
+            }],
+            interfaces: vec![Package {
+                name: "wasi:logging".to_string(),
+                version: "1.0.0".to_string(),
+                registry: "ghcr.io/webassembly/wasi-logging".to_string(),
+                digest: "sha256:abc123".to_string(),
+                dependencies: vec![],
+            }],
+        };
+
+        assert!(validate(&manifest, &lockfile).is_ok());
     }
 }

@@ -1,4 +1,6 @@
 target/
 tmp/
+deps/
 Cargo.lock
 .DS_Store
+registry.toml

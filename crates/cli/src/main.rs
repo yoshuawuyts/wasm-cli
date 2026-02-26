@@ -1,11 +1,14 @@
 //! Wasm CLI command
 //!
 
+mod init;
 mod inspect;
+mod install;
 mod local;
 mod package;
 mod self_;
 mod tui;
+mod util;
 
 use std::io::IsTerminal;
 
@@ -50,6 +53,8 @@ impl Cli {
             Some(Command::Local(opts)) => opts.run()?,
             Some(Command::Package(opts)) => opts.run(self.offline).await?,
             Some(Command::Compose) => todo!(),
+            Some(Command::Init(opts)) => opts.run().await?,
+            Some(Command::Install(opts)) => opts.run(self.offline).await?,
             Some(Command::Self_(opts)) => opts.run().await?,
             None if std::io::stdin().is_terminal() => tui::run(self.offline).await?,
             None => {
@@ -66,6 +71,10 @@ enum Command {
     /// Execute a Wasm Component
     #[command(subcommand)]
     Run,
+    /// Create a new wasm component in an existing directory
+    Init(init::Opts),
+    /// Install a dependency from an OCI registry
+    Install(install::Opts),
     /// Inspect a Wasm Component
     Inspect(inspect::Opts),
     /// Convert a Wasm Component to another format

@@ -48,7 +48,8 @@ impl WitInterface {
     }
 
     /// Insert a new WIT interface and return its ID.
-    /// Uses content-addressable storage - if the same WIT text already exists, returns existing ID.
+    /// Uses atomic `INSERT ... ON CONFLICT` for content-addressable storage.
+    /// If the same WIT text already exists, returns existing ID.
     pub(crate) fn insert(
         conn: &Connection,
         wit_text: &str,
@@ -57,26 +58,23 @@ impl WitInterface {
         import_count: i32,
         export_count: i32,
     ) -> anyhow::Result<i64> {
-        // Check if this exact WIT text already exists
-        let existing: Option<i64> = conn
-            .query_row(
-                "SELECT id FROM wit_interface WHERE wit_text = ?1",
-                [wit_text],
-                |row| row.get(0),
-            )
-            .ok();
-
-        if let Some(id) = existing {
-            return Ok(id);
-        }
-
-        // Insert new WIT interface
+        // Use atomic upsert to prevent race conditions
+        // First try to insert, on conflict (same wit_text) do nothing
         conn.execute(
-            "INSERT INTO wit_interface (wit_text, package_name, world_name, import_count, export_count) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO wit_interface (wit_text, package_name, world_name, import_count, export_count) 
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(wit_text) DO NOTHING",
             (wit_text, package_name, world_name, import_count, export_count),
         )?;
 
-        Ok(conn.last_insert_rowid())
+        // Now retrieve the ID (either newly inserted or existing)
+        let id: i64 = conn.query_row(
+            "SELECT id FROM wit_interface WHERE wit_text = ?1",
+            [wit_text],
+            |row| row.get(0),
+        )?;
+
+        Ok(id)
     }
 
     /// Link an image to a WIT interface.

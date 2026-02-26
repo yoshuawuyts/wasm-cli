@@ -5,7 +5,9 @@ use ratatui::{
 };
 use std::time::Duration;
 use tokio::sync::mpsc;
-use wasm_package_manager::{ImageEntry, InsertResult, KnownPackage, StateInfo, WitInterface};
+use wasm_package_manager::{
+    ImageEntry, InsertResult, KnownPackage, PullResult, StateInfo, WitInterface,
+};
 
 use super::components::{TabBar, TabItem};
 use super::views::packages::PackagesViewState;
@@ -326,15 +328,18 @@ impl App {
                 ManagerEvent::LocalWasmList(files) => {
                     self.local_wasm_files = files;
                 }
+                ManagerEvent::PullProgress(_progress) => {
+                    // Progress events received — TUI rendering deferred to follow-up
+                }
             }
         }
     }
 
-    fn handle_pull_result(&mut self, result: Result<InsertResult, String>) {
+    fn handle_pull_result(&mut self, result: Result<Box<PullResult>, String>) {
         match result {
-            Ok(insert_result) => {
+            Ok(pull_result) => {
                 // Close the prompt on success, but show warning if already exists
-                let error = if insert_result == InsertResult::AlreadyExists {
+                let error = if pull_result.insert_result == InsertResult::AlreadyExists {
                     Some("Warning: package already exists in local store".to_string())
                 } else {
                     None

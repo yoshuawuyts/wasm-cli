@@ -9,7 +9,8 @@ pub mod views;
 use app::App;
 use tokio::sync::mpsc;
 use wasm_package_manager::{
-    ImageEntry, InsertResult, KnownPackage, Manager, Reference, StateInfo, WitInterface,
+    ImageEntry, KnownPackage, Manager, ProgressEvent, PullResult, Reference, StateInfo,
+    WitInterface,
 };
 
 /// Events sent from the TUI to the Manager
@@ -47,7 +48,7 @@ pub enum ManagerEvent {
     /// State information
     StateInfo(StateInfo),
     /// Result of a pull operation (includes InsertResult to indicate if package was new or already existed)
-    PullResult(Result<InsertResult, String>),
+    PullResult(Result<Box<PullResult>, String>),
     /// Result of a delete operation
     DeleteResult(Result<(), String>),
     /// Search results for known packages
@@ -60,6 +61,8 @@ pub enum ManagerEvent {
     WitInterfacesList(Vec<(WitInterface, String)>),
     /// List of local WASM files
     LocalWasmList(Vec<wasm_detector::WasmEntry>),
+    /// Progress event during a pull operation
+    PullProgress(ProgressEvent),
 }
 
 /// Run the TUI application
@@ -114,7 +117,28 @@ async fn run_manager(
             }
             AppEvent::Pull(reference_str) => {
                 let result = match reference_str.parse::<Reference>() {
-                    Ok(reference) => manager.pull(reference).await.map_err(|e| e.to_string()),
+                    Ok(reference) => {
+                        let (progress_tx, mut progress_rx) =
+                            tokio::sync::mpsc::channel::<ProgressEvent>(64);
+                        let sender_clone = sender.clone();
+                        // Forward progress events to the TUI
+                        let forwarder = tokio::task::spawn_local(async move {
+                            while let Some(event) = progress_rx.recv().await {
+                                sender_clone
+                                    .send(ManagerEvent::PullProgress(event))
+                                    .await
+                                    .ok();
+                            }
+                        });
+                        let pull_result = manager
+                            .pull_with_progress(reference, &progress_tx)
+                            .await
+                            .map(Box::new)
+                            .map_err(|e| e.to_string());
+                        drop(progress_tx);
+                        let _ = forwarder.await;
+                        pull_result
+                    }
                     Err(e) => Err(format!("Invalid reference: {}", e)),
                 };
                 sender.send(ManagerEvent::PullResult(result)).await.ok();
@@ -139,7 +163,8 @@ async fn run_manager(
                 }
             }
             AppEvent::SearchPackages(query) => {
-                if let Ok(packages) = manager.search_packages(&query) {
+                // Use default pagination: offset 0, limit 100
+                if let Ok(packages) = manager.search_packages(&query, 0, 100) {
                     sender
                         .send(ManagerEvent::SearchResults(packages))
                         .await
@@ -147,7 +172,8 @@ async fn run_manager(
                 }
             }
             AppEvent::RequestKnownPackages => {
-                if let Ok(packages) = manager.list_known_packages() {
+                // Use default pagination: offset 0, limit 100
+                if let Ok(packages) = manager.list_known_packages(0, 100) {
                     sender
                         .send(ManagerEvent::KnownPackagesList(packages))
                         .await
@@ -181,7 +207,8 @@ async fn run_manager(
                     .await
                     .ok();
                 // Refresh known packages list after updating tags
-                if let Ok(packages) = manager.list_known_packages() {
+                // Use default pagination: offset 0, limit 100
+                if let Ok(packages) = manager.list_known_packages(0, 100) {
                     sender
                         .send(ManagerEvent::KnownPackagesList(packages))
                         .await

@@ -1,8 +1,48 @@
 use oci_client::Reference;
+use oci_client::manifest::OciImageManifest;
+use std::path::Path;
+use tokio_stream::StreamExt;
 
 use crate::config::Config;
 use crate::network::Client;
+use crate::progress::ProgressEvent;
 use crate::storage::{ImageEntry, InsertResult, KnownPackage, StateInfo, Store, WitInterface};
+
+/// Result of a pull operation.
+///
+/// Contains the insert result along with the content digest and manifest
+/// from the pulled image.
+#[derive(Debug, Clone)]
+pub struct PullResult {
+    /// Whether the image was newly inserted or already existed.
+    pub insert_result: InsertResult,
+    /// The content digest of the pulled image (e.g., "sha256:abc123...").
+    pub digest: Option<String>,
+    /// The OCI image manifest.
+    pub manifest: Option<OciImageManifest>,
+}
+
+/// Result of an install operation.
+///
+/// Contains metadata about the installed package for updating
+/// manifest and lockfile entries.
+#[derive(Debug, Clone)]
+pub struct InstallResult {
+    /// The registry hostname (e.g., "ghcr.io").
+    pub registry: String,
+    /// The repository path (e.g., "webassembly/wasi-logging").
+    pub repository: String,
+    /// The tag, if present (e.g., "1.0.0").
+    pub tag: Option<String>,
+    /// The content digest of the image.
+    pub digest: Option<String>,
+    /// The WIT package name if available (e.g., "wasi:logging@0.1.0").
+    pub package_name: Option<String>,
+    /// The list of vendored file paths.
+    pub vendored_files: Vec<std::path::PathBuf>,
+    /// Whether this package is a compiled component (`true`) or a WIT interface (`false`).
+    pub is_component: bool,
+}
 
 /// A cache on disk
 #[derive(Debug)]
@@ -75,13 +115,13 @@ impl Manager {
     /// # Errors
     ///
     /// Returns an error if offline mode is enabled.
-    pub async fn pull(&self, reference: Reference) -> anyhow::Result<InsertResult> {
+    pub async fn pull(&self, reference: Reference) -> anyhow::Result<PullResult> {
         if self.offline {
             anyhow::bail!("cannot pull packages in offline mode");
         }
 
         let image = self.client.pull(&reference).await?;
-        let result = self.store.insert(&reference, image).await?;
+        let (result, digest, manifest) = self.store.insert(&reference, image).await?;
 
         // Add to known packages when pulling (with tag if present)
         self.store.add_known_package(
@@ -103,9 +143,324 @@ impl Manager {
             }
         }
 
-        Ok(result)
+        Ok(PullResult {
+            insert_result: result,
+            digest,
+            manifest,
+        })
     }
 
+    /// Pull a package from the registry with per-layer progress reporting.
+    ///
+    /// This method streams layers individually and sends `ProgressEvent`s
+    /// via the provided channel to enable progress bar rendering.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if offline mode is enabled or if any network/storage
+    /// operation fails.
+    pub async fn pull_with_progress(
+        &self,
+        reference: Reference,
+        progress_tx: &tokio::sync::mpsc::Sender<ProgressEvent>,
+    ) -> anyhow::Result<PullResult> {
+        if self.offline {
+            anyhow::bail!("cannot pull packages in offline mode");
+        }
+
+        // Fetch manifest and config
+        let (manifest, digest) = self.client.pull_manifest(&reference).await?;
+
+        let layer_count = manifest.layers.len();
+        let _ = progress_tx
+            .send(ProgressEvent::ManifestFetched {
+                layer_count,
+                image_digest: digest.clone(),
+            })
+            .await;
+
+        // Calculate total size from manifest layer descriptors
+        let size_on_disk: u64 = manifest.layers.iter().map(|l| l.size.max(0) as u64).sum();
+
+        // Insert metadata into the database
+        let (result, image_id) =
+            self.store
+                .insert_metadata(&reference, Some(&digest), &manifest, size_on_disk)?;
+
+        if result == InsertResult::Inserted {
+            // Stream and store each layer individually with progress
+            for (index, layer_descriptor) in manifest.layers.iter().enumerate() {
+                let total_bytes = if layer_descriptor.size > 0 {
+                    Some(layer_descriptor.size as u64)
+                } else {
+                    None
+                };
+
+                let _ = progress_tx
+                    .send(ProgressEvent::LayerStarted {
+                        index,
+                        digest: layer_descriptor.digest.clone(),
+                        total_bytes,
+                        title: layer_descriptor
+                            .annotations
+                            .as_ref()
+                            .and_then(|a| a.get("org.opencontainers.image.title").cloned()),
+                        media_type: layer_descriptor.media_type.clone(),
+                    })
+                    .await;
+
+                // Stream the layer data
+                let mut stream = self
+                    .client
+                    .pull_layer_stream(&reference, layer_descriptor)
+                    .await?;
+
+                let mut layer_data = Vec::new();
+                let mut bytes_downloaded: u64 = 0;
+
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk?;
+                    bytes_downloaded += chunk.len() as u64;
+                    layer_data.extend_from_slice(&chunk);
+
+                    let _ = progress_tx
+                        .send(ProgressEvent::LayerProgress {
+                            index,
+                            bytes_downloaded,
+                        })
+                        .await;
+                }
+
+                let _ = progress_tx
+                    .send(ProgressEvent::LayerDownloaded { index })
+                    .await;
+
+                // Store the layer
+                self.store
+                    .insert_layer(&layer_descriptor.digest, &layer_data, image_id)
+                    .await?;
+
+                let _ = progress_tx.send(ProgressEvent::LayerStored { index }).await;
+            }
+        } else {
+            // Package already cached — show layers as completed
+            for (index, layer_descriptor) in manifest.layers.iter().enumerate() {
+                let total_bytes = if layer_descriptor.size > 0 {
+                    Some(layer_descriptor.size as u64)
+                } else {
+                    None
+                };
+
+                let _ = progress_tx
+                    .send(ProgressEvent::LayerStarted {
+                        index,
+                        digest: layer_descriptor.digest.clone(),
+                        total_bytes,
+                        title: layer_descriptor
+                            .annotations
+                            .as_ref()
+                            .and_then(|a| a.get("org.opencontainers.image.title").cloned()),
+                        media_type: layer_descriptor.media_type.clone(),
+                    })
+                    .await;
+
+                let _ = progress_tx.send(ProgressEvent::LayerStored { index }).await;
+            }
+        }
+
+        // Add to known packages when pulling (with tag if present)
+        self.store.add_known_package(
+            reference.registry(),
+            reference.repository(),
+            reference.tag(),
+            None,
+        )?;
+
+        // Fetch all related tags and store them as known packages
+        if let Ok(tags) = self.client.list_tags(&reference).await {
+            for tag in tags {
+                self.store.add_known_package(
+                    reference.registry(),
+                    reference.repository(),
+                    Some(&tag),
+                    None,
+                )?;
+            }
+        }
+
+        Ok(PullResult {
+            insert_result: result,
+            digest: Some(digest),
+            manifest: Some(manifest),
+        })
+    }
+
+    /// Hard-link a cached layer to a destination path.
+    ///
+    /// Uses `cacache::hard_link` to create a hard-link from the global cache
+    /// to the specified destination, saving disk space.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the hard-link operation fails (e.g., layer not
+    /// found in cache, or destination path is invalid).
+    pub async fn vendor(&self, layer_digest: &str, dest: &Path) -> anyhow::Result<()> {
+        cacache::hard_link(self.store.state_info.store_dir(), layer_digest, dest).await?;
+        Ok(())
+    }
+
+    /// Install a package from the registry.
+    ///
+    /// This high-level method:
+    /// 1. Pulls the package from the registry (or uses the cache)
+    /// 2. Filters the manifest's layers for `application/wasm` media type
+    /// 3. Hard-links each wasm layer to the vendor directory
+    /// 4. Returns an `InstallResult` with metadata for updating manifest/lockfile
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if pulling, vendoring, or filesystem operations fail.
+    pub async fn install(
+        &self,
+        reference: Reference,
+        vendor_dir: &Path,
+    ) -> anyhow::Result<InstallResult> {
+        use crate::storage::wit_parser::extract_wit_metadata;
+        use crate::utils::is_wit_package;
+
+        let pull_result = self.pull(reference.clone()).await?;
+
+        let mut vendored_files = Vec::new();
+        let mut package_name = None;
+        let mut is_component = true; // Default to component
+
+        // Pre-compute filename parts from the OCI reference and image digest.
+        // We use the image digest (not layer digest) so it matches the lockfile.
+        let registry_part = reference.registry().replace('.', "-");
+        let repo_part = reference.repository().replace('/', "-");
+        let tag_part = reference.tag().map(|t| format!("-{t}")).unwrap_or_default();
+        let digest_for_name = pull_result.digest.as_deref().unwrap_or("unknown");
+        let sha_part = digest_for_name
+            .strip_prefix("sha256:")
+            .unwrap_or(digest_for_name);
+        let short_sha = sha_part.get(..12).unwrap_or(sha_part);
+
+        if let Some(ref manifest) = pull_result.manifest {
+            for layer in &manifest.layers {
+                if layer.media_type == "application/wasm" {
+                    let filename =
+                        format!("{registry_part}-{repo_part}{tag_part}-{short_sha}.wasm");
+                    let dest = vendor_dir.join(&filename);
+
+                    // Ensure vendor directory exists
+                    tokio::fs::create_dir_all(vendor_dir).await?;
+
+                    // Remove existing file if present (hard-link requires non-existent target)
+                    let _ = tokio::fs::remove_file(&dest).await;
+
+                    self.vendor(&layer.digest, &dest).await?;
+                    vendored_files.push(dest);
+
+                    // Try to extract WIT package name and detect type from the layer data
+                    if package_name.is_none()
+                        && let Ok(data) = self.get(&layer.digest).await
+                    {
+                        is_component = !is_wit_package(&data);
+                        if let Some(metadata) = extract_wit_metadata(&data) {
+                            package_name = metadata.package_name;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(InstallResult {
+            registry: reference.registry().to_string(),
+            repository: reference.repository().to_string(),
+            tag: reference.tag().map(|s| s.to_string()),
+            digest: pull_result.digest,
+            package_name,
+            vendored_files,
+            is_component,
+        })
+    }
+
+    /// Install a package from the registry with per-layer progress reporting.
+    ///
+    /// Like [`install`](Self::install), but sends `ProgressEvent`s via the provided
+    /// channel to enable progress bar rendering in the CLI or TUI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if pulling, vendoring, or filesystem operations fail.
+    pub async fn install_with_progress(
+        &self,
+        reference: Reference,
+        vendor_dir: &Path,
+        progress_tx: &tokio::sync::mpsc::Sender<ProgressEvent>,
+    ) -> anyhow::Result<InstallResult> {
+        use crate::storage::wit_parser::extract_wit_metadata;
+        use crate::utils::is_wit_package;
+
+        let pull_result = self
+            .pull_with_progress(reference.clone(), progress_tx)
+            .await?;
+
+        let mut vendored_files = Vec::new();
+        let mut package_name = None;
+        let mut is_component = true; // Default to component
+
+        // Pre-compute filename parts from the OCI reference and image digest.
+        let registry_part = reference.registry().replace('.', "-");
+        let repo_part = reference.repository().replace('/', "-");
+        let tag_part = reference.tag().map(|t| format!("-{t}")).unwrap_or_default();
+        let digest_for_name = pull_result.digest.as_deref().unwrap_or("unknown");
+        let sha_part = digest_for_name
+            .strip_prefix("sha256:")
+            .unwrap_or(digest_for_name);
+        let short_sha = sha_part.get(..12).unwrap_or(sha_part);
+
+        if let Some(ref manifest) = pull_result.manifest {
+            for layer in &manifest.layers {
+                if layer.media_type == "application/wasm" {
+                    let filename =
+                        format!("{registry_part}-{repo_part}{tag_part}-{short_sha}.wasm");
+                    let dest = vendor_dir.join(&filename);
+
+                    // Ensure vendor directory exists
+                    tokio::fs::create_dir_all(vendor_dir).await?;
+
+                    // Remove existing file if present (hard-link requires non-existent target)
+                    let _ = tokio::fs::remove_file(&dest).await;
+
+                    self.vendor(&layer.digest, &dest).await?;
+                    vendored_files.push(dest);
+
+                    // Try to extract WIT package name and detect type from the layer data
+                    if package_name.is_none()
+                        && let Ok(data) = self.get(&layer.digest).await
+                    {
+                        is_component = !is_wit_package(&data);
+                        if let Some(metadata) = extract_wit_metadata(&data) {
+                            package_name = metadata.package_name;
+                        }
+                    }
+                }
+            }
+        }
+
+        let _ = progress_tx.send(ProgressEvent::InstallComplete).await;
+
+        Ok(InstallResult {
+            registry: reference.registry().to_string(),
+            repository: reference.repository().to_string(),
+            tag: reference.tag().map(|s| s.to_string()),
+            digest: pull_result.digest,
+            package_name,
+            vendored_files,
+            is_component,
+        })
+    }
     /// List all stored images and their metadata.
     pub fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
         self.store.list_all()
@@ -134,13 +489,24 @@ impl Manager {
 
     /// Search for known packages by query string.
     /// Searches in both registry and repository fields.
-    pub fn search_packages(&self, query: &str) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store.search_known_packages(query)
+    /// Uses pagination with `offset` and `limit` parameters.
+    pub fn search_packages(
+        &self,
+        query: &str,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<KnownPackage>> {
+        self.store.search_known_packages(query, offset, limit)
     }
 
     /// Get all known packages.
-    pub fn list_known_packages(&self) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store.list_known_packages()
+    /// Uses pagination with `offset` and `limit` parameters.
+    pub fn list_known_packages(
+        &self,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<KnownPackage>> {
+        self.store.list_known_packages(offset, limit)
     }
 
     /// Add or update a known package entry.
@@ -173,21 +539,22 @@ impl Manager {
     /// Returns all cached tags (release, signature, and attestation) for the given
     /// reference from the local known packages database.
     fn list_cached_tags(&self, reference: &Reference) -> anyhow::Result<Vec<String>> {
-        let known_packages = self.store.list_known_packages()?;
-        let tags: Vec<String> = known_packages
-            .into_iter()
-            .filter(|pkg| {
-                pkg.registry == reference.registry() && pkg.repository == reference.repository()
-            })
-            .flat_map(|pkg| {
-                // Combine all tag types: release, signature, and attestation
-                pkg.tags
-                    .into_iter()
-                    .chain(pkg.signature_tags)
-                    .chain(pkg.attestation_tags)
-            })
-            .collect();
-        Ok(tags)
+        // Use efficient lookup by registry and repository
+        if let Some(pkg) = self
+            .store
+            .get_known_package(reference.registry(), reference.repository())?
+        {
+            // Combine all tag types: release, signature, and attestation
+            let tags: Vec<String> = pkg
+                .tags
+                .into_iter()
+                .chain(pkg.signature_tags)
+                .chain(pkg.attestation_tags)
+                .collect();
+            Ok(tags)
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     /// Re-scan known package tags to update derived data (e.g., tag types).
@@ -196,6 +563,80 @@ impl Manager {
     /// Returns the number of tags that were updated.
     pub fn rescan_known_package_tags(&self) -> anyhow::Result<usize> {
         self.store.rescan_known_package_tags()
+    }
+
+    /// Get a known package by registry and repository.
+    pub fn get_known_package(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Option<KnownPackage>> {
+        self.store.get_known_package(registry, repository)
+    }
+
+    /// Index a package from the registry without downloading layers.
+    ///
+    /// Fetches the manifest and config to extract metadata (description from
+    /// OCI annotations), lists all tags, and upserts into the known packages
+    /// table. This is useful for building a search index without storing
+    /// actual wasm content.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if offline mode is enabled or if network operations fail.
+    pub async fn index_package(&self, reference: &Reference) -> anyhow::Result<KnownPackage> {
+        if self.offline {
+            anyhow::bail!("cannot index packages in offline mode");
+        }
+
+        // Discover available tags first — the reference may not carry a valid
+        // tag (e.g. the default "latest" might not exist).
+        let tags = self.client.list_tags(reference).await?;
+        anyhow::ensure!(
+            !tags.is_empty(),
+            "no tags found for {}/{}",
+            reference.registry(),
+            reference.repository()
+        );
+
+        // Pick the tag to use for pulling metadata: prefer the tag on the
+        // reference if it exists in the remote, otherwise fall back to the
+        // first available tag.
+        let meta_tag = reference
+            .tag()
+            .filter(|t| tags.iter().any(|remote| remote == *t))
+            .unwrap_or_else(|| tags.first().expect("tags verified non-empty"));
+
+        // Build a reference with the chosen tag so we can pull its manifest.
+        let meta_ref: Reference = format!(
+            "{}/{}:{}",
+            reference.registry(),
+            reference.repository(),
+            meta_tag
+        )
+        .parse()?;
+
+        // Fetch manifest to extract metadata (e.g. description).
+        let (manifest, _digest) = self.client.pull_manifest(&meta_ref).await?;
+        let description = manifest
+            .annotations
+            .as_ref()
+            .and_then(|a| a.get("org.opencontainers.image.description").cloned());
+
+        // Store every discovered tag.
+        for tag in &tags {
+            self.store.add_known_package(
+                reference.registry(),
+                reference.repository(),
+                Some(tag),
+                description.as_deref(),
+            )?;
+        }
+
+        // Return the indexed package.
+        self.store
+            .get_known_package(reference.registry(), reference.repository())?
+            .ok_or_else(|| anyhow::anyhow!("failed to retrieve indexed package"))
     }
 
     /// Get all WIT interfaces with their associated component references.

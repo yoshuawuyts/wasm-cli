@@ -1,6 +1,7 @@
 use docker_credential::DockerCredential;
 use oci_client::Reference;
-use oci_client::client::{ClientConfig, ClientProtocol, ImageData};
+use oci_client::client::{ClientConfig, ClientProtocol, ImageData, SizedStream};
+use oci_client::manifest::{OciDescriptor, OciImageManifest};
 use oci_client::secrets::RegistryAuth;
 use oci_wasm::WasmClient;
 
@@ -34,6 +35,39 @@ impl Client {
         let auth = resolve_auth(reference, &self.config)?;
         let image = self.inner.pull(reference, &auth).await?;
         Ok(image)
+    }
+
+    /// Fetches the manifest and config digest for a given reference.
+    ///
+    /// Returns the OCI image manifest and the content digest.
+    pub(crate) async fn pull_manifest(
+        &self,
+        reference: &Reference,
+    ) -> anyhow::Result<(OciImageManifest, String)> {
+        let auth = resolve_auth(reference)?;
+        let (manifest, _config, digest) = self
+            .inner
+            .pull_manifest_and_config(reference, &auth)
+            .await?;
+        Ok((manifest, digest))
+    }
+
+    /// Streams a single layer from the registry.
+    ///
+    /// Returns a `SizedStream` that yields chunks of bytes and optionally
+    /// provides the content length.
+    pub(crate) async fn pull_layer_stream(
+        &self,
+        reference: &Reference,
+        layer: &OciDescriptor,
+    ) -> anyhow::Result<SizedStream> {
+        let auth = resolve_auth(reference)?;
+        // Ensure auth is stored before calling pull_blob_stream
+        self.inner
+            .store_auth_if_needed(reference.resolve_registry(), &auth)
+            .await;
+        let stream = self.inner.pull_blob_stream(reference, layer).await?;
+        Ok(stream)
     }
 
     /// Fetches all tags for a given reference from the registry.

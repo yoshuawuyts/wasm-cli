@@ -42,7 +42,7 @@ impl Opts {
             Opts::Show => todo!(),
             Opts::Pull(opts) => {
                 let result = store.pull(opts.reference.clone()).await?;
-                if result == InsertResult::AlreadyExists {
+                if result.insert_result == InsertResult::AlreadyExists {
                     eprintln!(
                         "warning: package '{}' already exists in the local store",
                         opts.reference.whole()

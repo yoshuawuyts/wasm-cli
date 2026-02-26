@@ -3,22 +3,54 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// The type of a WASM package.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[must_use]
+pub enum PackageType {
+    /// A compiled WebAssembly component.
+    Component,
+    /// A WIT interface definition.
+    Interface,
+}
+
 /// The root manifest structure for a WASM package.
 ///
-/// The manifest file (`deps/wasm.toml`) defines dependencies for a WASM package.
+/// The manifest file (`deps/wasm.toml`) defines dependencies for a WASM package,
+/// separated into components and interfaces.
 ///
 /// # Example
 ///
 /// ```toml
-/// [dependencies]
-/// "wasi:logging" = "ghcr.io/webassembly/wasi-logging:1.0.0"
+/// [components]
+/// "root:component" = "ghcr.io/bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust:0.1.6"
+///
+/// [interfaces]
+/// "wasi:clocks" = "ghcr.io/webassembly/wasi/clocks:0.2.5"
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[must_use]
 pub struct Manifest {
-    /// The dependencies section of the manifest.
+    /// The components section of the manifest.
     #[serde(default)]
-    pub dependencies: HashMap<String, Dependency>,
+    pub components: HashMap<String, Dependency>,
+    /// The interfaces section of the manifest.
+    #[serde(default)]
+    pub interfaces: HashMap<String, Dependency>,
+}
+
+impl Manifest {
+    /// Iterate over all dependencies with their package type.
+    pub fn all_dependencies(&self) -> impl Iterator<Item = (&String, &Dependency, PackageType)> {
+        self.components
+            .iter()
+            .map(|(k, v)| (k, v, PackageType::Component))
+            .chain(
+                self.interfaces
+                    .iter()
+                    .map(|(k, v)| (k, v, PackageType::Interface)),
+            )
+    }
 }
 
 /// A dependency specification in the manifest.
@@ -73,18 +105,18 @@ mod tests {
     #[test]
     fn test_parse_compact_format() {
         let toml = r#"
-            [dependencies]
+            [interfaces]
             "wasi:logging" = "ghcr.io/webassembly/wasi-logging:1.0.0"
             "wasi:key-value" = "ghcr.io/webassembly/wasi-key-value:2.0.0"
         "#;
 
         let manifest: Manifest = toml::from_str(toml).expect("Failed to parse manifest");
 
-        assert_eq!(manifest.dependencies.len(), 2);
-        assert!(manifest.dependencies.contains_key("wasi:logging"));
-        assert!(manifest.dependencies.contains_key("wasi:key-value"));
+        assert_eq!(manifest.interfaces.len(), 2);
+        assert!(manifest.interfaces.contains_key("wasi:logging"));
+        assert!(manifest.interfaces.contains_key("wasi:key-value"));
 
-        match &manifest.dependencies["wasi:logging"] {
+        match &manifest.interfaces["wasi:logging"] {
             Dependency::Compact(s) => {
                 assert_eq!(s, "ghcr.io/webassembly/wasi-logging:1.0.0");
             }
@@ -95,13 +127,13 @@ mod tests {
     #[test]
     fn test_parse_explicit_format() {
         let toml = r#"
-            [dependencies."wasi:logging"]
+            [interfaces."wasi:logging"]
             registry = "ghcr.io"
             namespace = "webassembly"
             package = "wasi-logging"
             version = "1.0.0"
 
-            [dependencies."wasi:key-value"]
+            [interfaces."wasi:key-value"]
             registry = "ghcr.io"
             namespace = "webassembly"
             package = "wasi-key-value"
@@ -110,9 +142,9 @@ mod tests {
 
         let manifest: Manifest = toml::from_str(toml).expect("Failed to parse manifest");
 
-        assert_eq!(manifest.dependencies.len(), 2);
+        assert_eq!(manifest.interfaces.len(), 2);
 
-        match &manifest.dependencies["wasi:logging"] {
+        match &manifest.interfaces["wasi:logging"] {
             Dependency::Explicit {
                 registry,
                 namespace,
@@ -130,13 +162,16 @@ mod tests {
 
     #[test]
     fn test_serialize_compact_format() {
-        let mut dependencies = HashMap::new();
-        dependencies.insert(
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
             "wasi:logging".to_string(),
             Dependency::Compact("ghcr.io/webassembly/wasi-logging:1.0.0".to_string()),
         );
 
-        let manifest = Manifest { dependencies };
+        let manifest = Manifest {
+            interfaces,
+            ..Default::default()
+        };
         let toml = toml::to_string(&manifest).expect("Failed to serialize manifest");
 
         assert!(toml.contains("wasi:logging"));
@@ -145,8 +180,8 @@ mod tests {
 
     #[test]
     fn test_serialize_explicit_format() {
-        let mut dependencies = HashMap::new();
-        dependencies.insert(
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
             "wasi:logging".to_string(),
             Dependency::Explicit {
                 registry: "ghcr.io".to_string(),
@@ -156,7 +191,10 @@ mod tests {
             },
         );
 
-        let manifest = Manifest { dependencies };
+        let manifest = Manifest {
+            interfaces,
+            ..Default::default()
+        };
         let toml = toml::to_string(&manifest).expect("Failed to serialize manifest");
 
         assert!(toml.contains("wasi:logging"));
@@ -168,6 +206,52 @@ mod tests {
     fn test_empty_manifest() {
         let toml = r#""#;
         let manifest: Manifest = toml::from_str(toml).expect("Failed to parse empty manifest");
-        assert_eq!(manifest.dependencies.len(), 0);
+        assert_eq!(manifest.components.len(), 0);
+        assert_eq!(manifest.interfaces.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_components_and_interfaces() {
+        let toml = r#"
+            [components]
+            "root:component" = "ghcr.io/example/component:0.1.0"
+
+            [interfaces]
+            "wasi:clocks" = "ghcr.io/webassembly/wasi/clocks:0.2.5"
+        "#;
+
+        let manifest: Manifest = toml::from_str(toml).expect("Failed to parse manifest");
+
+        assert_eq!(manifest.components.len(), 1);
+        assert_eq!(manifest.interfaces.len(), 1);
+        assert!(manifest.components.contains_key("root:component"));
+        assert!(manifest.interfaces.contains_key("wasi:clocks"));
+    }
+
+    #[test]
+    fn test_all_dependencies() {
+        let mut components = HashMap::new();
+        components.insert(
+            "root:component".to_string(),
+            Dependency::Compact("ghcr.io/example/component:0.1.0".to_string()),
+        );
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
+            "wasi:logging".to_string(),
+            Dependency::Compact("ghcr.io/webassembly/wasi-logging:1.0.0".to_string()),
+        );
+
+        let manifest = Manifest {
+            components,
+            interfaces,
+        };
+
+        let all: Vec<_> = manifest.all_dependencies().collect();
+        assert_eq!(all.len(), 2);
+
+        let has_component = all.iter().any(|(_, _, pt)| *pt == PackageType::Component);
+        let has_interface = all.iter().any(|(_, _, pt)| *pt == PackageType::Interface);
+        assert!(has_component);
+        assert!(has_interface);
     }
 }

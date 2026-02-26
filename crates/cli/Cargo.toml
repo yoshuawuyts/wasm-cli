@@ -24,11 +24,15 @@ anyhow = { workspace = true }
 bytesize = { workspace = true }
 clap = { workspace = true }
 comfy-table = { workspace = true }
+console = { workspace = true }
+indicatif = { workspace = true }
 ratatui = { workspace = true }
 serde_json = { workspace = true }
 termcolor = { workspace = true }
 tokio = { workspace = true }
+toml = { workspace = true }
 wasm-detector = { workspace = true }
+wasm-manifest = { workspace = true }
 wasm-metadata = { workspace = true }
 wasm-package-manager = { workspace = true }
 wasmtime = { workspace = true }
@@ -36,6 +40,7 @@ wasmtime-wasi = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+tempfile = { workspace = true }
 wasm-detector = { workspace = true, features = ["test-helpers"] }
 wasm-package-manager = { workspace = true, features = ["test-helpers"] }
 

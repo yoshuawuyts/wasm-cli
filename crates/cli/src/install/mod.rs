@@ -1,0 +1,300 @@
+use anyhow::{Context, Result};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use wasm_package_manager::{Manager, ProgressEvent, Reference};
+
+use crate::util::write_lock_file;
+
+/// Options for the `install` command.
+#[derive(clap::Parser)]
+pub(crate) struct Opts {
+    /// The OCI reference to install (e.g., ghcr.io/webassembly/wasi-logging:1.0.0)
+    reference: Reference,
+}
+
+impl Opts {
+    pub(crate) async fn run(self, offline: bool) -> Result<()> {
+        let deps = std::path::Path::new("deps");
+        let manifest_path = deps.join("wasm.toml");
+        let lockfile_path = deps.join("wasm.lock.toml");
+        let wasm_vendor_dir = deps.join("vendor/wasm");
+        let wit_vendor_dir = deps.join("vendor/wit");
+
+        // Read existing manifest — error if not found, recommend `wasm init`
+        let manifest_str = tokio::fs::read_to_string(&manifest_path)
+            .await
+            .with_context(|| {
+                format!(
+                    "could not read '{}'. Run `wasm init` first to create the project files",
+                    manifest_path.display()
+                )
+            })?;
+        let mut manifest: wasm_manifest::Manifest = toml::from_str(&manifest_str)?;
+
+        // Read existing lockfile — error if not found, recommend `wasm init`
+        let lockfile_str = tokio::fs::read_to_string(&lockfile_path)
+            .await
+            .with_context(|| {
+                format!(
+                    "could not read '{}'. Run `wasm init` first to create the project files",
+                    lockfile_path.display()
+                )
+            })?;
+        let mut lockfile: wasm_manifest::Lockfile = toml::from_str(&lockfile_str)?;
+
+        // Open manager
+        let manager = if offline {
+            Manager::open_offline().await?
+        } else {
+            Manager::open().await?
+        };
+
+        let start_time = std::time::Instant::now();
+
+        // Print initial installing message
+        let reference_display = self.reference.whole().to_string();
+
+        // Install to wasm vendor dir initially; we'll detect and re-vendor if needed
+        let vendor_dir = &wasm_vendor_dir;
+
+        // Install the package with progress reporting
+        let result = if offline {
+            // No progress bars in offline mode — just print the line
+            println!(
+                "{:>12} {}",
+                console::style("Installing").cyan().bold(),
+                reference_display,
+            );
+            manager.install(self.reference.clone(), vendor_dir).await?
+        } else {
+            let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
+            let multi = MultiProgress::new();
+
+            // Add a header line managed by the multi-progress so it
+            // stays above the per-layer bars and can be rewritten.
+            let header = multi.add(ProgressBar::new_spinner());
+            header.set_style(
+                ProgressStyle::with_template("{msg}").expect("valid progress bar template"),
+            );
+            header.set_message(format!(
+                "{:>12} {}",
+                console::style("Installing").cyan().bold(),
+                reference_display,
+            ));
+
+            // Spawn progress rendering task
+            let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
+
+            let result = manager
+                .install_with_progress(self.reference.clone(), vendor_dir, &progress_tx)
+                .await;
+
+            // Drop the sender to signal the progress task to finish
+            drop(progress_tx);
+
+            // Wait for progress bars to finish rendering
+            let _ = progress_handle.await;
+
+            // Rewrite the header line: blue → green
+            header.set_message(format!(
+                "{:>12} {}",
+                console::style("Installing").green().bold(),
+                reference_display,
+            ));
+            header.finish();
+
+            result?
+        };
+
+        // If this is a WIT interface (not a component), re-vendor the files
+        // from wasm/ to wit/
+        if !result.is_component {
+            for file in &result.vendored_files {
+                if let Some(filename) = file.file_name() {
+                    let wit_dest = wit_vendor_dir.join(filename);
+                    tokio::fs::create_dir_all(&wit_vendor_dir).await?;
+                    let _ = tokio::fs::remove_file(&wit_dest).await;
+                    tokio::fs::rename(file, &wit_dest).await?;
+                }
+            }
+        }
+
+        // Use the package name from WIT metadata if available,
+        // otherwise fall back to the full OCI path (registry/repository).
+        // Strip the version suffix (e.g., "@0.2.10") from the package name
+        // so that "wasi:http@0.2.10" becomes "wasi:http" in wasm.toml.
+        let dep_name = result
+            .package_name
+            .as_deref()
+            .map(|name| name.split('@').next().unwrap_or(name).to_string())
+            .unwrap_or_else(|| format!("{}/{}", result.registry, result.repository));
+
+        // Determine the version from the tag
+        let version = result.tag.clone().unwrap_or_default();
+
+        // Add to manifest (compact format) — route to components or interfaces
+        let reference_str = self.reference.whole().to_string();
+        let dep = wasm_manifest::Dependency::Compact(reference_str);
+        if result.is_component {
+            manifest.components.insert(dep_name.clone(), dep);
+        } else {
+            manifest.interfaces.insert(dep_name.clone(), dep);
+        }
+
+        // Add to lockfile — route to components or interfaces
+        let registry_path = format!("{}/{}", result.registry, result.repository);
+        let digest = result.digest.unwrap_or_default();
+
+        let package = wasm_manifest::Package {
+            name: dep_name.clone(),
+            version,
+            registry: registry_path.clone(),
+            digest,
+            dependencies: vec![],
+        };
+
+        if result.is_component {
+            let existing = lockfile
+                .components
+                .iter()
+                .position(|p| p.name == dep_name && p.registry == registry_path);
+            if let Some(existing_pkg) = existing.and_then(|idx| lockfile.components.get_mut(idx)) {
+                *existing_pkg = package;
+            } else {
+                lockfile.components.push(package);
+            }
+        } else {
+            let existing = lockfile
+                .interfaces
+                .iter()
+                .position(|p| p.name == dep_name && p.registry == registry_path);
+            if let Some(existing_pkg) = existing.and_then(|idx| lockfile.interfaces.get_mut(idx)) {
+                *existing_pkg = package;
+            } else {
+                lockfile.interfaces.push(package);
+            }
+        }
+
+        // Write updated manifest
+        let manifest_str = toml::to_string_pretty(&manifest)?;
+        tokio::fs::write(&manifest_path, manifest_str.as_bytes()).await?;
+
+        // Write updated lockfile
+        write_lock_file(&lockfile_path, &lockfile).await?;
+
+        // Print completion message with elapsed time
+        let elapsed = start_time.elapsed();
+        println!(
+            "\n{:>12} installation in {:.1}s",
+            console::style("Finished").green().bold(),
+            elapsed.as_secs_f64()
+        );
+
+        Ok(())
+    }
+}
+
+/// Consume progress events and render tree-style multi-progress bars.
+async fn run_progress_bars(
+    multi: MultiProgress,
+    mut rx: tokio::sync::mpsc::Receiver<ProgressEvent>,
+) {
+    let mut bars: Vec<ProgressBar> = Vec::new();
+    let mut layer_count: usize = 0;
+
+    // In-progress style: blue bar + blue bytes + eta
+    let bar_style_progress = ProgressStyle::with_template(
+        "{prefix} {bar:12.blue} {bytes:.blue}/{total_bytes:.blue} {eta}",
+    )
+    .expect("valid progress bar template")
+    .progress_chars("━━┄");
+
+    // In-progress spinner style (unknown size)
+    let bar_style_spinner = ProgressStyle::with_template("{prefix} {spinner:.blue} {bytes}")
+        .expect("valid progress bar template");
+
+    // Completed style: green filled bar + green bytes
+    let bar_style_done = ProgressStyle::with_template("{prefix} {bar:12.green} {total_bytes}")
+        .expect("valid progress bar template")
+        .progress_chars("━━━");
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            ProgressEvent::ManifestFetched {
+                layer_count: count, ..
+            } => {
+                layer_count = count;
+            }
+            ProgressEvent::LayerStarted {
+                index,
+                ref digest,
+                total_bytes,
+                ref title,
+                ref media_type,
+            } => {
+                // Tree glyph: ├── for non-last, └── for last
+                let tree_glyph = if layer_count > 0 && index + 1 < layer_count {
+                    "├──"
+                } else {
+                    "└──"
+                };
+
+                let short_digest = digest
+                    .strip_prefix("sha256:")
+                    .unwrap_or(digest)
+                    .get(..5)
+                    .unwrap_or(digest);
+
+                // Prefer title annotation, fall back to media type
+                let label = title.as_deref().unwrap_or(media_type);
+                let prefix = format!("   {tree_glyph} [{short_digest}] {label}");
+
+                let pb = match total_bytes {
+                    Some(total) => {
+                        let pb = multi.add(ProgressBar::new(total));
+                        pb.set_style(bar_style_progress.clone());
+                        pb
+                    }
+                    None => {
+                        let pb = multi.add(ProgressBar::new_spinner());
+                        pb.set_style(bar_style_spinner.clone());
+                        pb
+                    }
+                };
+                pb.set_prefix(prefix);
+
+                // Ensure the bars vec is large enough
+                while bars.len() <= index {
+                    bars.push(ProgressBar::hidden());
+                }
+                if let Some(slot) = bars.get_mut(index) {
+                    *slot = pb;
+                }
+            }
+            ProgressEvent::LayerProgress {
+                index,
+                bytes_downloaded,
+            } => {
+                if let Some(pb) = bars.get(index) {
+                    pb.set_position(bytes_downloaded);
+                }
+            }
+            ProgressEvent::LayerDownloaded { .. } => {
+                // Download complete — will be marked done on LayerStored
+            }
+            ProgressEvent::LayerStored { index } => {
+                if let Some(pb) = bars.get(index) {
+                    pb.set_style(bar_style_done.clone());
+                    pb.finish();
+                }
+            }
+            ProgressEvent::InstallComplete => {
+                for pb in &bars {
+                    if !pb.is_finished() {
+                        pb.set_style(bar_style_done.clone());
+                        pb.finish();
+                    }
+                }
+            }
+        }
+    }
+}

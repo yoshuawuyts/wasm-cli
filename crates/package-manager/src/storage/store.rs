@@ -6,7 +6,7 @@ use super::config::StateInfo;
 use super::models::{ImageEntry, InsertResult, KnownPackage, Migrations, TagType, WitInterface};
 use super::wit_parser::extract_wit_metadata;
 use futures_concurrency::prelude::*;
-use oci_client::{Reference, client::ImageData};
+use oci_client::{Reference, client::ImageData, manifest::OciImageManifest};
 use rusqlite::Connection;
 
 /// Calculate the total size of a directory recursively
@@ -62,6 +62,15 @@ impl Store {
             .context("Could not create config directories on disk")?;
 
         let conn = Connection::open(&metadata_file)?;
+
+        // Configure SQLite for better concurrency, data integrity, and performance
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;
+             PRAGMA busy_timeout = 5000;",
+        )?;
+
         Migrations::run_all(&conn)?;
 
         let migration_info = Migrations::get(&conn)?;
@@ -93,7 +102,7 @@ impl Store {
         &self,
         reference: &Reference,
         image: ImageData,
-    ) -> anyhow::Result<InsertResult> {
+    ) -> anyhow::Result<(InsertResult, Option<String>, Option<OciImageManifest>)> {
         let digest = reference.digest().map(|s| s.to_owned()).or(image.digest);
         let manifest_str = serde_json::to_string(&image.manifest)?;
 
@@ -108,7 +117,10 @@ impl Store {
             digest.as_deref(),
             &manifest_str,
             size_on_disk,
+            "component",
         )?;
+
+        let manifest = image.manifest.clone();
 
         // Only store layers if this is a new entry
         if result == InsertResult::Inserted {
@@ -134,15 +146,73 @@ impl Store {
                 }
             }
         }
-        Ok(result)
+        Ok((result, digest, manifest))
+    }
+
+    /// Insert only the metadata (SQLite entry) for an image, without storing layers.
+    ///
+    /// Returns the insert result and the optional image ID.
+    pub(crate) fn insert_metadata(
+        &self,
+        reference: &Reference,
+        digest: Option<&str>,
+        manifest: &OciImageManifest,
+        size_on_disk: u64,
+    ) -> anyhow::Result<(InsertResult, Option<i64>)> {
+        let manifest_str = serde_json::to_string(manifest)?;
+        ImageEntry::insert(
+            &self.conn,
+            reference.registry(),
+            reference.repository(),
+            reference.tag(),
+            digest,
+            &manifest_str,
+            size_on_disk,
+            "component",
+        )
+    }
+
+    /// Insert a single layer into the content-addressable store.
+    ///
+    /// Optionally extracts WIT interface metadata if an `image_id` is provided.
+    pub(crate) async fn insert_layer(
+        &self,
+        layer_digest: &str,
+        data: &[u8],
+        image_id: Option<i64>,
+    ) -> anyhow::Result<()> {
+        let cache = self.state_info.store_dir();
+        let _integrity = cacache::write(&cache, layer_digest, data).await?;
+
+        if let Some(image_id) = image_id {
+            self.try_extract_wit_interface(image_id, data);
+        }
+
+        Ok(())
     }
 
     /// Attempt to extract WIT interface from wasm component bytes.
-    /// This is best-effort - if extraction fails, we silently skip.
+    /// This is best-effort - if extraction fails, we log a warning and skip.
     fn try_extract_wit_interface(&self, image_id: i64, wasm_bytes: &[u8]) {
         let Some(metadata) = extract_wit_metadata(wasm_bytes) else {
             return; // Not a valid wasm component, skip
         };
+
+        // Update the image's package_type based on the detected type
+        let package_type = if crate::utils::is_wit_package(wasm_bytes) {
+            "interface"
+        } else {
+            "component"
+        };
+        if let Err(e) = self.conn.execute(
+            "UPDATE image SET package_type = ?1 WHERE id = ?2",
+            (package_type, image_id),
+        ) {
+            eprintln!(
+                "Warning: Failed to update package_type for image {}: {}",
+                image_id, e
+            );
+        }
 
         // Insert the WIT interface
         let wit_id = match WitInterface::insert(
@@ -154,11 +224,22 @@ impl Store {
             metadata.export_count,
         ) {
             Ok(id) => id,
-            Err(_) => return, // Failed to insert, skip
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to insert WIT interface for image {}: {}",
+                    image_id, e
+                );
+                return;
+            }
         };
 
         // Link to image
-        let _ = WitInterface::link_to_image(&self.conn, image_id, wit_id);
+        if let Err(e) = WitInterface::link_to_image(&self.conn, image_id, wit_id) {
+            eprintln!(
+                "Warning: Failed to link WIT interface {} to image {}: {}",
+                wit_id, image_id, e
+            );
+        }
     }
 
     /// Returns all currently stored images and their metadata.
@@ -220,13 +301,33 @@ impl Store {
     }
 
     /// Search for known packages by query string.
-    pub(crate) fn search_known_packages(&self, query: &str) -> anyhow::Result<Vec<KnownPackage>> {
-        KnownPackage::search(&self.conn, query)
+    /// Uses pagination with `offset` and `limit` parameters.
+    pub(crate) fn search_known_packages(
+        &self,
+        query: &str,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<KnownPackage>> {
+        KnownPackage::search(&self.conn, query, offset, limit)
     }
 
     /// Get all known packages.
-    pub(crate) fn list_known_packages(&self) -> anyhow::Result<Vec<KnownPackage>> {
-        KnownPackage::get_all(&self.conn)
+    /// Uses pagination with `offset` and `limit` parameters.
+    pub(crate) fn list_known_packages(
+        &self,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<KnownPackage>> {
+        KnownPackage::get_all(&self.conn, offset, limit)
+    }
+
+    /// Get a known package by registry and repository.
+    pub(crate) fn get_known_package(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Option<KnownPackage>> {
+        KnownPackage::get(&self.conn, registry, repository)
     }
 
     /// Add or update a known package.

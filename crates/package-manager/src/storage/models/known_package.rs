@@ -36,8 +36,10 @@ impl TagType {
 /// A known package that persists in the database even after local deletion.
 /// This is used to track packages the user has seen or searched for.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct KnownPackage {
     #[allow(dead_code)]
+    #[cfg_attr(feature = "serde", serde(skip))]
     id: i64,
     /// Registry hostname
     pub registry: String,
@@ -77,6 +79,7 @@ impl KnownPackage {
     /// Inserts or updates a known package in the database.
     /// If the package already exists, updates the last_seen_at timestamp.
     /// Also adds the tag if provided, classifying it by type.
+    /// Uses a transaction to ensure atomicity of the multi-step operation.
     pub(crate) fn upsert(
         conn: &Connection,
         registry: &str,
@@ -84,7 +87,9 @@ impl KnownPackage {
         tag: Option<&str>,
         description: Option<&str>,
     ) -> anyhow::Result<()> {
-        conn.execute(
+        let tx = conn.unchecked_transaction()?;
+
+        tx.execute(
             "INSERT INTO known_package (registry, repository, description) VALUES (?1, ?2, ?3)
              ON CONFLICT(registry, repository) DO UPDATE SET 
                 last_seen_at = datetime('now'),
@@ -94,25 +99,27 @@ impl KnownPackage {
 
         // If a tag was provided, add it to the tags table with its type
         if let Some(tag) = tag {
-            let package_id: i64 = conn.query_row(
+            let package_id: i64 = tx.query_row(
                 "SELECT id FROM known_package WHERE registry = ?1 AND repository = ?2",
                 (registry, repository),
                 |row| row.get(0),
             )?;
 
             let tag_type = TagType::from_tag(tag);
-            conn.execute(
+            tx.execute(
                 "INSERT INTO known_package_tag (known_package_id, tag, tag_type) VALUES (?1, ?2, ?3)
                  ON CONFLICT(known_package_id, tag) DO UPDATE SET last_seen_at = datetime('now'), tag_type = ?3",
                 (package_id, tag, tag_type.as_str()),
             )?;
         }
 
+        tx.commit()?;
         Ok(())
     }
 
     /// Helper to fetch tags for a package by its ID, separated by type.
     /// Returns (release_tags, signature_tags, attestation_tags).
+    /// Logs warnings if database queries fail.
     fn fetch_tags_by_type(
         conn: &Connection,
         package_id: i64,
@@ -125,14 +132,23 @@ impl KnownPackage {
             "SELECT tag, tag_type FROM known_package_tag WHERE known_package_id = ?1 ORDER BY last_seen_at DESC",
         ) {
             Ok(stmt) => stmt,
-            Err(_) => return (release_tags, signature_tags, attestation_tags),
+            Err(e) => {
+                eprintln!("Warning: Failed to prepare tag query for package {}: {}", package_id, e);
+                return (release_tags, signature_tags, attestation_tags);
+            }
         };
 
         let rows = match stmt.query_map([package_id], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         }) {
             Ok(rows) => rows,
-            Err(_) => return (release_tags, signature_tags, attestation_tags),
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to query tags for package {}: {}",
+                    package_id, e
+                );
+                return (release_tags, signature_tags, attestation_tags);
+            }
         };
 
         for row in rows.flatten() {
@@ -149,17 +165,23 @@ impl KnownPackage {
 
     /// Search for known packages by a query string.
     /// Searches in both registry and repository fields.
-    pub(crate) fn search(conn: &Connection, query: &str) -> anyhow::Result<Vec<KnownPackage>> {
+    /// Uses pagination with `offset` and `limit` parameters.
+    pub(crate) fn search(
+        conn: &Connection,
+        query: &str,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<KnownPackage>> {
         let search_pattern = format!("%{}%", query);
         let mut stmt = conn.prepare(
             "SELECT id, registry, repository, description, last_seen_at, created_at 
              FROM known_package 
              WHERE registry LIKE ?1 OR repository LIKE ?1
              ORDER BY repository ASC, registry ASC
-             LIMIT 100",
+             LIMIT ?2 OFFSET ?3",
         )?;
 
-        let rows = stmt.query_map([&search_pattern], |row| {
+        let rows = stmt.query_map((&search_pattern, limit, offset), |row| {
             let id: i64 = row.get(0)?;
             Ok((
                 id,
@@ -191,15 +213,20 @@ impl KnownPackage {
     }
 
     /// Get all known packages, ordered alphabetically by repository.
-    pub(crate) fn get_all(conn: &Connection) -> anyhow::Result<Vec<KnownPackage>> {
+    /// Uses pagination with `offset` and `limit` parameters.
+    pub(crate) fn get_all(
+        conn: &Connection,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<KnownPackage>> {
         let mut stmt = conn.prepare(
             "SELECT id, registry, repository, description, last_seen_at, created_at 
              FROM known_package 
              ORDER BY repository ASC, registry ASC
-             LIMIT 100",
+             LIMIT ?1 OFFSET ?2",
         )?;
 
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map((limit, offset), |row| {
             let id: i64 = row.get(0)?;
             Ok((
                 id,
@@ -231,7 +258,6 @@ impl KnownPackage {
     }
 
     /// Get a known package by registry and repository.
-    #[allow(dead_code)]
     pub(crate) fn get(
         conn: &Connection,
         registry: &str,
@@ -352,7 +378,7 @@ mod tests {
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", None, None).unwrap();
 
         // Verify it was inserted
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].registry, "ghcr.io");
         assert_eq!(packages[0].repository, "user/repo");
@@ -366,7 +392,7 @@ mod tests {
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", Some("v1.0.0"), None).unwrap();
 
         // Verify it was inserted with the tag
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].tags, vec!["v1.0.0"]);
     }
@@ -381,7 +407,7 @@ mod tests {
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", Some("latest"), None).unwrap();
 
         // Verify all tags are present
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages.len(), 1);
         // Tags are ordered by last_seen_at DESC
         assert!(packages[0].tags.contains(&"v1.0.0".to_string()));
@@ -397,7 +423,7 @@ mod tests {
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", None, Some("A test package")).unwrap();
 
         // Verify description was saved
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].description, Some("A test package".to_string()));
     }
@@ -420,7 +446,7 @@ mod tests {
         .unwrap();
 
         // Verify only one package exists with updated description
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages.len(), 1);
         assert_eq!(
             packages[0].description,
@@ -438,7 +464,7 @@ mod tests {
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", Some("v1.0.0.att"), None).unwrap();
 
         // Verify tags are separated by type
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages.len(), 1);
         assert!(packages[0].tags.contains(&"v1.0.0".to_string()));
         assert!(
@@ -463,15 +489,15 @@ mod tests {
         KnownPackage::upsert(&conn, "ghcr.io", "user/nginx-app", None, None).unwrap();
 
         // Search for nginx
-        let results = KnownPackage::search(&conn, "nginx").unwrap();
+        let results = KnownPackage::search(&conn, "nginx", 0, 100).unwrap();
         assert_eq!(results.len(), 2);
 
         // Search for ghcr.io
-        let results = KnownPackage::search(&conn, "ghcr").unwrap();
+        let results = KnownPackage::search(&conn, "ghcr", 0, 100).unwrap();
         assert_eq!(results.len(), 2);
 
         // Search for bytecode
-        let results = KnownPackage::search(&conn, "bytecode").unwrap();
+        let results = KnownPackage::search(&conn, "bytecode", 0, 100).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].repository, "bytecode/component");
     }
@@ -482,7 +508,7 @@ mod tests {
 
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", None, None).unwrap();
 
-        let results = KnownPackage::search(&conn, "nonexistent").unwrap();
+        let results = KnownPackage::search(&conn, "nonexistent", 0, 100).unwrap();
         assert!(results.is_empty());
     }
 
@@ -511,7 +537,7 @@ mod tests {
 
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", None, None).unwrap();
 
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages[0].reference(), "ghcr.io/user/repo");
     }
 
@@ -521,12 +547,12 @@ mod tests {
 
         // Package without tags uses "latest"
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", None, None).unwrap();
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages[0].reference_with_tag(), "ghcr.io/user/repo:latest");
 
         // Package with tag uses first tag
         KnownPackage::upsert(&conn, "ghcr.io", "user/repo", Some("v1.0.0"), None).unwrap();
-        let packages = KnownPackage::get_all(&conn).unwrap();
+        let packages = KnownPackage::get_all(&conn, 0, 100).unwrap();
         assert_eq!(packages[0].reference_with_tag(), "ghcr.io/user/repo:v1.0.0");
     }
 }
