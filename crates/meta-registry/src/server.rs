@@ -54,7 +54,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/health", get(health))
         .route("/v1/search", get(search))
         .route("/v1/packages", get(list_packages))
-        .route("/v1/packages/{registry}/{repository:.*}", get(get_package))
+        .route("/v1/packages/{registry}/{*repository}", get(get_package))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -94,10 +94,12 @@ async fn get_package(
     State(manager): State<AppState>,
     Path((registry, repository)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
+    // Wildcard captures include a leading `/`; strip it.
+    let repository = repository.trim_start_matches('/');
     let manager = manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    match manager.get_known_package(&registry, &repository)? {
+    match manager.get_known_package(&registry, repository)? {
         Some(package) => Ok(Json(package).into_response()),
         None => Ok(StatusCode::NOT_FOUND.into_response()),
     }
