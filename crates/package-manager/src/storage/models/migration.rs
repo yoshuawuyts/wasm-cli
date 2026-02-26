@@ -60,6 +60,11 @@ const MIGRATIONS: &[MigrationDef] = &[
         name: "package_type",
         sql: include_str!("../migrations/10_package_type.sql"),
     },
+    MigrationDef {
+        version: 11,
+        name: "sync_meta",
+        sql: include_str!("../migrations/11_sync_meta.sql"),
+    },
 ];
 
 /// Information about the current migration state.

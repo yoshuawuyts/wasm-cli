@@ -36,7 +36,7 @@ impl TagType {
 /// A known package that persists in the database even after local deletion.
 /// This is used to track packages the user has seen or searched for.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct KnownPackage {
     #[allow(dead_code)]
     #[cfg_attr(feature = "serde", serde(skip))]

@@ -384,4 +384,26 @@ impl Store {
     ) -> anyhow::Result<Vec<(WitInterface, String)>> {
         WitInterface::get_all_with_images(&self.conn)
     }
+
+    /// Get a value from the `_sync_meta` table.
+    pub(crate) fn get_sync_meta(&self, key: &str) -> anyhow::Result<Option<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM _sync_meta WHERE key = ?1")?;
+        let mut rows = stmt.query_map([key], |row| row.get::<_, String>(0))?;
+        match rows.next() {
+            Some(row) => Ok(Some(row?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Set a value in the `_sync_meta` table.
+    pub(crate) fn set_sync_meta(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        self.conn.execute(
+            "INSERT INTO _sync_meta (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )?;
+        Ok(())
+    }
 }

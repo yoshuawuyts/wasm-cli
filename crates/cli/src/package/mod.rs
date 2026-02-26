@@ -1,6 +1,9 @@
 use anyhow::Result;
 use wasm_package_manager::{InsertResult, Manager, Reference};
 
+mod search;
+mod sync;
+
 /// Package, push, and pull Wasm Components
 #[derive(clap::Parser)]
 pub(crate) enum Opts {
@@ -11,6 +14,10 @@ pub(crate) enum Opts {
     Push,
     /// List all available tags for a component
     Tags(TagsOpts),
+    /// Search for packages across configured registries
+    Search(search::SearchOpts),
+    /// Force-sync the package index from the configured meta-registry
+    Sync(sync::SyncOpts),
 }
 
 #[derive(clap::Args)]
@@ -95,6 +102,8 @@ impl Opts {
                 }
                 Ok(())
             }
+            Opts::Search(opts) => opts.run(offline).await,
+            Opts::Sync(opts) => opts.run().await,
         }
     }
 }

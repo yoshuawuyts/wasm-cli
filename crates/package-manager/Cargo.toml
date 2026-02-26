@@ -17,15 +17,19 @@ default = []
 test-helpers = []
 # Enable serde::Serialize derives for types like KnownPackage
 serde = ["dep:serde"]
+# Enable HTTP sync from meta-registry
+http-sync = ["dep:reqwest", "dep:exponential-backoff", "serde"]
 
 [dependencies]
 anyhow = { workspace = true }
 cacache = { workspace = true }
 dirs = { workspace = true }
 docker_credential = { workspace = true }
+exponential-backoff = { workspace = true, optional = true }
 futures-concurrency = { workspace = true }
 oci-client = { workspace = true }
 oci-wasm = { workspace = true }
+reqwest = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }

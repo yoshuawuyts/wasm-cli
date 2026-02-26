@@ -7,6 +7,25 @@ use crate::network::Client;
 use crate::progress::ProgressEvent;
 use crate::storage::{ImageEntry, InsertResult, KnownPackage, StateInfo, Store, WitInterface};
 
+/// Result of syncing the package index from a meta-registry.
+#[derive(Debug)]
+pub enum SyncResult {
+    /// Sync was skipped because the minimum interval has not elapsed.
+    Skipped,
+    /// The server indicated the local data is still current (304 Not Modified).
+    NotModified,
+    /// New package data was fetched and stored locally.
+    Updated {
+        /// Number of packages that were synced.
+        count: usize,
+    },
+    /// The sync failed but local cached data is available.
+    Degraded {
+        /// A human-readable description of the error.
+        error: String,
+    },
+}
+
 /// Result of a pull operation.
 ///
 /// Contains the insert result along with the content digest and manifest
@@ -628,5 +647,104 @@ impl Manager {
         &self,
     ) -> anyhow::Result<Vec<(WitInterface, String)>> {
         self.store.list_wit_interfaces_with_components()
+    }
+
+    /// Sync the local package index from a meta-registry over HTTP.
+    ///
+    /// Checks the `_sync_meta` table for `last_synced_at` and skips the sync
+    /// if less than `sync_interval` seconds have elapsed. Passes the cached
+    /// ETag to the registry for conditional fetches.
+    ///
+    /// When `force` is `true`, the minimum-interval check is skipped.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error only when the sync fails **and** no cached data exists.
+    /// When cached data exists but the sync fails, returns `SyncResult::Degraded`.
+    #[cfg(feature = "http-sync")]
+    pub async fn sync_from_meta_registry(
+        &self,
+        url: &str,
+        sync_interval: u64,
+        force: bool,
+    ) -> anyhow::Result<SyncResult> {
+        use crate::network::registry_client::{FetchResult, RegistryClient};
+
+        // Check the minimum interval unless forced.
+        if !force
+            && let Some(last) = self.store.get_sync_meta("last_synced_at")?
+            && let Ok(ts) = last.parse::<i64>()
+        {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+            if now - ts < sync_interval as i64 {
+                return Ok(SyncResult::Skipped);
+            }
+        }
+
+        let etag = self.store.get_sync_meta("packages_etag")?;
+        let client = RegistryClient::new(url);
+
+        let has_cached_data = {
+            let existing = self.store.list_known_packages(0, 1)?;
+            !existing.is_empty()
+        };
+
+        match client.fetch_packages(etag.as_deref()).await {
+            Ok(FetchResult::NotModified) => {
+                self.update_last_synced_at()?;
+                Ok(SyncResult::NotModified)
+            }
+            Ok(FetchResult::Updated { packages, etag }) => {
+                let count = packages.len();
+                // Bulk upsert all packages.
+                for pkg in &packages {
+                    let first_tag = pkg.tags.first().map(|s| s.as_str());
+                    self.store.add_known_package(
+                        &pkg.registry,
+                        &pkg.repository,
+                        first_tag,
+                        pkg.description.as_deref(),
+                    )?;
+                    // Also add remaining tags.
+                    for tag in pkg.tags.iter().skip(1) {
+                        self.store.add_known_package(
+                            &pkg.registry,
+                            &pkg.repository,
+                            Some(tag),
+                            pkg.description.as_deref(),
+                        )?;
+                    }
+                }
+                if let Some(etag_val) = etag {
+                    self.store.set_sync_meta("packages_etag", &etag_val)?;
+                }
+                self.update_last_synced_at()?;
+                Ok(SyncResult::Updated { count })
+            }
+            Err(e) => {
+                if has_cached_data {
+                    Ok(SyncResult::Degraded {
+                        error: e.to_string(),
+                    })
+                } else {
+                    Err(anyhow::anyhow!(
+                        "{e}. No local data available — run with --offline to skip the registry check, or run 'wasm package sync' once you're back online."
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Update the `last_synced_at` timestamp in `_sync_meta`.
+    #[cfg(feature = "http-sync")]
+    fn update_last_synced_at(&self) -> anyhow::Result<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.store.set_sync_meta("last_synced_at", &now.to_string())
     }
 }

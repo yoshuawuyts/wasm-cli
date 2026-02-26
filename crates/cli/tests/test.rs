@@ -104,6 +104,18 @@ fn test_cli_package_tags_help_snapshot() {
     assert_snapshot!(output);
 }
 
+#[test]
+fn test_cli_package_search_help_snapshot() {
+    let output = run_cli(&["package", "search", "--help"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_cli_package_sync_help_snapshot() {
+    let output = run_cli(&["package", "sync", "--help"]);
+    assert_snapshot!(output);
+}
+
 // =============================================================================
 // Self Command Help Tests
 // =============================================================================

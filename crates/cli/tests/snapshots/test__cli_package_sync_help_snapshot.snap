@@ -2,18 +2,9 @@
 source: crates/cli/tests/test.rs
 expression: output
 ---
-Package, push, and pull Wasm Components
+Force-sync the package index from the configured meta-registry
 
-Usage: wasm package [OPTIONS] <COMMAND>
-
-Commands:
-  show    Fetch OCI metadata for a component
-  pull    Pull a component from the registry
-  push    
-  tags    List all available tags for a component
-  search  Search for packages across configured registries
-  sync    Force-sync the package index from the configured meta-registry
-  help    Print this message or the help of the given subcommand(s)
+Usage: wasm package sync [OPTIONS]
 
 Options:
   -h, --help
