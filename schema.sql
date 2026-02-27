@@ -322,40 +322,42 @@ CREATE UNIQUE INDEX IF NOT EXISTS "uq_component_target"
 -- ============================================================
 -- INDEXES
 --
--- Indexes are only created where no existing UNIQUE constraint
--- or UNIQUE INDEX already provides coverage via its leftmost
--- column(s).  See inline notes for what each UNIQUE covers.
+-- Only created where no UNIQUE constraint or UNIQUE INDEX already
+-- provides coverage via its leftmost column(s).
+--
+-- Coverage map:
+--   oci_repository    — UNIQUE(registry, repository)
+--   oci_manifest      — UNIQUE(oci_repository_id, digest)
+--   oci_manifest_ann  — UNIQUE(oci_manifest_id, key)
+--   oci_tag           — UNIQUE(oci_repository_id, tag)
+--   oci_layer         — UNIQUE(oci_manifest_id, digest)
+--                        UNIQUE(oci_manifest_id, position)
+--   oci_layer_ann     — UNIQUE(oci_layer_id, key)
+--   oci_referrer      — UNIQUE(subject_manifest_id, referrer_manifest_id)
+--   wit_interface     — uq_wit_interface(package_name, ...)
+--   wit_world         — UNIQUE(wit_interface_id, name)
+--   wit_world_import  — uq_wit_world_import(wit_world_id, ...)
+--   wit_world_export  — uq_wit_world_export(wit_world_id, ...)
+--   wit_interface_dep — uq_wit_interface_dependency(dependent_id, ...)
+--   wasm_component    — uq_wasm_component(oci_manifest_id, ...)
+--   component_target  — uq_component_target(wasm_component_id, ...)
 -- ============================================================
 
--- oci_manifest: UNIQUE(oci_repository_id, digest) covers
--- lookups by oci_repository_id.  Separate index on digest
--- alone for cross-repo digest lookups.
+-- oci_manifest: cross-repo digest lookup and artifact type filtering
 CREATE INDEX IF NOT EXISTS "idx_oci_manifest_digest"
     ON "oci_manifest"("digest");
 CREATE INDEX IF NOT EXISTS "idx_oci_manifest_artifact_type"
     ON "oci_manifest"("artifact_type");
 
--- oci_layer: UNIQUE(oci_manifest_id, digest) covers lookups by
--- oci_manifest_id.  UNIQUE(oci_manifest_id, position) provides
--- ordered access.  idx_oci_layer_manifest kept for covering
--- (oci_manifest_id, position) scans that skip the digest column.
-CREATE INDEX IF NOT EXISTS "idx_oci_layer_manifest"
-    ON "oci_layer"("oci_manifest_id", "position");
-
--- oci_tag: UNIQUE(oci_repository_id, tag) covers lookups by
--- oci_repository_id.  Separate index on manifest_digest for
--- reverse lookups ("which tags point to this digest?").
+-- oci_tag: reverse lookup ("which tags point to this digest?")
 CREATE INDEX IF NOT EXISTS "idx_oci_tag_digest"
     ON "oci_tag"("manifest_digest");
 
--- oci_manifest_annotation: UNIQUE(oci_manifest_id, key) covers
--- lookups by oci_manifest_id.  Separate index on key alone for
--- "find all manifests with annotation X" queries.
+-- oci_manifest_annotation: search by annotation key across manifests
 CREATE INDEX IF NOT EXISTS "idx_oci_manifest_annotation_key"
     ON "oci_manifest_annotation"("key");
 
--- oci_layer_annotation: UNIQUE(oci_layer_id, key) covers lookups
--- by oci_layer_id.  Separate index on key alone.
+-- oci_layer_annotation: search by annotation key across layers
 CREATE INDEX IF NOT EXISTS "idx_oci_layer_annotation_key"
     ON "oci_layer_annotation"("key");
 
@@ -367,30 +369,24 @@ CREATE INDEX IF NOT EXISTS "idx_oci_manifest_vendor"
 CREATE INDEX IF NOT EXISTS "idx_oci_manifest_licenses"
     ON "oci_manifest"("oci_licenses");
 
--- oci_referrer: UNIQUE(subject_manifest_id, referrer_manifest_id)
--- covers forward lookups by subject_manifest_id.  Compound index
--- for filtering by (subject, artifact_type).  Reverse index on
--- referrer_manifest_id for GC and graph traversal.
+-- oci_referrer: filter by (subject, artifact_type); reverse lookup by referrer
 CREATE INDEX IF NOT EXISTS "idx_oci_referrer_type"
     ON "oci_referrer"("subject_manifest_id", "artifact_type");
 CREATE INDEX IF NOT EXISTS "idx_oci_referrer_referrer"
     ON "oci_referrer"("referrer_manifest_id");
 
--- WIT interfaces: uq_wit_interface covers prefix scans on
--- package_name.  Separate index on (package_name, version) for
--- exact version lookups without COALESCE overhead.
+-- wit_interface: exact (package_name, version) without COALESCE;
+-- provenance lookup by manifest
 CREATE INDEX IF NOT EXISTS "idx_wit_iface_name_version"
     ON "wit_interface"("package_name", "version");
 CREATE INDEX IF NOT EXISTS "idx_wit_iface_provenance"
     ON "wit_interface"("oci_manifest_id");
 
--- wit_world: UNIQUE(wit_interface_id, name) covers lookups by
--- wit_interface_id.  Separate index on name alone for cross-
--- package world name searches.
+-- wit_world: cross-package world name search
 CREATE INDEX IF NOT EXISTS "idx_wit_world_name"
     ON "wit_world"("name");
 
--- World imports/exports reverse lookups
+-- World imports/exports: reverse lookups by declared name and resolved id
 CREATE INDEX IF NOT EXISTS "idx_world_import_declared"
     ON "wit_world_import"("declared_package", "declared_version");
 CREATE INDEX IF NOT EXISTS "idx_world_import_resolved"
@@ -400,19 +396,17 @@ CREATE INDEX IF NOT EXISTS "idx_world_export_declared"
 CREATE INDEX IF NOT EXISTS "idx_world_export_resolved"
     ON "wit_world_export"("resolved_interface_id");
 
--- Interface dependencies reverse lookups
+-- Interface dependencies: reverse lookups
 CREATE INDEX IF NOT EXISTS "idx_wit_dep_declared"
     ON "wit_interface_dependency"("declared_package", "declared_version");
 CREATE INDEX IF NOT EXISTS "idx_wit_dep_resolved"
     ON "wit_interface_dependency"("resolved_interface_id");
 
--- wasm_component: uq_wasm_component covers lookups by
--- oci_manifest_id.  Separate index on name for search.
+-- wasm_component: search by name
 CREATE INDEX IF NOT EXISTS "idx_wasm_component_name"
     ON "wasm_component"("name");
 
--- component_target: uq_component_target covers lookups by
--- wasm_component_id.  Separate indexes for reverse lookups.
+-- component_target: reverse lookups by declared world and resolved id
 CREATE INDEX IF NOT EXISTS "idx_target_declared"
     ON "component_target"("declared_package", "declared_world", "declared_version");
 CREATE INDEX IF NOT EXISTS "idx_target_resolved"
