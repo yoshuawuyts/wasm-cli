@@ -320,12 +320,17 @@ credential-helper.password = "/path/to/get-pass.sh"
 
     #[test]
     fn test_credential_cache() {
-        // Build a cross-platform echo command
+        // Write JSON to a temp file to avoid shell quoting issues across platforms
         let json = r#"[{"id": "username", "value": "user"}, {"id": "password", "value": "pass"}]"#;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        use std::io::Write;
+        f.write_all(json.as_bytes()).unwrap();
+        let tmp_path = f.into_temp_path();
+        let path_str = tmp_path.to_str().unwrap();
         let echo_cmd = if cfg!(target_os = "windows") {
-            format!("echo {json}")
+            format!("type {path_str}")
         } else {
-            format!("echo '{json}'")
+            format!("cat {path_str}")
         };
 
         let mut registries = HashMap::new();

@@ -138,22 +138,30 @@ fn execute_shell_command(cmd: &str) -> Result<String> {
 mod tests {
     use super::*;
 
-    /// Build a cross-platform echo command for a JSON string.
-    /// On Unix, `echo '...'` strips quotes. On Windows, `echo ...` is used directly.
-    fn echo_json_cmd(json: &str) -> String {
-        if cfg!(target_os = "windows") {
-            format!("echo {json}")
+    /// Build a cross-platform command that outputs a JSON string to stdout.
+    ///
+    /// Uses a temp file + `cat`/`type` because `echo` on Windows cmd.exe
+    /// mangles double quotes in JSON strings.
+    fn json_output_cmd(json: &str) -> (String, tempfile::TempPath) {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().expect("failed to create temp file");
+        f.write_all(json.as_bytes())
+            .expect("failed to write temp file");
+        let path = f.into_temp_path();
+        let path_str = path.to_str().expect("non-UTF-8 temp path");
+        let cmd = if cfg!(target_os = "windows") {
+            format!("type {path_str}")
         } else {
-            format!("echo '{json}'")
-        }
+            format!("cat {path_str}")
+        };
+        (cmd, path)
     }
 
     #[test]
     fn test_execute_json_helper() {
-        // Create a simple echo command that outputs valid JSON
         let json =
             r#"[{"id": "username", "value": "testuser"}, {"id": "password", "value": "testpass"}]"#;
-        let cmd = echo_json_cmd(json);
+        let (cmd, _tmp) = json_output_cmd(json);
 
         let (username, password) = execute_json_helper(&cmd).unwrap();
         assert_eq!(username, "testuser");
@@ -171,7 +179,8 @@ mod tests {
     fn test_credential_helper_json_execute() {
         let json =
             r#"[{"id": "username", "value": "user1"}, {"id": "password", "value": "pass1"}]"#;
-        let helper = CredentialHelper::Json(echo_json_cmd(json));
+        let (cmd, _tmp) = json_output_cmd(json);
+        let helper = CredentialHelper::Json(cmd);
         let (username, password) = helper.execute().unwrap();
         assert_eq!(username, "user1");
         assert_eq!(password, "pass1");
