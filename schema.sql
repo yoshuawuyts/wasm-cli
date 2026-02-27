@@ -10,6 +10,10 @@
 --   3. Wasm layer — models compiled WebAssembly components and
 --                    which worlds they target
 --
+-- Plus operational tables:
+--   - migrations  — schema version tracking
+--   - _sync_meta  — registry sync state (ETags, timestamps)
+--
 -- All relationships between the WIT/Wasm layers and specific OCI
 -- sources are nominal (by declared name) with optional resolution
 -- to a concrete row, preserving ambiguity for end-user choice.
@@ -18,9 +22,11 @@
 PRAGMA foreign_keys = ON;
 
 -- ============================================================
--- Schema migration tracking
+-- Operational tables
 -- ============================================================
 
+-- Tracks which schema migrations have been applied, ensuring each
+-- migration runs exactly once and in order.
 CREATE TABLE IF NOT EXISTS "migrations" (
     -- Surrogate primary key for the migration record.
     "id"         INTEGER PRIMARY KEY,
@@ -29,6 +35,35 @@ CREATE TABLE IF NOT EXISTS "migrations" (
     "version"    INTEGER NOT NULL UNIQUE,
     -- ISO 8601 timestamp of when this migration was applied.
     "applied_at" TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Key-value store for registry sync state.  Used by the sync
+-- subsystem to track conditional-request headers and timing so
+-- that repeated syncs are cheap (ETag/If-None-Match) and
+-- rate-limited (minimum interval between syncs).
+--
+-- Well-known keys:
+--   "packages_etag"   — the ETag header value from the last
+--                        successful GET /v1/packages response,
+--                        sent back as If-None-Match on the next
+--                        request to avoid re-downloading unchanged
+--                        data (HTTP 304 Not Modified).
+--   "last_synced_at"  — ISO 8601 timestamp of the last successful
+--                        sync attempt, used to enforce a minimum
+--                        interval between syncs (e.g. 3600s) so
+--                        the CLI doesn't hit the registry on every
+--                        invocation.
+--
+-- Additional keys may be added as new sync sources are introduced
+-- (e.g. per-registry ETags, cursor tokens for paginated APIs).
+CREATE TABLE IF NOT EXISTS "_sync_meta" (
+    -- The metadata key, e.g. "packages_etag", "last_synced_at".
+    -- Serves as the primary key; each key appears at most once.
+    "key"   TEXT PRIMARY KEY NOT NULL,
+    -- The metadata value.  Interpretation depends on the key:
+    -- timestamps are ISO 8601 strings, ETags are opaque strings
+    -- returned by the server.
+    "value" TEXT NOT NULL
 );
 
 -- ============================================================
@@ -578,6 +613,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "uq_component_target"
 -- provides coverage via its leftmost column(s).
 --
 -- Coverage map (UNIQUE → leftmost-column prefix scans it serves):
+--   _sync_meta        — PRIMARY KEY(key)
 --   oci_repository    — UNIQUE(registry, repository)
 --   oci_manifest      — UNIQUE(oci_repository_id, digest)
 --   oci_manifest_ann  — UNIQUE(oci_manifest_id, key)
