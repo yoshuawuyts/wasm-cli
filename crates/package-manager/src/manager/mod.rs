@@ -703,30 +703,26 @@ impl Manager {
             !existing.is_empty()
         };
 
-        let fetch_result = client.fetch_packages(etag.as_deref(), 1000).await;
-
-        // Degrade gracefully when cached data exists but the fetch fails.
-        if let Err(e) = &fetch_result
-            && has_cached_data
-        {
-            return Ok(SyncResult::Degraded {
-                error: e.to_string(),
+        let result = client
+            .fetch_packages(etag.as_deref(), 1000)
+            .await
+            .map_err(|e| {
+                if has_cached_data {
+                    e
+                } else {
+                    anyhow::anyhow!(
+                        "{e}. No local data available. Please check your network \
+                         connection and run 'wasm package sync' to fetch the package index."
+                    )
+                }
             });
-        }
 
-        let fetch_result = fetch_result.map_err(|e| {
-            e.context(
-                "No local data available. Please check your network \
-                 connection and run 'wasm package sync' to fetch the package index.",
-            )
-        })?;
-
-        match fetch_result {
-            FetchResult::NotModified => {
+        match result {
+            Ok(FetchResult::NotModified) => {
                 self.update_last_synced_at()?;
                 Ok(SyncResult::NotModified)
             }
-            FetchResult::Updated { packages, etag } => {
+            Ok(FetchResult::Updated { packages, etag }) => {
                 let count = packages.len();
                 // Bulk upsert all packages.
                 for pkg in &packages {
@@ -753,6 +749,10 @@ impl Manager {
                 self.update_last_synced_at()?;
                 Ok(SyncResult::Updated { count })
             }
+            Err(e) if has_cached_data => Ok(SyncResult::Degraded {
+                error: e.to_string(),
+            }),
+            Err(e) => Err(e),
         }
     }
 
