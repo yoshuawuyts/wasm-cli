@@ -5,7 +5,7 @@ mod init;
 mod inspect;
 mod install;
 mod local;
-mod package;
+mod registry;
 mod self_;
 mod tui;
 mod util;
@@ -51,7 +51,7 @@ impl Cli {
             Some(Command::Inspect(opts)) => opts.run()?,
             Some(Command::Convert) => todo!(),
             Some(Command::Local(opts)) => opts.run()?,
-            Some(Command::Package(opts)) => opts.run(self.offline).await?,
+            Some(Command::Registry(opts)) => opts.run(self.offline).await?,
             Some(Command::Compose) => todo!(),
             Some(Command::Init(opts)) => opts.run().await?,
             Some(Command::Install(opts)) => opts.run(self.offline).await?,
@@ -83,9 +83,9 @@ enum Command {
     /// Detect and manage local WASM files
     #[command(subcommand)]
     Local(local::Opts),
-    /// Package, push, and pull Wasm Components
+    /// Manage images, components, and interfaces in OCI registries
     #[command(subcommand)]
-    Package(package::Opts),
+    Registry(registry::Opts),
     /// Compose Wasm Components with other components
     #[command(subcommand)]
     Compose,

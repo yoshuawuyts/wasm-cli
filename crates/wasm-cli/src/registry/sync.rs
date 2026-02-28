@@ -1,4 +1,4 @@
-//! `wasm package sync` subcommand.
+//! `wasm registry sync` subcommand.
 
 use anyhow::Result;
 use wasm_package_manager::{Manager, SyncPolicy, SyncResult};

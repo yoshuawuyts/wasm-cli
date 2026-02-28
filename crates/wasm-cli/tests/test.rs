@@ -83,36 +83,36 @@ fn test_cli_local_list_help_snapshot() {
 }
 
 // =============================================================================
-// Package Command Help Tests
+// Registry Command Help Tests
 // =============================================================================
 
 #[test]
-fn test_cli_package_help_snapshot() {
-    let output = run_cli(&["package", "--help"]);
+fn test_cli_registry_help_snapshot() {
+    let output = run_cli(&["registry", "--help"]);
     assert_snapshot!(output);
 }
 
 #[test]
-fn test_cli_package_pull_help_snapshot() {
-    let output = run_cli(&["package", "pull", "--help"]);
+fn test_cli_registry_pull_help_snapshot() {
+    let output = run_cli(&["registry", "pull", "--help"]);
     assert_snapshot!(output);
 }
 
 #[test]
-fn test_cli_package_tags_help_snapshot() {
-    let output = run_cli(&["package", "tags", "--help"]);
+fn test_cli_registry_tags_help_snapshot() {
+    let output = run_cli(&["registry", "tags", "--help"]);
     assert_snapshot!(output);
 }
 
 #[test]
-fn test_cli_package_search_help_snapshot() {
-    let output = run_cli(&["package", "search", "--help"]);
+fn test_cli_registry_search_help_snapshot() {
+    let output = run_cli(&["registry", "search", "--help"]);
     assert_snapshot!(output);
 }
 
 #[test]
-fn test_cli_package_sync_help_snapshot() {
-    let output = run_cli(&["package", "sync", "--help"]);
+fn test_cli_registry_sync_help_snapshot() {
+    let output = run_cli(&["registry", "sync", "--help"]);
     assert_snapshot!(output);
 }
 
@@ -347,12 +347,12 @@ fn test_offline_flag_with_local_list() {
 }
 
 #[test]
-fn test_offline_flag_with_package_pull() {
-    // Test that --offline mode causes package pull to fail with clear error
+fn test_offline_flag_with_registry_pull() {
+    // Test that --offline mode causes registry pull to fail with clear error
     let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
         .args(&[
             "--offline",
-            "package",
+            "registry",
             "pull",
             "ghcr.io/example/test:latest",
         ])

@@ -2,15 +2,20 @@
 source: crates/wasm-cli/tests/test.rs
 expression: output
 ---
-Pull a component from the registry
+Search for packages across configured registries
 
-Usage: wasm package pull [OPTIONS] <REFERENCE>
+Usage: wasm registry search [OPTIONS] <QUERY>
 
 Arguments:
-  <REFERENCE>
-          The reference to pull
+  <QUERY>
+          Search query (matches package name and description)
 
 Options:
+      --limit <LIMIT>
+          Maximum number of results to show
+          
+          [default: 20]
+
   -h, --help
           Print help (see a summary with '-h')
 

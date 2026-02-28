@@ -2,9 +2,13 @@
 source: crates/wasm-cli/tests/test.rs
 expression: output
 ---
-Force-sync the package index from the configured meta-registry
+Pull a component from the registry
 
-Usage: wasm package sync [OPTIONS]
+Usage: wasm registry pull [OPTIONS] <REFERENCE>
+
+Arguments:
+  <REFERENCE>
+          The reference to pull
 
 Options:
   -h, --help
