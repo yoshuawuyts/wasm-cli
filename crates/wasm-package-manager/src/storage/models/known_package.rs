@@ -79,7 +79,7 @@ impl KnownPackage {
                 rusqlite::params![desc, repo_id],
             )
         {
-            eprintln!("Warning: Failed to update description for repo {repo_id}: {e}");
+            tracing::warn!("Failed to update description for repo {repo_id}: {e}");
         }
 
         // If a tag was provided and a manifest exists that it could reference,
@@ -107,7 +107,7 @@ impl KnownPackage {
                     rusqlite::params![repo_id, tag, digest],
                 )
             {
-                eprintln!("Warning: Failed to upsert tag '{tag}' for repo {repo_id}: {e}");
+                tracing::warn!("Failed to upsert tag '{tag}' for repo {repo_id}: {e}");
             }
         }
 

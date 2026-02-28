@@ -48,6 +48,13 @@ impl Opts {
                     state_info.metadata_file().display(),
                     format_size(state_info.metadata_size())
                 );
+                println!();
+                println!("[Logging]");
+                println!("Log directory: \t{}", state_info.log_dir().display());
+                println!(
+                    "Log file: \t{}",
+                    state_info.log_dir().join("wasm.log").display()
+                );
                 Ok(())
             }
             Opts::Config => {

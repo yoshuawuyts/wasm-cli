@@ -95,8 +95,50 @@ enum Command {
     Self_(self_::Opts),
 }
 
+/// Compute the log directory for the application.
+///
+/// Uses the XDG state directory (`$XDG_STATE_HOME/wasm/logs`) on Linux,
+/// and falls back to the local data directory on other systems.
+pub(crate) fn log_dir() -> std::path::PathBuf {
+    wasm_package_manager::StateInfo::default_log_dir()
+}
+
+/// Initialize the tracing subscriber with a file appender and a stderr layer
+/// for warnings and above. Logs are stored in an XDG-compliant directory.
+///
+/// The returned `WorkerGuard` must be kept alive for the duration of the
+/// program to ensure all buffered log records are flushed.
+fn init_tracing() -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::{EnvFilter, Layer};
+
+    let log_dir = log_dir();
+    std::fs::create_dir_all(&log_dir)?;
+
+    let file_appender = tracing_appender::rolling::never(&log_dir, "wasm.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .with_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")));
+
+    let stderr_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .with_filter(tracing_subscriber::filter::LevelFilter::WARN);
+
+    tracing_subscriber::registry()
+        .with(file_layer)
+        .with(stderr_layer)
+        .init();
+
+    Ok(guard)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let _tracing_guard = init_tracing()?;
     Cli::parse().run().await?;
     Ok(())
 }

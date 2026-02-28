@@ -126,6 +126,30 @@ impl StateInfo {
         self.migration_total
     }
 
+    /// Get the log directory for the application.
+    ///
+    /// Uses the XDG state directory (`$XDG_STATE_HOME/wasm/logs`) on Linux,
+    /// and falls back to the data directory (`data_dir/logs`) on other systems.
+    #[must_use]
+    pub fn log_dir(&self) -> PathBuf {
+        Self::default_log_dir()
+    }
+
+    /// Compute the default log directory for the application without an instance.
+    ///
+    /// Uses the XDG state directory (`$XDG_STATE_HOME/wasm/logs`) on Linux,
+    /// and falls back to the local data directory on other systems.
+    #[must_use]
+    pub fn default_log_dir() -> PathBuf {
+        dirs::state_dir()
+            .map(|p| p.join("wasm").join("logs"))
+            .unwrap_or_else(|| {
+                dirs::data_local_dir()
+                    .map(|p| p.join("wasm").join("logs"))
+                    .unwrap_or_else(|| PathBuf::from("."))
+            })
+    }
+
     /// Creates a new StateInfo for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
     #[must_use]

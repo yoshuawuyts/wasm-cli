@@ -50,8 +50,8 @@ impl Opts {
             Opts::Pull(opts) => {
                 let result = store.pull(opts.reference.clone()).await?;
                 if result.insert_result == InsertResult::AlreadyExists {
-                    eprintln!(
-                        "warning: package '{}' already exists in the local store",
+                    tracing::warn!(
+                        "package '{}' already exists in the local store",
                         opts.reference.whole()
                     );
                 }

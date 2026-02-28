@@ -36,13 +36,10 @@ impl SearchOpts {
                 .await
             {
                 Ok(SyncResult::Degraded { error }) => {
-                    eprintln!(
-                        "{}: registry sync failed: {error}",
-                        console::style("warning").yellow().bold()
-                    );
+                    tracing::warn!("registry sync failed: {error}");
                 }
                 Err(e) => {
-                    eprintln!("{}: {e}", console::style("warning").yellow().bold());
+                    tracing::warn!("{e}");
                 }
                 // Skipped (interval not elapsed), NotModified (ETag matched),
                 // and Updated (new data stored) are all success paths that need

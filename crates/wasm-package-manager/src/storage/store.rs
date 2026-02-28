@@ -301,9 +301,10 @@ impl Store {
             Some(manifest_id),
             layer_id,
         ) {
-            eprintln!(
-                "Warning: Failed to insert WIT interface for manifest {}: {}",
-                manifest_id, e
+            tracing::warn!(
+                "Failed to insert WIT interface for manifest {}: {}",
+                manifest_id,
+                e
             );
         }
     }

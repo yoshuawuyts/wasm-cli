@@ -79,9 +79,7 @@ impl ImageEntry {
             let manifest = match serde_json::from_str::<OciImageManifest>(&json) {
                 Ok(m) => m,
                 Err(e) => {
-                    eprintln!(
-                        "Warning: Skipping manifest {digest} in {registry}/{repository}: {e}"
-                    );
+                    tracing::warn!("Skipping manifest {digest} in {registry}/{repository}: {e}");
                     continue;
                 }
             };
