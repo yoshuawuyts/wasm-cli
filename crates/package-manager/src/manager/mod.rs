@@ -266,7 +266,12 @@ impl Manager {
 
                 // Store the layer
                 self.store
-                    .insert_layer(&layer_descriptor.digest, &layer_data, image_id)
+                    .insert_layer(
+                        &layer_descriptor.digest,
+                        &layer_data,
+                        image_id,
+                        index as i32,
+                    )
                     .await?;
 
                 let _ = progress_tx.send(ProgressEvent::LayerStored { index }).await;

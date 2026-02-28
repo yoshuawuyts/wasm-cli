@@ -126,6 +126,15 @@ impl Store {
                 .and_then(|m| m.media_type.as_deref()),
             Some(&manifest_str),
             Some(size_on_disk as i64),
+            image
+                .manifest
+                .as_ref()
+                .and_then(|m| m.artifact_type.as_deref()),
+            image
+                .manifest
+                .as_ref()
+                .map(|m| m.config.media_type.as_str()),
+            image.manifest.as_ref().map(|m| m.config.digest.as_str()),
             &annotations,
         )?;
 
@@ -207,6 +216,9 @@ impl Store {
             manifest.media_type.as_deref(),
             Some(&manifest_str),
             Some(size_on_disk as i64),
+            manifest.artifact_type.as_deref(),
+            Some(manifest.config.media_type.as_str()),
+            Some(manifest.config.digest.as_str()),
             &annotations,
         )?;
 
@@ -233,25 +245,26 @@ impl Store {
     /// Insert a single layer into the content-addressable store.
     ///
     /// Optionally records the layer in `oci_layer` and extracts WIT interface
-    /// metadata if a `manifest_id` is provided.
+    /// metadata if a `manifest_id` is provided. The `position` specifies the
+    /// layer's ordering within the manifest (0-based index).
     pub(crate) async fn insert_layer(
         &self,
         layer_digest: &str,
         data: &[u8],
         manifest_id: Option<i64>,
+        position: i32,
     ) -> anyhow::Result<()> {
         let cache = self.state_info.store_dir();
         let _integrity = cacache::write(&cache, layer_digest, data).await?;
 
         if let Some(manifest_id) = manifest_id {
-            // Record the layer in oci_layer (position 0 since we don't know ordering).
             let layer_id = OciLayer::insert(
                 &self.conn,
                 manifest_id,
                 layer_digest,
                 None,
                 Some(data.len() as i64),
-                0,
+                position,
             )?;
             self.try_extract_wit_interface(manifest_id, Some(layer_id), data);
         }

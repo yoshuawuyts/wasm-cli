@@ -165,6 +165,7 @@ impl OciRepository {
 
     /// Creates a new `OciRepository` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
+    #[allow(dead_code)]
     #[must_use]
     pub(crate) fn new_for_testing(
         registry: String,
@@ -265,6 +266,9 @@ impl OciManifest {
         media_type: Option<&str>,
         raw_json: Option<&str>,
         size_bytes: Option<i64>,
+        artifact_type: Option<&str>,
+        config_media_type: Option<&str>,
+        config_digest: Option<&str>,
         annotations: &HashMap<String, String>,
     ) -> anyhow::Result<(i64, bool)> {
         // Partition annotations into well-known and extra.
@@ -283,14 +287,16 @@ impl OciManifest {
         let rows_inserted = conn.execute(
             "INSERT INTO oci_manifest (
                 oci_repository_id, digest, media_type, raw_json, size_bytes,
+                artifact_type, config_media_type, config_digest,
                 oci_created, oci_authors, oci_url, oci_documentation, oci_source,
                 oci_version, oci_revision, oci_vendor, oci_licenses, oci_ref_name,
                 oci_title, oci_description, oci_base_digest, oci_base_name
              ) VALUES (
                 ?1, ?2, ?3, ?4, ?5,
-                ?6, ?7, ?8, ?9, ?10,
-                ?11, ?12, ?13, ?14, ?15,
-                ?16, ?17, ?18, ?19
+                ?6, ?7, ?8,
+                ?9, ?10, ?11, ?12, ?13,
+                ?14, ?15, ?16, ?17, ?18,
+                ?19, ?20, ?21, ?22
              )
              ON CONFLICT(oci_repository_id, digest) DO NOTHING",
             rusqlite::params![
@@ -299,6 +305,9 @@ impl OciManifest {
                 media_type,
                 raw_json,
                 size_bytes,
+                artifact_type,
+                config_media_type,
+                config_digest,
                 well_known.get("oci_created").copied(),
                 well_known.get("oci_authors").copied(),
                 well_known.get("oci_url").copied(),
@@ -446,6 +455,7 @@ impl OciManifest {
 
     /// Creates a new `OciManifest` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
+    #[allow(dead_code)]
     #[must_use]
     pub(crate) fn new_for_testing(oci_repository_id: i64, digest: String) -> Self {
         Self {
@@ -589,6 +599,7 @@ impl OciTag {
 
     /// Creates a new `OciTag` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
+    #[allow(dead_code)]
     #[must_use]
     pub(crate) fn new_for_testing(
         oci_repository_id: i64,
@@ -711,6 +722,7 @@ impl OciLayer {
 
     /// Creates a new `OciLayer` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
+    #[allow(dead_code)]
     #[must_use]
     pub(crate) fn new_for_testing(
         oci_manifest_id: i64,
@@ -805,6 +817,7 @@ impl OciReferrer {
 
     /// Creates a new `OciReferrer` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
+    #[allow(dead_code)]
     #[must_use]
     pub(crate) fn new_for_testing(
         subject_manifest_id: i64,
@@ -866,6 +879,9 @@ mod tests {
             Some("application/vnd.oci.image.manifest.v1+json"),
             Some("{}"),
             Some(1024),
+            None,
+            None,
+            None,
             &annotations,
         )
         .unwrap();
@@ -877,6 +893,9 @@ mod tests {
             &conn,
             repo_id,
             "sha256:abc123",
+            None,
+            None,
+            None,
             None,
             None,
             None,
@@ -908,6 +927,9 @@ mod tests {
             &conn,
             repo_id,
             "sha256:desc123",
+            None,
+            None,
+            None,
             None,
             None,
             None,
@@ -944,6 +966,9 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
+            None,
             &HashMap::new(),
         )
         .unwrap();
@@ -961,6 +986,9 @@ mod tests {
             &conn,
             repo_id,
             "sha256:def456",
+            None,
+            None,
+            None,
             None,
             None,
             None,
@@ -982,6 +1010,9 @@ mod tests {
             &conn,
             repo_id,
             "sha256:abc",
+            None,
+            None,
+            None,
             None,
             None,
             None,
@@ -1025,6 +1056,9 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
+            None,
             &HashMap::new(),
         )
         .unwrap();
@@ -1044,5 +1078,43 @@ mod tests {
         // Tag should also be gone (ON DELETE CASCADE)
         let tag = OciTag::find_by_tag(&conn, repo_id, "v1").unwrap();
         assert!(tag.is_none());
+    }
+
+    #[test]
+    fn test_oci_manifest_upsert_stores_config_fields() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        let (mid, was_inserted) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:config123",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some("{}"),
+            Some(2048),
+            Some("application/vnd.example+type"),
+            Some("application/vnd.oci.image.config.v1+json"),
+            Some("sha256:configdigest"),
+            &HashMap::new(),
+        )
+        .unwrap();
+        assert!(was_inserted);
+
+        let manifest = OciManifest::find(&conn, repo_id, "sha256:config123")
+            .unwrap()
+            .unwrap();
+        assert_eq!(manifest.id(), mid);
+        assert_eq!(
+            manifest.artifact_type.as_deref(),
+            Some("application/vnd.example+type")
+        );
+        assert_eq!(
+            manifest.config_media_type.as_deref(),
+            Some("application/vnd.oci.image.config.v1+json")
+        );
+        assert_eq!(
+            manifest.config_digest.as_deref(),
+            Some("sha256:configdigest")
+        );
     }
 }
