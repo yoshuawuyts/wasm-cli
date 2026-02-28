@@ -95,8 +95,7 @@ impl Config {
     ///
     /// Returns an error if a configuration file exists but cannot be read or parsed.
     pub fn load() -> Result<Self> {
-        let global = Self::load_from(None)
-            .with_context(|| "Failed to load global config")?;
+        let global = Self::load_from(None).with_context(|| "Failed to load global config")?;
         let local = Self::load_from_path(&Self::local_config_path())
             .with_context(|| "Failed to load local config (.config/wasm/config.toml)")?;
         Ok(global.merge(local))
