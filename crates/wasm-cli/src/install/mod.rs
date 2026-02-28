@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
+use futures_concurrency::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use wasm_package_manager::{Manager, ProgressEvent, Reference};
 
@@ -44,11 +47,11 @@ impl Opts {
         let mut lockfile: wasm_manifest::Lockfile = toml::from_str(&lockfile_str)?;
 
         // Open manager
-        let manager = if offline {
+        let manager = Arc::new(if offline {
             Manager::open_offline().await?
         } else {
             Manager::open().await?
-        };
+        });
 
         let start_time = std::time::Instant::now();
 
@@ -65,74 +68,91 @@ impl Opts {
             self.references.into_iter().map(|r| (r, true)).collect()
         };
 
-        // Install to wasm vendor dir initially; we'll detect and re-vendor if needed
-        let vendor_dir = &wasm_vendor_dir;
+        // Shared progress display for all concurrent installs.
+        let multi = MultiProgress::new();
 
-        for (reference, update_manifest) in to_install {
-            let reference_display = reference.whole().to_string();
+        // Run all installs concurrently.
+        let results: Result<Vec<_>> = to_install
+            .into_co_stream()
+            .map(|(reference, update_manifest)| {
+                let manager = manager.clone();
+                let multi = multi.clone();
+                let vendor_dir = wasm_vendor_dir.clone();
+                let wit_vendor_dir = wit_vendor_dir.clone();
+                async move {
+                    let reference_display = reference.whole().to_string();
 
-            // Install the package with progress reporting
-            let result = if offline {
-                // No progress bars in offline mode — just print the line
-                println!(
-                    "{:>12} {}",
-                    console::style("Installing").cyan().bold(),
-                    reference_display,
-                );
-                manager.install(reference.clone(), vendor_dir).await?
-            } else {
-                let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
-                let multi = MultiProgress::new();
+                    // Install the package with progress reporting
+                    let result = if offline {
+                        // No progress bars in offline mode — just print the line
+                        println!(
+                            "{:>12} {}",
+                            console::style("Installing").cyan().bold(),
+                            reference_display,
+                        );
+                        manager.install(reference.clone(), &vendor_dir).await?
+                    } else {
+                        let (progress_tx, progress_rx) =
+                            tokio::sync::mpsc::channel::<ProgressEvent>(64);
 
-                // Add a header line managed by the multi-progress so it
-                // stays above the per-layer bars and can be rewritten.
-                let header = multi.add(ProgressBar::new_spinner());
-                header.set_style(
-                    ProgressStyle::with_template("{msg}").expect("valid progress bar template"),
-                );
-                header.set_message(format!(
-                    "{:>12} {}",
-                    console::style("Installing").cyan().bold(),
-                    reference_display,
-                ));
+                        // Add a header line managed by the shared multi-progress so it
+                        // stays above the per-layer bars and can be rewritten.
+                        let header = multi.add(ProgressBar::new_spinner());
+                        header.set_style(
+                            ProgressStyle::with_template("{msg}")
+                                .expect("valid progress bar template"),
+                        );
+                        header.set_message(format!(
+                            "{:>12} {}",
+                            console::style("Installing").cyan().bold(),
+                            reference_display,
+                        ));
 
-                // Spawn progress rendering task
-                let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
+                        // Spawn progress rendering task
+                        let progress_handle =
+                            tokio::task::spawn(run_progress_bars(multi, progress_rx));
 
-                let result = manager
-                    .install_with_progress(reference.clone(), vendor_dir, &progress_tx)
-                    .await;
+                        let result = manager
+                            .install_with_progress(reference.clone(), &vendor_dir, &progress_tx)
+                            .await;
 
-                // Drop the sender to signal the progress task to finish
-                drop(progress_tx);
+                        // Drop the sender to signal the progress task to finish
+                        drop(progress_tx);
 
-                // Wait for progress bars to finish rendering
-                let _ = progress_handle.await;
+                        // Wait for progress bars to finish rendering
+                        let _ = progress_handle.await;
 
-                // Rewrite the header line: blue → green
-                header.set_message(format!(
-                    "{:>12} {}",
-                    console::style("Installing").green().bold(),
-                    reference_display,
-                ));
-                header.finish();
+                        // Rewrite the header line: blue → green
+                        header.set_message(format!(
+                            "{:>12} {}",
+                            console::style("Installing").green().bold(),
+                            reference_display,
+                        ));
+                        header.finish();
 
-                result?
-            };
+                        result?
+                    };
 
-            // If this is a WIT interface (not a component), re-vendor the files
-            // from wasm/ to wit/
-            if !result.is_component {
-                for file in &result.vendored_files {
-                    if let Some(filename) = file.file_name() {
-                        let wit_dest = wit_vendor_dir.join(filename);
-                        tokio::fs::create_dir_all(&wit_vendor_dir).await?;
-                        let _ = tokio::fs::remove_file(&wit_dest).await;
-                        tokio::fs::rename(file, &wit_dest).await?;
+                    // If this is a WIT interface (not a component), re-vendor the files
+                    // from wasm/ to wit/
+                    if !result.is_component {
+                        for file in &result.vendored_files {
+                            if let Some(filename) = file.file_name() {
+                                let wit_dest = wit_vendor_dir.join(filename);
+                                tokio::fs::create_dir_all(&wit_vendor_dir).await?;
+                                let _ = tokio::fs::remove_file(&wit_dest).await;
+                                tokio::fs::rename(file, &wit_dest).await?;
+                            }
+                        }
                     }
-                }
-            }
 
+                    anyhow::Ok((result, reference, update_manifest))
+                }
+            })
+            .collect()
+            .await;
+
+        for (result, reference, update_manifest) in results? {
             // Use the package name from WIT metadata if available,
             // otherwise fall back to the full OCI path (registry/repository).
             // Strip the version suffix (e.g., "@0.2.10") from the package name
