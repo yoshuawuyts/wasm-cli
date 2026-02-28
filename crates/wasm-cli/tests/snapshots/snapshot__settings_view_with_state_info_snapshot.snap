@@ -6,7 +6,8 @@ Migrations
   Current:  3/3
 
 Configuration
-  Config file: /home/user/.config/wasm/config.toml (not created)
+  Global config: /home/user/.config/wasm/config.toml (not created)
+  Local config:  .config/wasm/config.toml (not found)
 
 
 Storage

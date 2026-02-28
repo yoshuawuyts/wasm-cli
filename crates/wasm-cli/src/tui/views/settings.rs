@@ -26,7 +26,7 @@ impl Widget for SettingsView<'_> {
                 // Split area for migrations, configuration, and storage sections
                 let layout = Layout::vertical([
                     Constraint::Length(3), // Migrations
-                    Constraint::Length(4), // Configuration
+                    Constraint::Length(5), // Configuration
                     Constraint::Min(0),    // Storage
                 ])
                 .split(area);
@@ -52,15 +52,26 @@ impl Widget for SettingsView<'_> {
                 } else {
                     "not created"
                 };
+                let local_config_path = wasm_package_manager::Config::local_config_path();
+                let local_config_status = if local_config_path.exists() {
+                    "exists"
+                } else {
+                    "not found"
+                };
                 let configuration = Text::from(vec![
                     Line::from(vec![Span::styled(
                         "Configuration",
                         Style::default().bold().fg(Color::Yellow),
                     )]),
                     Line::from(format!(
-                        "  Config file: {} ({})",
+                        "  Global config: {} ({})",
                         config_path.display(),
                         config_status
+                    )),
+                    Line::from(format!(
+                        "  Local config:  {} ({})",
+                        local_config_path.display(),
+                        local_config_status
                     )),
                 ]);
                 Paragraph::new(configuration).render(layout[1], buf);

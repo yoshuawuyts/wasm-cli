@@ -51,26 +51,33 @@ impl Opts {
                 Ok(())
             }
             Opts::Config => {
-                // Get the config path
-                let config_path = Config::config_path();
+                // Get the global and local config paths
+                let global_config_path = Config::config_path();
+                let local_config_path = Config::local_config_path();
 
                 println!("[Configuration]");
-                println!("Config file:\t{}", config_path.display());
-
-                // Check if the config file exists
-                if config_path.exists() {
+                println!("Global config:\t{}", global_config_path.display());
+                if global_config_path.exists() {
                     println!("Status:\t\texists");
                 } else {
                     println!("Status:\t\tnot created (will use defaults)");
                     println!();
                     println!("To create a default config file with examples, run:");
-                    if let Some(parent) = config_path.parent() {
+                    if let Some(parent) = global_config_path.parent() {
                         println!("  mkdir -p {}", parent.display());
                     }
-                    println!("  touch {}", config_path.display());
+                    println!("  touch {}", global_config_path.display());
                 }
 
-                // Load the config to show current settings
+                println!();
+                println!("Local config:\t{}", local_config_path.display());
+                if local_config_path.exists() {
+                    println!("Status:\t\texists");
+                } else {
+                    println!("Status:\t\tnot created (will use global config)");
+                }
+
+                // Load the merged config to show current settings
                 let config = Config::load()?;
                 println!();
                 println!("[Registries]");
