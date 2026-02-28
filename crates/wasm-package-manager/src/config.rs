@@ -1,8 +1,12 @@
-//! Global configuration module for the package manager.
+//! Configuration module for the package manager.
 //!
-//! This module provides support for reading and managing a global TOML configuration
-//! file at `$XDG_CONFIG_HOME/wasm/config.toml`. The configuration file supports
-//! per-registry credential helpers for secure authentication.
+//! This module provides support for reading and managing TOML configuration files.
+//! Configuration is loaded from two locations and merged, with local taking precedence:
+//!
+//! - **Global**: `$XDG_CONFIG_HOME/wasm/config.toml`
+//! - **Local**: `.config/wasm/config.toml` (relative to the current working directory)
+//!
+//! The configuration file supports per-registry credential helpers for secure authentication.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -79,16 +83,22 @@ pub struct RegistryConfig {
 }
 
 impl Config {
-    /// Load configuration from the default config directory.
+    /// Load configuration by merging global and local configs.
     ///
-    /// The configuration file is expected at `$XDG_CONFIG_HOME/wasm/config.toml`.
-    /// If the file doesn't exist, returns a default configuration.
+    /// Loads the global config from `$XDG_CONFIG_HOME/wasm/config.toml` and,
+    /// if present, the local config from `.config/wasm/config.toml` relative to
+    /// the current working directory. Local settings take precedence over global ones.
+    ///
+    /// If neither file exists, returns a default configuration.
     ///
     /// # Errors
     ///
-    /// Returns an error if the configuration file exists but cannot be read or parsed.
+    /// Returns an error if a configuration file exists but cannot be read or parsed.
     pub fn load() -> Result<Self> {
-        Self::load_from(None)
+        let global = Self::load_from(None).with_context(|| "Failed to load global config")?;
+        let local = Self::load_from_path(&Self::local_config_path())
+            .with_context(|| "Failed to load local config (.config/wasm/config.toml)")?;
+        Ok(global.merge(local))
     }
 
     /// Load configuration from a specified directory (for testing).
@@ -102,6 +112,17 @@ impl Config {
     pub fn load_from(config_dir: Option<PathBuf>) -> Result<Self> {
         let config_path = Self::config_path_from(config_dir);
         Self::load_from_path(&config_path)
+    }
+
+    /// Merge another config into this one, with the other config taking precedence.
+    ///
+    /// Per-registry settings from `other` override those in `self`.
+    #[must_use]
+    pub fn merge(mut self, other: Self) -> Self {
+        for (name, registry) in other.registries {
+            self.registries.insert(name, registry);
+        }
+        self
     }
 
     /// Load configuration from a specific file path.
@@ -137,6 +158,17 @@ impl Config {
         let base = config_dir
             .unwrap_or_else(|| dirs::config_dir().unwrap_or_else(|| PathBuf::from(".config")));
         base.join("wasm").join("config.toml")
+    }
+
+    /// Returns the path to the local configuration file.
+    ///
+    /// The local config is located at `.config/wasm/config.toml` relative to the
+    /// current working directory, and takes precedence over the global config.
+    /// The returned path is relative to the current working directory at the time
+    /// it is used (e.g., when checking existence or reading the file).
+    #[must_use]
+    pub fn local_config_path() -> PathBuf {
+        PathBuf::from(".config").join("wasm").join("config.toml")
     }
 
     /// Ensures the configuration file exists, creating a default one if not.
@@ -362,5 +394,56 @@ credential-helper.password = "/path/to/get-pass.sh"
         let config = Config::default();
         let creds = config.get_credentials("unknown.io").unwrap();
         assert!(creds.is_none());
+    }
+
+    #[test]
+    fn test_merge_local_overrides_global() {
+        let mut global = Config::default();
+        global.registries.insert(
+            "ghcr.io".to_string(),
+            RegistryConfig {
+                credential_helper: Some(CredentialHelper::Json("global-cmd".to_string())),
+            },
+        );
+        global.registries.insert(
+            "global-only.io".to_string(),
+            RegistryConfig {
+                credential_helper: Some(CredentialHelper::Json("global-only-cmd".to_string())),
+            },
+        );
+
+        let mut local = Config::default();
+        local.registries.insert(
+            "ghcr.io".to_string(),
+            RegistryConfig {
+                credential_helper: Some(CredentialHelper::Json("local-cmd".to_string())),
+            },
+        );
+        local.registries.insert(
+            "local-only.io".to_string(),
+            RegistryConfig {
+                credential_helper: Some(CredentialHelper::Json("local-only-cmd".to_string())),
+            },
+        );
+
+        let merged = global.merge(local);
+
+        // Local overrides global for "ghcr.io"
+        match &merged.registries["ghcr.io"].credential_helper {
+            Some(CredentialHelper::Json(cmd)) => assert_eq!(cmd, "local-cmd"),
+            _ => panic!("Expected Json credential helper"),
+        }
+
+        // Global-only registry is preserved
+        assert!(merged.registries.contains_key("global-only.io"));
+
+        // Local-only registry is added
+        assert!(merged.registries.contains_key("local-only.io"));
+    }
+
+    #[test]
+    fn test_local_config_path() {
+        let path = Config::local_config_path();
+        assert_eq!(path, PathBuf::from(".config/wasm/config.toml"));
     }
 }

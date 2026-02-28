@@ -12,9 +12,16 @@
 | `$XDG_DATA_HOME`   | User-specific data files                               | `~/.local/share`              | `~/Library/Application Support`   | `%LOCALAPPDATA%`      |
 | `$XDG_STATE_HOME`  | User-specific state data (logs, history, recent files) | `~/.local/state`              | `~/Library/Application Support`   | `%LOCALAPPDATA%`      |
 
-The configuration file is located at `$XDG_CONFIG_HOME/wasm/config.toml`.
+## Configuration Files
 
-To view the current configuration and file location:
+`wasm(1)` loads configuration from two locations and merges them. Settings in the local config take precedence over the global config.
+
+| Location | Path |
+| -------- | ---- |
+| Global   | `$XDG_CONFIG_HOME/wasm/config.toml` |
+| Local    | `.config/wasm/config.toml` (relative to the current working directory) |
+
+To view the current configuration and file locations:
 
 ```bash
 wasm self config
