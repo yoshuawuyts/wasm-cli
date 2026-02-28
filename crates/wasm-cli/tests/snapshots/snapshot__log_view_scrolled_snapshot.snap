@@ -1,0 +1,14 @@
+---
+source: crates/wasm-cli/tests/snapshot.rs
+expression: output
+---
+                                 20 log line(s)
+2024-01-15T10:30:11Z WARN wasm: log line 11
+2024-01-15T10:30:12Z WARN wasm: log line 12
+2024-01-15T10:30:13Z WARN wasm: log line 13
+2024-01-15T10:30:14Z WARN wasm: log line 14
+2024-01-15T10:30:15Z WARN wasm: log line 15
+2024-01-15T10:30:16Z WARN wasm: log line 16
+2024-01-15T10:30:17Z WARN wasm: log line 17
+2024-01-15T10:30:18Z WARN wasm: log line 18
+                     ↑/↓ scroll • G jump to bottom • q quit

@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, BufRead, Seek, Write};
 
 use anyhow::Result;
 use clap::CommandFactory;
@@ -15,6 +15,15 @@ pub(crate) enum Opts {
     State,
     /// Show configuration file location and current settings
     Config,
+    /// Show the application log file
+    Log {
+        /// Continuously stream new log lines (like `tail -f`)
+        #[arg(short, long)]
+        follow: bool,
+        /// Number of lines to show from the end of the log
+        #[arg(short = 'n', long)]
+        lines: Option<usize>,
+    },
     /// Generate shell completions for the given shell
     Completions {
         /// The shell to generate completions for
@@ -27,6 +36,53 @@ pub(crate) enum Opts {
 impl Opts {
     pub(crate) async fn run(&self) -> Result<()> {
         match self {
+            Opts::Log { follow, lines } => {
+                let log_path = crate::log_dir().join("wasm.log");
+                if !log_path.exists() {
+                    println!("No log file found at: {}", log_path.display());
+                    println!(
+                        "Logs will be created here once the application generates log output."
+                    );
+                    return Ok(());
+                }
+                let file = std::fs::File::open(&log_path)?;
+                let mut reader = io::BufReader::new(file);
+                let mut all_lines = Vec::new();
+                let mut line = String::new();
+                while reader.read_line(&mut line)? > 0 {
+                    all_lines.push(line.clone());
+                    line.clear();
+                }
+                let start = match lines {
+                    Some(n) => all_lines.len().saturating_sub(*n),
+                    None => 0,
+                };
+                let stdout = io::stdout();
+                let mut out = stdout.lock();
+                for l in all_lines.iter().skip(start) {
+                    out.write_all(l.as_bytes())?;
+                }
+                if *follow {
+                    // Track position for incremental reads
+                    let mut pos = reader.stream_position()?;
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+                        let metadata = std::fs::metadata(&log_path)?;
+                        let len = metadata.len();
+                        if len > pos {
+                            reader.seek(io::SeekFrom::Start(pos))?;
+                            let mut buf = String::new();
+                            while reader.read_line(&mut buf)? > 0 {
+                                out.write_all(buf.as_bytes())?;
+                                out.flush()?;
+                                buf.clear();
+                            }
+                            pos = reader.stream_position()?;
+                        }
+                    }
+                }
+                Ok(())
+            }
             Opts::State => {
                 let store = Manager::open().await?;
                 let state_info = store.state_info();

@@ -132,6 +132,12 @@ fn test_cli_self_state_help_snapshot() {
     assert_snapshot!(output);
 }
 
+#[test]
+fn test_cli_self_log_help_snapshot() {
+    let output = run_cli(&["self", "log", "--help"]);
+    assert_snapshot!(output);
+}
+
 // =============================================================================
 // Completions Tests
 // =============================================================================

@@ -1,0 +1,14 @@
+---
+source: crates/wasm-cli/tests/snapshot.rs
+expression: output
+---
+                                  3 log line(s)
+2024-01-15T10:30:00Z WARN wasm: connection timeout
+2024-01-15T10:30:01Z WARN wasm: retrying request
+2024-01-15T10:30:05Z WARN wasm: registry unreachable
+
+
+
+
+
+                     ↑/↓ scroll • G jump to bottom • q quit

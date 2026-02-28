@@ -12,8 +12,8 @@ use wasm_package_manager::{
 use super::components::{TabBar, TabItem};
 use super::views::packages::PackagesViewState;
 use super::views::{
-    InterfacesView, InterfacesViewState, LocalView, PackageDetailView, PackagesView, SearchView,
-    SearchViewState, SettingsView,
+    InterfacesView, InterfacesViewState, LocalView, LogView, PackageDetailView, PackagesView,
+    SearchView, SearchViewState, SettingsView,
 };
 use super::{AppEvent, ManagerEvent};
 
@@ -24,15 +24,17 @@ pub(crate) enum Tab {
     Interfaces,
     Search,
     Settings,
+    Log,
 }
 
 impl Tab {
-    const ALL: [Tab; 5] = [
+    const ALL: [Tab; 6] = [
         Tab::Local,
         Tab::Components,
         Tab::Interfaces,
         Tab::Search,
         Tab::Settings,
+        Tab::Log,
     ];
 }
 
@@ -48,6 +50,7 @@ impl TabItem for Tab {
             Tab::Interfaces => "Interfaces [3]",
             Tab::Search => "Search [4]",
             Tab::Settings => "Settings [5]",
+            Tab::Log => "Log [6]",
         }
     }
 }
@@ -105,6 +108,10 @@ pub(crate) struct App {
     interfaces_view_state: InterfacesViewState,
     /// Local WASM files
     local_wasm_files: Vec<wasm_detector::WasmEntry>,
+    /// Log file lines
+    log_lines: Vec<String>,
+    /// Scroll offset for log view
+    log_scroll: usize,
     /// Whether offline mode is enabled
     offline: bool,
     app_sender: mpsc::Sender<AppEvent>,
@@ -130,6 +137,8 @@ impl App {
             wit_interfaces: Vec::new(),
             interfaces_view_state: InterfacesViewState::new(),
             local_wasm_files: Vec::new(),
+            log_lines: Vec::new(),
+            log_scroll: 0,
             offline,
             app_sender,
             manager_receiver,
@@ -206,6 +215,9 @@ impl App {
             }
             Tab::Settings => {
                 frame.render_widget(SettingsView::new(self.state_info.as_ref()), content_area)
+            }
+            Tab::Log => {
+                frame.render_widget(LogView::new(&self.log_lines, self.log_scroll), content_area)
             }
         }
 
@@ -331,6 +343,9 @@ impl App {
                 ManagerEvent::PullProgress(_progress) => {
                     // Progress events received — TUI rendering deferred to follow-up
                 }
+                ManagerEvent::LogLines(lines) => {
+                    self.log_lines = lines;
+                }
             }
         }
     }
@@ -423,6 +438,10 @@ impl App {
             (KeyCode::Char('3'), _) => self.current_tab = Tab::Interfaces,
             (KeyCode::Char('4'), _) => self.current_tab = Tab::Search,
             (KeyCode::Char('5'), _) => self.current_tab = Tab::Settings,
+            (KeyCode::Char('6'), _) => {
+                self.current_tab = Tab::Log;
+                let _ = self.app_sender.try_send(AppEvent::RequestLogLines);
+            }
             // Pull prompt - 'p' to open (only on Components tab, and not in offline mode)
             (KeyCode::Char('p'), _)
                 if self.current_tab == Tab::Components && self.can_use_network() =>
@@ -531,6 +550,18 @@ impl App {
                         package.repository.clone(),
                     ));
                 }
+            }
+            // Log tab navigation
+            (KeyCode::Up, _) | (KeyCode::Char('k'), _) if self.current_tab == Tab::Log => {
+                self.log_scroll = self.log_scroll.saturating_sub(1);
+            }
+            (KeyCode::Down, _) | (KeyCode::Char('j'), _) if self.current_tab == Tab::Log => {
+                if self.log_scroll < self.log_lines.len().saturating_sub(1) {
+                    self.log_scroll += 1;
+                }
+            }
+            (KeyCode::Char('G'), KeyModifiers::SHIFT) if self.current_tab == Tab::Log => {
+                self.log_scroll = self.log_lines.len().saturating_sub(1);
             }
             _ => {}
         }

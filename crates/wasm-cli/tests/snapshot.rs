@@ -32,8 +32,8 @@ use ratatui::prelude::*;
 use wasm::tui::components::{TabBar, TabItem};
 use wasm::tui::views::packages::PackagesViewState;
 use wasm::tui::views::{
-    InterfacesView, InterfacesViewState, KnownPackageDetailView, LocalView, PackageDetailView,
-    PackagesView, SearchView, SearchViewState, SettingsView,
+    InterfacesView, InterfacesViewState, KnownPackageDetailView, LocalView, LogView,
+    PackageDetailView, PackagesView, SearchView, SearchViewState, SettingsView,
 };
 use wasm_detector::WasmEntry;
 use wasm_package_manager::{ImageView, KnownPackageView, StateInfo};
@@ -473,5 +473,36 @@ fn test_tab_bar_loading_state_snapshot() {
 fn test_tab_bar_error_state_snapshot() {
     let tab_bar = TabBar::new("Test App - error occurred!", TestTab::First);
     let output = render_to_string(tab_bar, 60, 3);
+    assert_snapshot!(output);
+}
+
+// =============================================================================
+// LogView Snapshot Tests
+// =============================================================================
+
+#[test]
+fn test_log_view_empty_snapshot() {
+    let lines = vec![];
+    let output = render_to_string(LogView::new(&lines, 0), 80, 10);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_log_view_with_lines_snapshot() {
+    let lines = vec![
+        "2024-01-15T10:30:00Z WARN wasm: connection timeout".to_string(),
+        "2024-01-15T10:30:01Z WARN wasm: retrying request".to_string(),
+        "2024-01-15T10:30:05Z WARN wasm: registry unreachable".to_string(),
+    ];
+    let output = render_to_string(LogView::new(&lines, 0), 80, 10);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_log_view_scrolled_snapshot() {
+    let lines: Vec<String> = (1..=20)
+        .map(|i| format!("2024-01-15T10:30:{:02}Z WARN wasm: log line {}", i, i))
+        .collect();
+    let output = render_to_string(LogView::new(&lines, 10), 80, 10);
     assert_snapshot!(output);
 }

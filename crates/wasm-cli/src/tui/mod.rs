@@ -36,6 +36,8 @@ pub enum AppEvent {
     RequestWitInterfaces,
     /// Request to detect local WASM files
     DetectLocalWasm,
+    /// Request log file lines
+    RequestLogLines,
 }
 
 /// Events sent from the Manager to the TUI
@@ -63,6 +65,8 @@ pub enum ManagerEvent {
     LocalWasmList(Vec<wasm_detector::WasmEntry>),
     /// Progress event during a pull operation
     PullProgress(ProgressEvent),
+    /// Log file lines
+    LogLines(Vec<String>),
 }
 
 /// Run the TUI application
@@ -231,6 +235,19 @@ async fn run_manager(
                     .send(ManagerEvent::LocalWasmList(wasm_files))
                     .await
                     .ok();
+            }
+            AppEvent::RequestLogLines => {
+                let log_path = wasm_package_manager::StateInfo::default_log_dir().join("wasm.log");
+                let lines = if log_path.exists() {
+                    std::fs::read_to_string(&log_path)
+                        .unwrap_or_default()
+                        .lines()
+                        .map(String::from)
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                sender.send(ManagerEvent::LogLines(lines)).await.ok();
             }
         }
     }
