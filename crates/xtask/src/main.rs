@@ -18,6 +18,18 @@ use clap::{Parser, Subcommand};
 enum Xtask {
     /// Run tests, clippy, and formatting checks
     Test,
+    /// Run the `wasm` binary (equivalent to `cargo run --package wasm`)
+    Run {
+        /// Arguments to pass to the wasm binary
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Run the `wasm-meta-registry` server
+    RunRegistry {
+        /// Arguments to pass to the wasm-meta-registry binary
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Database schema and migration management
     Sql {
         #[command(subcommand)]
@@ -45,6 +57,22 @@ fn main() -> Result<()> {
 
     match xtask {
         Xtask::Test => test::run_tests()?,
+        Xtask::Run { args } => {
+            let mut cargo_args = vec!["run", "--package", "wasm"];
+            if !args.is_empty() {
+                cargo_args.push("--");
+                cargo_args.extend(args.iter().map(String::as_str));
+            }
+            run_command("cargo", &cargo_args)?;
+        }
+        Xtask::RunRegistry { args } => {
+            let mut cargo_args = vec!["run", "--package", "wasm-meta-registry"];
+            if !args.is_empty() {
+                cargo_args.push("--");
+                cargo_args.extend(args.iter().map(String::as_str));
+            }
+            run_command("cargo", &cargo_args)?;
+        }
         Xtask::Sql { command } => match command {
             SqlCommand::Migrate { name } => sql::migrate(&name)?,
             SqlCommand::Check => sql::check()?,
