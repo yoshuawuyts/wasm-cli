@@ -7,9 +7,10 @@ use crate::util::write_lock_file;
 /// Options for the `install` command.
 #[derive(clap::Parser)]
 pub(crate) struct Opts {
-    /// The OCI reference to install (e.g., ghcr.io/webassembly/wasi-logging:1.0.0 or oci://ghcr.io/webassembly/wasi-logging:1.0.0)
-    #[arg(value_parser = crate::util::parse_reference)]
-    reference: Reference,
+    /// The OCI references to install (e.g., ghcr.io/webassembly/wasi-logging:1.0.0 or oci://ghcr.io/webassembly/wasi-logging:1.0.0).
+    /// If no references are provided, installs all packages listed in the manifest.
+    #[arg(value_parser = crate::util::parse_reference, value_name = "REFERENCE", num_args = 0..)]
+    references: Vec<Reference>,
 }
 
 impl Opts {
@@ -51,127 +52,149 @@ impl Opts {
 
         let start_time = std::time::Instant::now();
 
-        // Print initial installing message
-        let reference_display = self.reference.whole().to_string();
+        // Determine the list of (reference, update_manifest) pairs to install.
+        // When no references are provided, install everything from the manifest
+        // and skip re-adding those entries to the manifest. When references are
+        // provided explicitly, add each one to the manifest after installing.
+        let to_install: Vec<(Reference, bool)> = if self.references.is_empty() {
+            manifest
+                .all_dependencies()
+                .map(|(_, dep, _)| reference_from_dependency(dep).map(|r| (r, false)))
+                .collect::<Result<Vec<_>>>()?
+        } else {
+            self.references.into_iter().map(|r| (r, true)).collect()
+        };
 
         // Install to wasm vendor dir initially; we'll detect and re-vendor if needed
         let vendor_dir = &wasm_vendor_dir;
 
-        // Install the package with progress reporting
-        let result = if offline {
-            // No progress bars in offline mode — just print the line
-            println!(
-                "{:>12} {}",
-                console::style("Installing").cyan().bold(),
-                reference_display,
-            );
-            manager.install(self.reference.clone(), vendor_dir).await?
-        } else {
-            let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
-            let multi = MultiProgress::new();
+        for (reference, update_manifest) in to_install {
+            let reference_display = reference.whole().to_string();
 
-            // Add a header line managed by the multi-progress so it
-            // stays above the per-layer bars and can be rewritten.
-            let header = multi.add(ProgressBar::new_spinner());
-            header.set_style(
-                ProgressStyle::with_template("{msg}").expect("valid progress bar template"),
-            );
-            header.set_message(format!(
-                "{:>12} {}",
-                console::style("Installing").cyan().bold(),
-                reference_display,
-            ));
+            // Install the package with progress reporting
+            let result = if offline {
+                // No progress bars in offline mode — just print the line
+                println!(
+                    "{:>12} {}",
+                    console::style("Installing").cyan().bold(),
+                    reference_display,
+                );
+                manager.install(reference.clone(), vendor_dir).await?
+            } else {
+                let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
+                let multi = MultiProgress::new();
 
-            // Spawn progress rendering task
-            let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
+                // Add a header line managed by the multi-progress so it
+                // stays above the per-layer bars and can be rewritten.
+                let header = multi.add(ProgressBar::new_spinner());
+                header.set_style(
+                    ProgressStyle::with_template("{msg}").expect("valid progress bar template"),
+                );
+                header.set_message(format!(
+                    "{:>12} {}",
+                    console::style("Installing").cyan().bold(),
+                    reference_display,
+                ));
 
-            let result = manager
-                .install_with_progress(self.reference.clone(), vendor_dir, &progress_tx)
-                .await;
+                // Spawn progress rendering task
+                let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
 
-            // Drop the sender to signal the progress task to finish
-            drop(progress_tx);
+                let result = manager
+                    .install_with_progress(reference.clone(), vendor_dir, &progress_tx)
+                    .await;
 
-            // Wait for progress bars to finish rendering
-            let _ = progress_handle.await;
+                // Drop the sender to signal the progress task to finish
+                drop(progress_tx);
 
-            // Rewrite the header line: blue → green
-            header.set_message(format!(
-                "{:>12} {}",
-                console::style("Installing").green().bold(),
-                reference_display,
-            ));
-            header.finish();
+                // Wait for progress bars to finish rendering
+                let _ = progress_handle.await;
 
-            result?
-        };
+                // Rewrite the header line: blue → green
+                header.set_message(format!(
+                    "{:>12} {}",
+                    console::style("Installing").green().bold(),
+                    reference_display,
+                ));
+                header.finish();
 
-        // If this is a WIT interface (not a component), re-vendor the files
-        // from wasm/ to wit/
-        if !result.is_component {
-            for file in &result.vendored_files {
-                if let Some(filename) = file.file_name() {
-                    let wit_dest = wit_vendor_dir.join(filename);
-                    tokio::fs::create_dir_all(&wit_vendor_dir).await?;
-                    let _ = tokio::fs::remove_file(&wit_dest).await;
-                    tokio::fs::rename(file, &wit_dest).await?;
+                result?
+            };
+
+            // If this is a WIT interface (not a component), re-vendor the files
+            // from wasm/ to wit/
+            if !result.is_component {
+                for file in &result.vendored_files {
+                    if let Some(filename) = file.file_name() {
+                        let wit_dest = wit_vendor_dir.join(filename);
+                        tokio::fs::create_dir_all(&wit_vendor_dir).await?;
+                        let _ = tokio::fs::remove_file(&wit_dest).await;
+                        tokio::fs::rename(file, &wit_dest).await?;
+                    }
                 }
             }
-        }
 
-        // Use the package name from WIT metadata if available,
-        // otherwise fall back to the full OCI path (registry/repository).
-        // Strip the version suffix (e.g., "@0.2.10") from the package name
-        // so that "wasi:http@0.2.10" becomes "wasi:http" in wasm.toml.
-        let dep_name = result
-            .package_name
-            .as_deref()
-            .map(|name| name.split('@').next().unwrap_or(name).to_string())
-            .unwrap_or_else(|| format!("{}/{}", result.registry, result.repository));
+            // Use the package name from WIT metadata if available,
+            // otherwise fall back to the full OCI path (registry/repository).
+            // Strip the version suffix (e.g., "@0.2.10") from the package name
+            // so that "wasi:http@0.2.10" becomes "wasi:http" in wasm.toml.
+            let dep_name = result
+                .package_name
+                .as_deref()
+                .map(|name| name.split('@').next().unwrap_or(name).to_string())
+                .unwrap_or_else(|| format!("{}/{}", result.registry, result.repository));
 
-        // Determine the version from the tag
-        let version = result.tag.clone().unwrap_or_default();
+            // Determine the version from the tag
+            let version = result.tag.clone().unwrap_or_default();
 
-        // Add to manifest (compact format) — route to components or interfaces
-        let reference_str = self.reference.whole().to_string();
-        let dep = wasm_manifest::Dependency::Compact(reference_str);
-        if result.is_component {
-            manifest.components.insert(dep_name.clone(), dep);
-        } else {
-            manifest.interfaces.insert(dep_name.clone(), dep);
-        }
-
-        // Add to lockfile — route to components or interfaces
-        let registry_path = format!("{}/{}", result.registry, result.repository);
-        let digest = result.digest.unwrap_or_default();
-
-        let package = wasm_manifest::Package {
-            name: dep_name.clone(),
-            version,
-            registry: registry_path.clone(),
-            digest,
-            dependencies: vec![],
-        };
-
-        if result.is_component {
-            let existing = lockfile
-                .components
-                .iter()
-                .position(|p| p.name == dep_name && p.registry == registry_path);
-            if let Some(existing_pkg) = existing.and_then(|idx| lockfile.components.get_mut(idx)) {
-                *existing_pkg = package;
-            } else {
-                lockfile.components.push(package);
+            // Add to manifest (compact format) — route to components or interfaces.
+            // Only update the manifest when a reference was explicitly provided;
+            // for the 0-args case the entries are already in the manifest.
+            if update_manifest {
+                let reference_str = reference.whole().to_string();
+                let dep = wasm_manifest::Dependency::Compact(reference_str);
+                if result.is_component {
+                    manifest.components.insert(dep_name.clone(), dep);
+                } else {
+                    manifest.interfaces.insert(dep_name.clone(), dep);
+                }
             }
-        } else {
-            let existing = lockfile
-                .interfaces
-                .iter()
-                .position(|p| p.name == dep_name && p.registry == registry_path);
-            if let Some(existing_pkg) = existing.and_then(|idx| lockfile.interfaces.get_mut(idx)) {
-                *existing_pkg = package;
+
+            // Add to lockfile — route to components or interfaces
+            let registry_path = format!("{}/{}", result.registry, result.repository);
+            let digest = result.digest.unwrap_or_default();
+
+            let package = wasm_manifest::Package {
+                name: dep_name.clone(),
+                version,
+                registry: registry_path.clone(),
+                digest,
+                dependencies: vec![],
+            };
+
+            if result.is_component {
+                let existing = lockfile
+                    .components
+                    .iter()
+                    .position(|p| p.name == dep_name && p.registry == registry_path);
+                if let Some(existing_pkg) =
+                    existing.and_then(|idx| lockfile.components.get_mut(idx))
+                {
+                    *existing_pkg = package;
+                } else {
+                    lockfile.components.push(package);
+                }
             } else {
-                lockfile.interfaces.push(package);
+                let existing = lockfile
+                    .interfaces
+                    .iter()
+                    .position(|p| p.name == dep_name && p.registry == registry_path);
+                if let Some(existing_pkg) =
+                    existing.and_then(|idx| lockfile.interfaces.get_mut(idx))
+                {
+                    *existing_pkg = package;
+                } else {
+                    lockfile.interfaces.push(package);
+                }
             }
         }
 
@@ -192,6 +215,25 @@ impl Opts {
 
         Ok(())
     }
+}
+
+/// Convert a manifest [`wasm_manifest::Dependency`] into an OCI [`Reference`].
+///
+/// Both the compact string format (`"ghcr.io/webassembly/wasi-logging:1.0.0"`) and
+/// the explicit table format (`registry`/`namespace`/`package`:`version`) are
+/// supported. Returns an error if the resulting reference string cannot be parsed
+/// as a valid OCI reference.
+fn reference_from_dependency(dep: &wasm_manifest::Dependency) -> Result<Reference> {
+    let s = match dep {
+        wasm_manifest::Dependency::Compact(s) => s.clone(),
+        wasm_manifest::Dependency::Explicit {
+            registry,
+            namespace,
+            package,
+            version,
+        } => format!("{registry}/{namespace}/{package}:{version}"),
+    };
+    crate::util::parse_reference(&s).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 /// Consume progress events and render tree-style multi-progress bars.
