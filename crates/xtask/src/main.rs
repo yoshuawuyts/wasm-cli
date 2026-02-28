@@ -459,7 +459,10 @@ fn generate_migration_rs_content(root: &Path) -> Result<String> {
 
     // Append the rest of the file (Migrations struct + impl + tests) — read it from
     // the existing file so we only regenerate the const array.
-    let existing = fs::read_to_string(&migration_rs).context("reading migration.rs")?;
+    // Normalize line endings so the output is always LF regardless of platform.
+    let existing = fs::read_to_string(&migration_rs)
+        .context("reading migration.rs")?
+        .replace("\r\n", "\n");
 
     // Find the marker after the const array: the `/// Information about...` doc comment.
     let marker = "/// Information about the current migration state.";
@@ -555,8 +558,12 @@ fn sql_check() -> Result<()> {
     }
 
     // 3. Verify migration.rs matches the current set of migration files.
+    // Normalize line endings so the check works on Windows (where git may check
+    // out files with \r\n) as well as Unix.
     let migration_rs = root.join(MIGRATION_RS_PATH);
-    let existing = fs::read_to_string(&migration_rs).context("reading migration.rs")?;
+    let existing = fs::read_to_string(&migration_rs)
+        .context("reading migration.rs")?
+        .replace("\r\n", "\n");
     let expected = generate_migration_rs_content(&root)?;
 
     if existing != expected {
