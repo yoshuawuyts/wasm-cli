@@ -2,17 +2,13 @@
 source: crates/wasm-cli/tests/test.rs
 expression: output
 ---
-Configure the `wasm(1)` tool, generate completions, & manage state
+Delete a package from the local store
 
-Usage: wasm self [OPTIONS] <COMMAND>
+Usage: wasm registry delete [OPTIONS] <REFERENCE>
 
-Commands:
-  state        Print diagnostics about the local state
-  config       Show configuration file location and current settings
-  completions  Generate shell completions for the given shell
-  man-pages    Generate a man page for the CLI
-  clean        Clean up storage (remove all data, images, and metadata)
-  help         Print this message or the help of the given subcommand(s)
+Arguments:
+  <REFERENCE>
+          The reference to delete (e.g., ghcr.io/example/component:tag)
 
 Options:
   -h, --help

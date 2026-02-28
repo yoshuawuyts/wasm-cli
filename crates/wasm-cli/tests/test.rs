@@ -116,6 +116,30 @@ fn test_cli_registry_sync_help_snapshot() {
     assert_snapshot!(output);
 }
 
+#[test]
+fn test_cli_registry_delete_help_snapshot() {
+    let output = run_cli(&["registry", "delete", "--help"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_cli_registry_list_help_snapshot() {
+    let output = run_cli(&["registry", "list", "--help"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_cli_registry_known_help_snapshot() {
+    let output = run_cli(&["registry", "known", "--help"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_cli_self_clean_help_snapshot() {
+    let output = run_cli(&["self", "clean", "--help"]);
+    assert_snapshot!(output);
+}
+
 // =============================================================================
 // Self Command Help Tests
 // =============================================================================

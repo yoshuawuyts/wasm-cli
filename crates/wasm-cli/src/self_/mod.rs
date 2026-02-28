@@ -23,6 +23,8 @@ pub(crate) enum Opts {
     },
     /// Generate a man page for the CLI
     ManPages,
+    /// Clean up storage (remove all data, images, and metadata)
+    Clean,
 }
 
 impl Opts {
@@ -134,6 +136,31 @@ impl Opts {
                 let cmd = crate::Cli::command();
                 let man = clap_mangen::Man::new(cmd);
                 man.render(&mut io::stdout())?;
+                Ok(())
+            }
+            Opts::Clean => {
+                let store = Manager::open().await?;
+                let state_info = store.state_info();
+                let data_dir = state_info.data_dir().to_path_buf();
+
+                if !data_dir.exists() {
+                    println!("Nothing to clean (data directory does not exist)");
+                    return Ok(());
+                }
+
+                let store_size = state_info.store_size();
+                let metadata_size = state_info.metadata_size();
+                let total_size = store_size + metadata_size;
+
+                // Drop the manager to release the database connection before removing files
+                drop(store);
+
+                std::fs::remove_dir_all(&data_dir)?;
+                println!(
+                    "Cleaned up {} of data from {}",
+                    format_size(total_size),
+                    data_dir.display()
+                );
                 Ok(())
             }
         }

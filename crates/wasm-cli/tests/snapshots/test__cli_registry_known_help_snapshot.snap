@@ -2,19 +2,16 @@
 source: crates/wasm-cli/tests/test.rs
 expression: output
 ---
-Configure the `wasm(1)` tool, generate completions, & manage state
+List all known packages (previously synced or pulled)
 
-Usage: wasm self [OPTIONS] <COMMAND>
-
-Commands:
-  state        Print diagnostics about the local state
-  config       Show configuration file location and current settings
-  completions  Generate shell completions for the given shell
-  man-pages    Generate a man page for the CLI
-  clean        Clean up storage (remove all data, images, and metadata)
-  help         Print this message or the help of the given subcommand(s)
+Usage: wasm registry known [OPTIONS]
 
 Options:
+      --limit <LIMIT>
+          Maximum number of results to show
+          
+          [default: 100]
+
   -h, --help
           Print help (see a summary with '-h')
 

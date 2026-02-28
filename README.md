@@ -89,8 +89,6 @@ Global Options:
 ```
 <!-- commands-end -->
 
-> **Note**: Run `cargo xtask readme update` to regenerate the commands section above.
-
 ## Example: Installing a Package
 
 Initialize a new project and install the [Bytecode Alliance WASI HTTP sample][ba-sample]:
