@@ -2,7 +2,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Cell, Paragraph, Row, StatefulWidget, Table, TableState, Widget},
 };
-use wasm_package_manager::KnownPackageView;
+use wasm_package_manager::storage::KnownPackageView;
 
 /// State for the search view
 #[derive(Debug, Default)]

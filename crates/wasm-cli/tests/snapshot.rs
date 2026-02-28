@@ -36,7 +36,8 @@ use wasm::tui::views::{
     PackagesView, SearchView, SearchViewState, SettingsView,
 };
 use wasm_detector::WasmEntry;
-use wasm_package_manager::{ImageView, KnownPackageView, StateInfo};
+use wasm_package_manager::oci::ImageView;
+use wasm_package_manager::storage::{KnownPackageView, StateInfo};
 
 /// Helper function to render a widget to a string buffer.
 fn render_to_string<W: Widget>(widget: W, width: u16, height: u16) -> String {
@@ -137,7 +138,7 @@ fn test_interfaces_view_snapshot() {
 
 #[test]
 fn test_interfaces_view_populated_snapshot() {
-    use wasm_package_manager::WitInterfaceView;
+    use wasm_package_manager::interfaces::WitInterfaceView;
 
     let interfaces = vec![
         (
@@ -399,7 +400,7 @@ fn test_settings_view_with_state_info_snapshot() {
     let state_info = StateInfo::new_at(
         PathBuf::from("/home/user/.local/share/wasm"),
         PathBuf::from("/home/user/.config/wasm/config.toml"),
-        wasm_package_manager::Migrations {
+        wasm_package_manager::storage::Migrations {
             current: 3,
             total: 3,
         },

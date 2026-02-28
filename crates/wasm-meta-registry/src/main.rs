@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 use tracing::{error, info};
-use wasm_package_manager::Manager;
+use wasm_package_manager::manager::Manager;
 
 use wasm_meta_registry::{Config, Indexer, router};
 

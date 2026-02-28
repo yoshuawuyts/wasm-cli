@@ -8,10 +8,11 @@ pub mod views;
 
 use app::App;
 use tokio::sync::mpsc;
-use wasm_package_manager::{
-    ImageView, KnownPackageView, Manager, ProgressEvent, PullResult, Reference, StateInfo,
-    WitInterfaceView,
-};
+use wasm_package_manager::interfaces::WitInterfaceView;
+use wasm_package_manager::manager::{Manager, PullResult};
+use wasm_package_manager::oci::ImageView;
+use wasm_package_manager::storage::{KnownPackageView, StateInfo};
+use wasm_package_manager::{ProgressEvent, Reference};
 
 /// Events sent from the TUI to the Manager
 #[derive(Debug)]

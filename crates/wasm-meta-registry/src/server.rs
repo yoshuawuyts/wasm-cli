@@ -12,7 +12,7 @@ use axum::{Json, Router, routing::get};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use wasm_package_manager::Manager;
+use wasm_package_manager::manager::Manager;
 
 /// Shared application state wrapping a `Manager` in a `std::sync::Mutex`.
 ///

@@ -5,7 +5,7 @@ use ratatui::{
         Table, TableState, Widget, Wrap,
     },
 };
-use wasm_package_manager::WitInterfaceView;
+use wasm_package_manager::interfaces::WitInterfaceView;
 
 /// State for the interfaces view
 #[derive(Debug, Default)]

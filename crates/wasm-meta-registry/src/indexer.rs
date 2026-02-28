@@ -10,7 +10,8 @@
 use std::time::Duration;
 
 use tracing::{error, info, warn};
-use wasm_package_manager::{Manager, Reference};
+use wasm_package_manager::Reference;
+use wasm_package_manager::manager::Manager;
 
 use crate::config::Config;
 

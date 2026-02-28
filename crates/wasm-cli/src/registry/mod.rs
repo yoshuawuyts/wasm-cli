@@ -1,5 +1,7 @@
 use anyhow::Result;
-use wasm_package_manager::{InsertResult, Manager, Reference};
+use wasm_package_manager::Reference;
+use wasm_package_manager::manager::Manager;
+use wasm_package_manager::oci::InsertResult;
 
 mod search;
 mod sync;

@@ -1,7 +1,7 @@
 //! `wasm registry sync` subcommand.
 
 use anyhow::Result;
-use wasm_package_manager::{Manager, SyncPolicy, SyncResult};
+use wasm_package_manager::manager::{Manager, SyncPolicy, SyncResult};
 
 /// Default meta-registry URL.
 const REGISTRY_URL: &str = "http://localhost:8080";

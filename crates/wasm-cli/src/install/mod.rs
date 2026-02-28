@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 use futures_concurrency::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use wasm_package_manager::{Manager, ProgressEvent, Reference, derive_component_name};
+use wasm_package_manager::manager::{Manager, derive_component_name};
+use wasm_package_manager::{ProgressEvent, Reference};
 
 use crate::util::write_lock_file;
 
@@ -201,7 +202,7 @@ async fn install_one(
     offline: bool,
     reference: &Reference,
     vendor_dir: &std::path::Path,
-) -> Result<wasm_package_manager::InstallResult> {
+) -> Result<wasm_package_manager::manager::InstallResult> {
     let reference_display = reference.whole().to_string();
 
     if offline {
@@ -256,7 +257,7 @@ async fn install_one(
 /// `deps/vendor/wasm/`. This function moves them to `deps/vendor/wit/` so that
 /// WIT tooling can find them at the conventional location.
 async fn re_vendor_wit_files(
-    result: &wasm_package_manager::InstallResult,
+    result: &wasm_package_manager::manager::InstallResult,
     wit_vendor_dir: &std::path::Path,
 ) -> Result<()> {
     if result.is_component {

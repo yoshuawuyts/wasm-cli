@@ -1,3 +1,5 @@
+//! Package manager orchestration and general-purpose logic.
+
 use oci_client::Reference;
 use oci_client::manifest::OciImageManifest;
 use std::path::Path;

@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use comfy_table::{ContentArrangement, Table};
-use wasm_package_manager::{Manager, SyncPolicy, SyncResult};
+use wasm_package_manager::manager::{Manager, SyncPolicy, SyncResult};
 
 /// Default meta-registry URL.
 const REGISTRY_URL: &str = "http://localhost:8080";
@@ -65,7 +65,9 @@ impl SearchOpts {
 /// Extracted for testability — the CLI calls this via `SearchOpts::run`,
 /// but unit tests can call it directly without a database.
 #[must_use]
-pub(crate) fn render_search_table(packages: &[wasm_package_manager::KnownPackageView]) -> String {
+pub(crate) fn render_search_table(
+    packages: &[wasm_package_manager::storage::KnownPackageView],
+) -> String {
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
     table.set_header(vec!["PACKAGE", "DESCRIPTION", "TAGS"]);
@@ -87,7 +89,7 @@ pub(crate) fn render_search_table(packages: &[wasm_package_manager::KnownPackage
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasm_package_manager::KnownPackageView;
+    use wasm_package_manager::storage::KnownPackageView;
 
     #[test]
     fn test_render_search_table_with_results() {

@@ -2,7 +2,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Cell, Paragraph, Row, StatefulWidget, Table, TableState, Widget},
 };
-use wasm_package_manager::ImageView;
+use wasm_package_manager::oci::ImageView;
 
 use super::format_size;
 

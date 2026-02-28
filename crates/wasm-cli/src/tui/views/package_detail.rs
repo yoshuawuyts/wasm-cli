@@ -2,7 +2,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
-use wasm_package_manager::ImageView;
+use wasm_package_manager::oci::ImageView;
 
 /// View for displaying details of an installed package
 #[derive(Debug)]

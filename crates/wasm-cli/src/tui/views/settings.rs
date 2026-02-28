@@ -2,7 +2,7 @@ use ratatui::{
     prelude::*,
     widgets::{Cell, Paragraph, Row, Table, Widget},
 };
-use wasm_package_manager::StateInfo;
+use wasm_package_manager::storage::StateInfo;
 
 /// View for displaying settings and state information
 #[derive(Debug)]

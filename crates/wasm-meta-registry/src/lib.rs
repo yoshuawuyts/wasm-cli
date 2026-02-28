@@ -9,7 +9,7 @@
 //!
 //! ```no_run
 //! use wasm_meta_registry::{Config, Indexer, router};
-//! use wasm_package_manager::Manager;
+//! use wasm_package_manager::manager::Manager;
 //! use std::sync::{Arc, Mutex};
 //!
 //! #[tokio::main]

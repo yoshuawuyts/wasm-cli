@@ -6,7 +6,8 @@
 //! # Example
 //!
 //! ```no_run
-//! use wasm_package_manager::{Manager, Config};
+//! use wasm_package_manager::Config;
+//! use wasm_package_manager::manager::Manager;
 //! use std::path::Path;
 //!
 //! #[tokio::main]
@@ -36,30 +37,20 @@
 //! }
 //! ```
 
-mod components;
+pub mod components;
 mod config;
 mod credential_helper;
-mod interfaces;
-mod manager;
+pub mod interfaces;
+pub mod manager;
 mod network;
-mod oci;
+pub mod oci;
 mod progress;
-mod storage;
+pub mod storage;
 
 pub use config::{Config, RegistryConfig};
 pub use credential_helper::CredentialHelper;
-pub use interfaces::{WitInterface, WitInterfaceView, is_wit_package};
-pub use manager::{
-    InstallResult, Manager, PullResult, SyncPolicy, SyncResult, derive_component_name,
-    sanitize_to_wit_identifier, should_sync, vendor_filename,
-};
-pub use oci::{
-    ImageEntry, ImageView, InsertResult, TagKind, classify_tag, classify_tags,
-    compute_orphaned_layers, filter_wasm_layers,
-};
 pub use oci_client::Reference;
 pub use progress::ProgressEvent;
-pub use storage::{KnownPackage, KnownPackageView, Migrations, StateInfo};
 
 /// Format a byte size as a human-readable string (B, KB, MB, GB).
 #[must_use]

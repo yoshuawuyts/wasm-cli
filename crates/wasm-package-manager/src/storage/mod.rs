@@ -1,3 +1,5 @@
+//! Cross-cutting persistence types and database storage.
+
 mod config;
 mod models;
 mod store;
