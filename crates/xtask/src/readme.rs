@@ -9,7 +9,19 @@ const COMMANDS_START: &str = "<!-- commands-start -->";
 const COMMANDS_END: &str = "<!-- commands-end -->";
 
 /// Build the wasm binary and return the path to it.
+///
+/// If the binary already exists at the expected location it is returned
+/// immediately so that, when called from `cargo xtask test`, the binary that
+/// was already compiled by `cargo test --all` is re-used rather than
+/// triggering a new build with potentially different `RUSTFLAGS`.
 fn build_wasm_bin(workspace_root: &Path) -> Result<std::path::PathBuf> {
+    let bin_name = format!("wasm{}", std::env::consts::EXE_SUFFIX);
+    let bin_path = workspace_root.join("target").join("debug").join(&bin_name);
+
+    if bin_path.exists() {
+        return Ok(bin_path);
+    }
+
     // Clear RUSTFLAGS so that CI-specific flags like `-Dwarnings` do not cause
     // this build to fail with platform-specific warnings unrelated to the
     // README check itself.  Warnings are already checked by `cargo clippy`.
@@ -24,8 +36,7 @@ fn build_wasm_bin(workspace_root: &Path) -> Result<std::path::PathBuf> {
         anyhow::bail!("`cargo build -p wasm` failed");
     }
 
-    let bin_name = format!("wasm{}", std::env::consts::EXE_SUFFIX);
-    Ok(workspace_root.join("target").join("debug").join(bin_name))
+    Ok(bin_path)
 }
 
 /// Run `wasm --help` and return the output, normalized for cross-platform use.
@@ -39,6 +50,23 @@ fn wasm_help(workspace_root: &Path) -> Result<String> {
         .env_remove("COLUMNS")
         .output()
         .with_context(|| format!("failed to run `{}`", bin.display()))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!(
+            "`wasm --help` exited with {}\nstderr: {}",
+            output.status,
+            stderr.trim()
+        );
+    }
+
+    if output.stdout.is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!(
+            "`wasm --help` produced no stdout output\nstderr: {}",
+            stderr.trim()
+        );
+    }
 
     let help = String::from_utf8_lossy(&output.stdout).into_owned();
     // Normalize trailing whitespace on every line.  clap may emit trailing
@@ -114,9 +142,32 @@ pub(crate) fn check(workspace_root: &Path) -> Result<()> {
     let expected = format_section(&help);
 
     // Normalize line endings for cross-platform comparison.
-    if current.replace("\r\n", "\n") != expected.replace("\r\n", "\n") {
+    let current_norm = current.replace("\r\n", "\n");
+    let expected_norm = expected.replace("\r\n", "\n");
+    if current_norm != expected_norm {
+        // Show first differing line for diagnosis.
+        let current_lines: Vec<&str> = current_norm.lines().collect();
+        let expected_lines: Vec<&str> = expected_norm.lines().collect();
+        let diff_line = current_lines
+            .iter()
+            .zip(expected_lines.iter())
+            .enumerate()
+            .find(|(_, (a, b))| a != b);
+        let note = if let Some((i, (a, b))) = diff_line {
+            format!(
+                "\nFirst diff at line {}:\n  README:   {a:?}\n  Expected: {b:?}",
+                i + 1
+            )
+        } else {
+            // All shared lines matched; the difference is in length.
+            format!(
+                "\nLine count differs: README {} lines, expected {} lines",
+                current_lines.len(),
+                expected_lines.len()
+            )
+        };
         anyhow::bail!(
-            "README commands section is out of date.\n\
+            "README commands section is out of date.{note}\n\
              Run `cargo xtask readme update` to regenerate it."
         );
     }
