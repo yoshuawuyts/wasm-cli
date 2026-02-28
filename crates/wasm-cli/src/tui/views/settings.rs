@@ -58,6 +58,7 @@ impl Widget for SettingsView<'_> {
                 } else {
                     "not found"
                 };
+                let local_config_display = local_config_path.to_string_lossy().replace('\\', "/");
                 let configuration = Text::from(vec![
                     Line::from(vec![Span::styled(
                         "Configuration",
@@ -70,8 +71,7 @@ impl Widget for SettingsView<'_> {
                     )),
                     Line::from(format!(
                         "  Local config:  {} ({})",
-                        local_config_path.display(),
-                        local_config_status
+                        local_config_display, local_config_status
                     )),
                 ]);
                 Paragraph::new(configuration).render(layout[1], buf);
