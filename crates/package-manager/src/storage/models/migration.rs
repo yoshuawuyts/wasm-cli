@@ -15,56 +15,6 @@ const MIGRATIONS: &[MigrationDef] = &[
         name: "init",
         sql: include_str!("../migrations/01_init.sql"),
     },
-    MigrationDef {
-        version: 2,
-        name: "known_packages",
-        sql: include_str!("../migrations/02_known_packages.sql"),
-    },
-    MigrationDef {
-        version: 3,
-        name: "known_package_tags",
-        sql: include_str!("../migrations/03_known_package_tags.sql"),
-    },
-    MigrationDef {
-        version: 4,
-        name: "image_size",
-        sql: include_str!("../migrations/04_image_size.sql"),
-    },
-    MigrationDef {
-        version: 5,
-        name: "tag_type",
-        sql: include_str!("../migrations/05_tag_type.sql"),
-    },
-    MigrationDef {
-        version: 6,
-        name: "wit_interface",
-        sql: include_str!("../migrations/06_wit_interface.sql"),
-    },
-    MigrationDef {
-        version: 7,
-        name: "package_name",
-        sql: include_str!("../migrations/07_package_name.sql"),
-    },
-    MigrationDef {
-        version: 8,
-        name: "image_unique",
-        sql: include_str!("../migrations/08_image_unique.sql"),
-    },
-    MigrationDef {
-        version: 9,
-        name: "wit_interface_unique",
-        sql: include_str!("../migrations/09_wit_interface_unique.sql"),
-    },
-    MigrationDef {
-        version: 10,
-        name: "package_type",
-        sql: include_str!("../migrations/10_package_type.sql"),
-    },
-    MigrationDef {
-        version: 11,
-        name: "sync_meta",
-        sql: include_str!("../migrations/11_sync_meta.sql"),
-    },
 ];
 
 /// Information about the current migration state.
@@ -140,15 +90,28 @@ mod tests {
             .unwrap();
         assert!(count > 0);
 
-        // Verify image table exists
-        conn.execute("SELECT 1 FROM image LIMIT 1", []).ok();
+        // Verify OCI layer tables exist
+        conn.execute("SELECT 1 FROM oci_repository LIMIT 1", [])
+            .unwrap();
+        conn.execute("SELECT 1 FROM oci_manifest LIMIT 1", [])
+            .unwrap();
+        conn.execute("SELECT 1 FROM oci_tag LIMIT 1", []).unwrap();
+        conn.execute("SELECT 1 FROM oci_layer LIMIT 1", []).unwrap();
 
-        // Verify known_package table exists
-        conn.execute("SELECT 1 FROM known_package LIMIT 1", []).ok();
+        // Verify WIT layer tables exist
+        conn.execute("SELECT 1 FROM wit_interface LIMIT 1", [])
+            .unwrap();
+        conn.execute("SELECT 1 FROM wit_world LIMIT 1", []).unwrap();
 
-        // Verify known_package_tag table exists
-        conn.execute("SELECT 1 FROM known_package_tag LIMIT 1", [])
-            .ok();
+        // Verify Wasm layer tables exist
+        conn.execute("SELECT 1 FROM wasm_component LIMIT 1", [])
+            .unwrap();
+        conn.execute("SELECT 1 FROM component_target LIMIT 1", [])
+            .unwrap();
+
+        // Verify operational tables exist
+        conn.execute("SELECT 1 FROM _sync_meta LIMIT 1", [])
+            .unwrap();
     }
 
     #[test]
