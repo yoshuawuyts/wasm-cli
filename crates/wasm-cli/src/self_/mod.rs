@@ -5,6 +5,9 @@ use clap::CommandFactory;
 use clap_complete::Shell;
 use wasm_package_manager::{Config, Manager, format_size};
 
+/// The path of the dotenv file relative to the current working directory.
+const DOTENV_PATH: &str = ".env";
+
 /// Configure the `wasm(1)` tool, generate completions, & manage state
 #[derive(clap::Parser)]
 pub(crate) enum Opts {
@@ -101,6 +104,22 @@ impl Opts {
                         };
                         println!("  - {name}: {helper_status}");
                     }
+                }
+
+                // Show dotenv file detection status
+                println!();
+                println!("[Environment]");
+                let dotenv_path = std::path::Path::new(DOTENV_PATH);
+                println!("Dotenv file:\t{}", dotenv_path.display());
+                if dotenv_path.exists() {
+                    // Count variables defined in the file (system env vars take precedence;
+                    // variables already set in the environment are not overridden).
+                    let var_count = dotenvy::from_path_iter(dotenv_path)
+                        .map(|iter| iter.count())
+                        .unwrap_or(0);
+                    println!("Status:\t\texists ({var_count} variable(s) defined in file)");
+                } else {
+                    println!("Status:\t\tnot found");
                 }
 
                 Ok(())

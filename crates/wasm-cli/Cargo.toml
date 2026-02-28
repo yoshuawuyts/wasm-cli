@@ -22,6 +22,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 bytesize = { workspace = true }
+dotenvy = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 clap_mangen = { workspace = true }

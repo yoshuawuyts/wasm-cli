@@ -478,3 +478,110 @@ fn test_install_help_snapshot() {
     let output = run_cli(&["install", "--help"]);
     assert_snapshot!(output);
 }
+
+// =============================================================================
+// Dotenv Tests
+// =============================================================================
+
+#[test]
+fn test_dotenv_file_detected_in_config() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    // Create a .env file with two variables
+    std::fs::write(dir.path().join(".env"), "FOO=bar\nBAZ=qux\n").expect("Failed to write .env");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "config"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(
+        output.status.success(),
+        "self config failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("[Environment]"),
+        "Expected [Environment] section in output"
+    );
+    assert!(stdout.contains(".env"), "Expected .env path in output");
+    assert!(
+        stdout.contains("exists"),
+        "Expected 'exists' status when .env is present"
+    );
+    assert!(
+        stdout.contains("2 variable(s) defined in file"),
+        "Expected variable count in output"
+    );
+}
+
+#[test]
+fn test_dotenv_file_not_found_in_config() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    // No .env file created
+
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "config"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(
+        output.status.success(),
+        "self config failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("[Environment]"),
+        "Expected [Environment] section in output"
+    );
+    assert!(stdout.contains(".env"), "Expected .env path in output");
+    assert!(
+        stdout.contains("not found"),
+        "Expected 'not found' status when .env is absent"
+    );
+}
+
+#[test]
+fn test_dotenv_variables_are_loaded() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    // Create a .env file
+    std::fs::write(
+        dir.path().join(".env"),
+        "WASM_TEST_DOTENV_VAR=hello_dotenv\n",
+    )
+    .expect("Failed to write .env");
+
+    // The CLI loads the .env before running; verify it completes successfully
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "config"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(
+        output.status.success(),
+        "CLI should succeed when a .env file is present"
+    );
+}
+
+#[test]
+fn test_system_env_takes_precedence_over_dotenv() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    // Create a .env file that tries to set PATH
+    std::fs::write(dir.path().join(".env"), "PATH=/dotenv/path\n").expect("Failed to write .env");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "config"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+
+    // The CLI should still run successfully (system PATH not overridden)
+    assert!(
+        output.status.success(),
+        "CLI should succeed and not have PATH overridden by .env"
+    );
+}

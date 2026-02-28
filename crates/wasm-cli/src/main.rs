@@ -138,6 +138,9 @@ fn init_tracing() -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard>
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Load .env file if present; variables already set in the environment
+    // take precedence (system environment is not overridden).
+    dotenvy::dotenv().ok();
     let _tracing_guard = init_tracing()?;
     Cli::parse().run().await?;
     Ok(())
