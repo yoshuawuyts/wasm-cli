@@ -80,72 +80,9 @@ impl Opts {
                 let vendor_dir = wasm_vendor_dir.clone();
                 let wit_vendor_dir = wit_vendor_dir.clone();
                 async move {
-                    let reference_display = reference.whole().to_string();
-
-                    // Install the package with progress reporting
-                    let result = if offline {
-                        // No progress bars in offline mode — just print the line
-                        println!(
-                            "{:>12} {}",
-                            console::style("Installing").cyan().bold(),
-                            reference_display,
-                        );
-                        manager.install(reference.clone(), &vendor_dir).await?
-                    } else {
-                        let (progress_tx, progress_rx) =
-                            tokio::sync::mpsc::channel::<ProgressEvent>(64);
-
-                        // Add a header line managed by the shared multi-progress so it
-                        // stays above the per-layer bars and can be rewritten.
-                        let header = multi.add(ProgressBar::new_spinner());
-                        header.set_style(
-                            ProgressStyle::with_template("{msg}")
-                                .expect("valid progress bar template"),
-                        );
-                        header.set_message(format!(
-                            "{:>12} {}",
-                            console::style("Installing").cyan().bold(),
-                            reference_display,
-                        ));
-
-                        // Spawn progress rendering task
-                        let progress_handle =
-                            tokio::task::spawn(run_progress_bars(multi, progress_rx));
-
-                        let result = manager
-                            .install_with_progress(reference.clone(), &vendor_dir, &progress_tx)
-                            .await;
-
-                        // Drop the sender to signal the progress task to finish
-                        drop(progress_tx);
-
-                        // Wait for progress bars to finish rendering
-                        let _ = progress_handle.await;
-
-                        // Rewrite the header line: blue → green
-                        header.set_message(format!(
-                            "{:>12} {}",
-                            console::style("Installing").green().bold(),
-                            reference_display,
-                        ));
-                        header.finish();
-
-                        result?
-                    };
-
-                    // If this is a WIT interface (not a component), re-vendor the files
-                    // from wasm/ to wit/
-                    if !result.is_component {
-                        for file in &result.vendored_files {
-                            if let Some(filename) = file.file_name() {
-                                let wit_dest = wit_vendor_dir.join(filename);
-                                tokio::fs::create_dir_all(&wit_vendor_dir).await?;
-                                let _ = tokio::fs::remove_file(&wit_dest).await;
-                                tokio::fs::rename(file, &wit_dest).await?;
-                            }
-                        }
-                    }
-
+                    let result =
+                        install_one(&manager, multi, offline, &reference, &vendor_dir).await?;
+                    re_vendor_wit_files(&result, &wit_vendor_dir).await?;
                     anyhow::Ok((result, reference, update_manifest))
                 }
             })
@@ -235,6 +172,89 @@ impl Opts {
 
         Ok(())
     }
+}
+
+/// Install a single package and report progress.
+///
+/// In offline mode a plain status line is printed. In online mode a
+/// [`MultiProgress`] header bar is created for the package and per-layer
+/// bars are rendered by a background task.
+async fn install_one(
+    manager: &Manager,
+    multi: MultiProgress,
+    offline: bool,
+    reference: &Reference,
+    vendor_dir: &std::path::Path,
+) -> Result<wasm_package_manager::InstallResult> {
+    let reference_display = reference.whole().to_string();
+
+    if offline {
+        // No progress bars in offline mode — just print the line
+        println!(
+            "{:>12} {}",
+            console::style("Installing").cyan().bold(),
+            reference_display,
+        );
+        return manager.install(reference.clone(), vendor_dir).await;
+    }
+
+    let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
+
+    // Add a header line managed by the shared multi-progress so it
+    // stays above the per-layer bars and can be rewritten.
+    let header = multi.add(ProgressBar::new_spinner());
+    header.set_style(ProgressStyle::with_template("{msg}").expect("valid progress bar template"));
+    header.set_message(format!(
+        "{:>12} {}",
+        console::style("Installing").cyan().bold(),
+        reference_display,
+    ));
+
+    // Spawn progress rendering task
+    let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
+
+    let result = manager
+        .install_with_progress(reference.clone(), vendor_dir, &progress_tx)
+        .await;
+
+    // Drop the sender to signal the progress task to finish
+    drop(progress_tx);
+
+    // Wait for progress bars to finish rendering
+    let _ = progress_handle.await;
+
+    // Rewrite the header line: blue → green
+    header.set_message(format!(
+        "{:>12} {}",
+        console::style("Installing").green().bold(),
+        reference_display,
+    ));
+    header.finish();
+
+    result
+}
+
+/// Move vendored WIT files from the wasm vendor dir into the wit vendor dir.
+///
+/// WIT-only packages (interfaces) are initially stored alongside components in
+/// `deps/vendor/wasm/`. This function moves them to `deps/vendor/wit/` so that
+/// WIT tooling can find them at the conventional location.
+async fn re_vendor_wit_files(
+    result: &wasm_package_manager::InstallResult,
+    wit_vendor_dir: &std::path::Path,
+) -> Result<()> {
+    if result.is_component {
+        return Ok(());
+    }
+    for file in &result.vendored_files {
+        if let Some(filename) = file.file_name() {
+            let wit_dest = wit_vendor_dir.join(filename);
+            tokio::fs::create_dir_all(wit_vendor_dir).await?;
+            let _ = tokio::fs::remove_file(&wit_dest).await;
+            tokio::fs::rename(file, &wit_dest).await?;
+        }
+    }
+    Ok(())
 }
 
 /// Convert a manifest [`wasm_manifest::Dependency`] into an OCI [`Reference`].
