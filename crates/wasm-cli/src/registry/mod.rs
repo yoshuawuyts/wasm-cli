@@ -4,7 +4,7 @@ use wasm_package_manager::{InsertResult, Manager, Reference};
 mod search;
 mod sync;
 
-/// Manage images, components, and interfaces in OCI registries
+/// Manage Wasm Components and WIT interfaces in OCI registries
 #[derive(clap::Parser)]
 pub(crate) enum Opts {
     /// Fetch OCI metadata for a component
