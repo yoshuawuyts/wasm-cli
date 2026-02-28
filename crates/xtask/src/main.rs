@@ -292,14 +292,15 @@ fn sql_install() -> Result<()> {
 
     let (os_name, arch_name, ext) = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => ("linux", "amd64", "tar.gz"),
-        ("macos", "x86_64") => ("darwin", "amd64", "tar.gz"),
-        ("macos", "aarch64") => ("darwin", "arm64", "tar.gz"),
+        ("macos", "x86_64") => ("darwin", "amd64", "zip"),
+        ("macos", "aarch64") => ("darwin", "arm64", "zip"),
         ("windows", "x86_64") => ("windows", "amd64", "zip"),
         (os, arch) => anyhow::bail!("unsupported platform: {os}/{arch}"),
     };
 
+    let version = "v3.9.8";
     let url = format!(
-        "https://github.com/sqldef/sqldef/releases/latest/download/sqlite3def_{os_name}_{arch_name}.{ext}"
+        "https://github.com/sqldef/sqldef/releases/download/{version}/sqlite3def_{os_name}_{arch_name}.{ext}"
     );
     let archive_path = tools_dir.join(format!("sqlite3def.{ext}"));
 
@@ -307,13 +308,13 @@ fn sql_install() -> Result<()> {
 
     // Download with curl.
     let status = Command::new("curl")
-        .args(["-sL", "-o"])
+        .args(["-sfL", "-o"])
         .arg(&archive_path)
         .arg(&url)
         .status()
         .context("failed to run curl — is it installed?")?;
     if !status.success() {
-        anyhow::bail!("curl failed to download sqlite3def");
+        anyhow::bail!("curl failed to download sqlite3def (HTTP error or network failure)");
     }
 
     // Extract the archive.
