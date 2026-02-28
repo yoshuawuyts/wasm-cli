@@ -46,6 +46,34 @@ jobs:
     - name: Run xtask test
       run: cargo xtask test
 
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@master
+
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Install sqlite3def
+      run: cargo xtask sql install
+
+    - name: Generate coverage
+      run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        files: lcov.info
+        token: ${{ secrets.CODECOV_TOKEN }}
+
   check_docs:
     name: Checking docs
     runs-on: ubuntu-latest
