@@ -2,6 +2,39 @@
 //!
 //! This crate provides functionality to pull, store, and manage WebAssembly
 //! component packages from OCI registries.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use wasm_package_manager::{Manager, Config};
+//! use std::path::Path;
+//!
+//! #[tokio::main]
+//! async fn main() -> anyhow::Result<()> {
+//!     // Open the package manager (uses default config and cache location)
+//!     let manager = Manager::open().await?;
+//!
+//!     // Pull a WebAssembly package from an OCI registry
+//!     let reference = "ghcr.io/webassembly/wasi/clocks:0.2.0".parse()?;
+//!     let result = manager.pull(reference).await?;
+//!     println!("Pull result: {:?}", result.insert_result);
+//!
+//!     // Install a package by vendoring its layers into a local directory
+//!     let reference = "ghcr.io/webassembly/wasi/clocks:0.2.0".parse()?;
+//!     let install = manager.install(reference, Path::new("vendor")).await?;
+//!     for path in &install.vendored_files {
+//!         println!("Installed: {}", path.display());
+//!     }
+//!
+//!     // List all cached images
+//!     let images = manager.list_all()?;
+//!     for image in &images {
+//!         println!("{} ({} bytes)", image.reference(), image.size_on_disk);
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
 
 mod config;
 mod credential_helper;
