@@ -8,7 +8,7 @@ mod wit_world;
 
 pub use image_entry::ImageEntry;
 pub use known_package::KnownPackage;
-pub(crate) use migration::Migrations;
+pub use migration::Migrations;
 pub use oci::InsertResult;
 #[allow(unused_imports, unreachable_pub)]
 pub use oci::OciReferrer;

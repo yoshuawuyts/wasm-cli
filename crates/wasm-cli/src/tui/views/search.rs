@@ -2,7 +2,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Cell, Paragraph, Row, StatefulWidget, Table, TableState, Widget},
 };
-use wasm_package_manager::KnownPackage;
+use wasm_package_manager::KnownPackageView;
 
 /// State for the search view
 #[derive(Debug, Default)]
@@ -52,13 +52,13 @@ impl SearchViewState {
 /// View for displaying search results
 #[derive(Debug)]
 pub struct SearchView<'a> {
-    packages: &'a [KnownPackage],
+    packages: &'a [KnownPackageView],
 }
 
 impl<'a> SearchView<'a> {
     /// Creates a new search view
     #[must_use]
-    pub fn new(packages: &'a [KnownPackage]) -> Self {
+    pub fn new(packages: &'a [KnownPackageView]) -> Self {
         Self { packages }
     }
 }

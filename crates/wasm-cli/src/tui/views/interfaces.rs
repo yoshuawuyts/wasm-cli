@@ -5,7 +5,7 @@ use ratatui::{
         Table, TableState, Widget, Wrap,
     },
 };
-use wasm_package_manager::WitInterface;
+use wasm_package_manager::WitInterfaceView;
 
 /// State for the interfaces view
 #[derive(Debug, Default)]
@@ -68,13 +68,13 @@ impl InterfacesViewState {
 /// View for displaying WIT interfaces
 #[derive(Debug)]
 pub struct InterfacesView<'a> {
-    interfaces: &'a [(WitInterface, String)],
+    interfaces: &'a [(WitInterfaceView, String)],
 }
 
 impl<'a> InterfacesView<'a> {
     /// Create a new InterfacesView with the given interfaces
     #[must_use]
-    pub fn new(interfaces: &'a [(WitInterface, String)]) -> Self {
+    pub fn new(interfaces: &'a [(WitInterfaceView, String)]) -> Self {
         Self { interfaces }
     }
 }
@@ -156,7 +156,7 @@ impl InterfacesView<'_> {
         area: Rect,
         buf: &mut Buffer,
         state: &mut InterfacesViewState,
-        interface: &WitInterface,
+        interface: &WitInterfaceView,
         component_ref: &str,
     ) {
         // Split into header and content

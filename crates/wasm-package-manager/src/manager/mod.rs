@@ -6,7 +6,9 @@ use tokio_stream::StreamExt;
 use crate::config::Config;
 use crate::network::Client;
 use crate::progress::ProgressEvent;
-use crate::storage::{ImageEntry, InsertResult, KnownPackage, StateInfo, Store, WitInterface};
+use crate::storage::{
+    ImageView, InsertResult, KnownPackage, KnownPackageView, StateInfo, Store, WitInterfaceView,
+};
 
 /// Result of syncing the package index from a meta-registry.
 #[derive(Debug)]
@@ -496,8 +498,13 @@ impl Manager {
         })
     }
     /// List all stored images and their metadata.
-    pub fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
-        self.store.list_all()
+    pub fn list_all(&self) -> anyhow::Result<Vec<ImageView>> {
+        Ok(self
+            .store
+            .list_all()?
+            .into_iter()
+            .map(ImageView::from)
+            .collect())
     }
 
     /// Get data from the store
@@ -529,8 +536,13 @@ impl Manager {
         query: &str,
         offset: u32,
         limit: u32,
-    ) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store.search_known_packages(query, offset, limit)
+    ) -> anyhow::Result<Vec<KnownPackageView>> {
+        Ok(self
+            .store
+            .search_known_packages(query, offset, limit)?
+            .into_iter()
+            .map(KnownPackageView::from)
+            .collect())
     }
 
     /// Get all known packages.
@@ -539,8 +551,13 @@ impl Manager {
         &self,
         offset: u32,
         limit: u32,
-    ) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store.list_known_packages(offset, limit)
+    ) -> anyhow::Result<Vec<KnownPackageView>> {
+        Ok(self
+            .store
+            .list_known_packages(offset, limit)?
+            .into_iter()
+            .map(KnownPackageView::from)
+            .collect())
     }
 
     /// Add or update a known package entry.
@@ -596,8 +613,11 @@ impl Manager {
         &self,
         registry: &str,
         repository: &str,
-    ) -> anyhow::Result<Option<KnownPackage>> {
-        self.store.get_known_package(registry, repository)
+    ) -> anyhow::Result<Option<KnownPackageView>> {
+        Ok(self
+            .store
+            .get_known_package(registry, repository)?
+            .map(KnownPackageView::from))
     }
 
     /// Index a package from the registry without downloading layers.
@@ -610,7 +630,7 @@ impl Manager {
     /// # Errors
     ///
     /// Returns an error if offline mode is enabled or if network operations fail.
-    pub async fn index_package(&self, reference: &Reference) -> anyhow::Result<KnownPackage> {
+    pub async fn index_package(&self, reference: &Reference) -> anyhow::Result<KnownPackageView> {
         if self.offline {
             anyhow::bail!("cannot index packages in offline mode");
         }
@@ -662,14 +682,20 @@ impl Manager {
         // Return the indexed package.
         self.store
             .get_known_package(reference.registry(), reference.repository())?
+            .map(KnownPackageView::from)
             .ok_or_else(|| anyhow::anyhow!("failed to retrieve indexed package"))
     }
 
     /// Get all WIT interfaces with their associated component references.
     pub fn list_wit_interfaces_with_components(
         &self,
-    ) -> anyhow::Result<Vec<(WitInterface, String)>> {
-        self.store.list_wit_interfaces_with_components()
+    ) -> anyhow::Result<Vec<(WitInterfaceView, String)>> {
+        Ok(self
+            .store
+            .list_wit_interfaces_with_components()?
+            .into_iter()
+            .map(|(iface, s)| (WitInterfaceView::from(iface), s))
+            .collect())
     }
 
     /// Sync the local package index from a meta-registry over HTTP.

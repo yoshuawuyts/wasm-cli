@@ -2,20 +2,20 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
-use wasm_package_manager::KnownPackage;
+use wasm_package_manager::KnownPackageView;
 
 /// View for displaying details of a known package (from search results).
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct KnownPackageDetailView<'a> {
-    package: &'a KnownPackage,
+    package: &'a KnownPackageView,
 }
 
 impl<'a> KnownPackageDetailView<'a> {
     /// Creates a new known package detail view.
     #[must_use]
     #[allow(dead_code)]
-    pub fn new(package: &'a KnownPackage) -> Self {
+    pub fn new(package: &'a KnownPackageView) -> Self {
         Self { package }
     }
 }

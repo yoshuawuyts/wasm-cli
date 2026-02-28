@@ -16,7 +16,10 @@ pub use credential_helper::CredentialHelper;
 pub use manager::{InstallResult, Manager, PullResult, SyncPolicy, SyncResult};
 pub use oci_client::Reference;
 pub use progress::ProgressEvent;
-pub use storage::{ImageEntry, InsertResult, KnownPackage, StateInfo, WitInterface};
+pub use storage::{
+    ImageEntry, ImageView, InsertResult, KnownPackage, KnownPackageView, Migrations, StateInfo,
+    WitInterface, WitInterfaceView,
+};
 pub use utils::is_wit_package;
 
 /// Format a byte size as a human-readable string (B, KB, MB, GB).

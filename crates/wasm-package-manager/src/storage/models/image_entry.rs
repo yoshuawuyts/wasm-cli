@@ -1,6 +1,4 @@
 use oci_client::manifest::OciImageManifest;
-#[cfg(any(test, feature = "test-helpers"))]
-use oci_client::manifest::{IMAGE_MANIFEST_MEDIA_TYPE, OciDescriptor};
 use rusqlite::Connection;
 
 /// Metadata for a stored OCI image.
@@ -95,54 +93,6 @@ impl ImageEntry {
             });
         }
         Ok(entries)
-    }
-
-    /// Creates a new `ImageEntry` for testing purposes.
-    #[cfg(any(test, feature = "test-helpers"))]
-    #[must_use]
-    pub fn new_for_testing(
-        ref_registry: String,
-        ref_repository: String,
-        ref_tag: Option<String>,
-        ref_digest: Option<String>,
-        size_on_disk: u64,
-    ) -> Self {
-        Self {
-            id: 0,
-            ref_registry,
-            ref_repository,
-            ref_mirror_registry: None,
-            ref_tag,
-            ref_digest,
-            manifest: Self::test_manifest(),
-            size_on_disk,
-        }
-    }
-
-    /// Creates a minimal OCI image manifest with a single WASM layer for testing.
-    #[cfg(any(test, feature = "test-helpers"))]
-    fn test_manifest() -> OciImageManifest {
-        OciImageManifest {
-            schema_version: 2,
-            media_type: Some(IMAGE_MANIFEST_MEDIA_TYPE.to_string()),
-            config: OciDescriptor {
-                media_type: "application/vnd.oci.image.config.v1+json".to_string(),
-                digest: "sha256:abc123".to_string(),
-                size: 100,
-                urls: None,
-                annotations: None,
-            },
-            layers: vec![OciDescriptor {
-                media_type: "application/wasm".to_string(),
-                digest: "sha256:def456".to_string(),
-                size: 1024,
-                urls: None,
-                annotations: None,
-            }],
-            artifact_type: None,
-            annotations: None,
-            subject: None,
-        }
     }
 }
 

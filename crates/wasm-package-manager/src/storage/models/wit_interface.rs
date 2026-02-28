@@ -191,27 +191,4 @@ impl WitInterface {
             created_at: row.get(7)?,
         })
     }
-
-    /// Creates a new `WitInterface` for testing purposes.
-    #[cfg(any(test, feature = "test-helpers"))]
-    #[must_use]
-    pub fn new_for_testing(
-        id: i64,
-        package_name: String,
-        version: Option<String>,
-        description: Option<String>,
-        wit_text: Option<String>,
-        created_at: String,
-    ) -> Self {
-        Self {
-            id,
-            package_name,
-            version,
-            description,
-            wit_text,
-            oci_manifest_id: None,
-            oci_layer_id: None,
-            created_at,
-        }
-    }
 }

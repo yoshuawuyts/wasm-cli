@@ -13,8 +13,6 @@ keywords = { workspace = true }
 
 [features]
 default = []
-# Enable test helpers for use in other crates' tests
-test-helpers = []
 # serde is always enabled (kept as a no-op feature for backward compatibility)
 serde = []
 # Enable HTTP sync from meta-registry

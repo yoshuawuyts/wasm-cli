@@ -9,8 +9,8 @@ pub mod views;
 use app::App;
 use tokio::sync::mpsc;
 use wasm_package_manager::{
-    ImageEntry, KnownPackage, Manager, ProgressEvent, PullResult, Reference, StateInfo,
-    WitInterface,
+    ImageView, KnownPackageView, Manager, ProgressEvent, PullResult, Reference, StateInfo,
+    WitInterfaceView,
 };
 
 /// Events sent from the TUI to the Manager
@@ -44,7 +44,7 @@ pub enum ManagerEvent {
     /// Manager has finished initializing
     Ready,
     /// List of packages
-    PackagesList(Vec<ImageEntry>),
+    PackagesList(Vec<ImageView>),
     /// State information
     StateInfo(StateInfo),
     /// Result of a pull operation (includes InsertResult to indicate if package was new or already existed)
@@ -52,13 +52,13 @@ pub enum ManagerEvent {
     /// Result of a delete operation
     DeleteResult(Result<(), String>),
     /// Search results for known packages
-    SearchResults(Vec<KnownPackage>),
+    SearchResults(Vec<KnownPackageView>),
     /// All known packages
-    KnownPackagesList(Vec<KnownPackage>),
+    KnownPackagesList(Vec<KnownPackageView>),
     /// Result of refreshing tags for a package
     RefreshTagsResult(Result<usize, String>),
     /// List of WIT interfaces with their component references
-    WitInterfacesList(Vec<(WitInterface, String)>),
+    WitInterfacesList(Vec<(WitInterfaceView, String)>),
     /// List of local WASM files
     LocalWasmList(Vec<wasm_detector::WasmEntry>),
     /// Progress event during a pull operation

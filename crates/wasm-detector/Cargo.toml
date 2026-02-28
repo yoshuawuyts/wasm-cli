@@ -13,8 +13,6 @@ keywords = { workspace = true }
 
 [features]
 default = []
-# Enable test helpers for use in other crates' tests
-test-helpers = []
 
 [dependencies]
 ignore = { workspace = true }

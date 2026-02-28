@@ -26,6 +26,7 @@
 use std::path::PathBuf;
 
 use insta::assert_snapshot;
+use oci_client::manifest::{IMAGE_MANIFEST_MEDIA_TYPE, OciDescriptor, OciImageManifest};
 use ratatui::prelude::*;
 
 use wasm::tui::components::{TabBar, TabItem};
@@ -35,7 +36,7 @@ use wasm::tui::views::{
     PackagesView, SearchView, SearchViewState, SettingsView,
 };
 use wasm_detector::WasmEntry;
-use wasm_package_manager::{ImageEntry, KnownPackage, StateInfo};
+use wasm_package_manager::{ImageView, KnownPackageView, StateInfo};
 
 /// Helper function to render a widget to a string buffer.
 fn render_to_string<W: Widget>(widget: W, width: u16, height: u16) -> String {
@@ -73,6 +74,31 @@ fn buffer_to_string(buffer: &Buffer) -> String {
     output
 }
 
+/// Creates a minimal OCI image manifest with a single WASM layer for testing.
+fn test_manifest() -> OciImageManifest {
+    OciImageManifest {
+        schema_version: 2,
+        media_type: Some(IMAGE_MANIFEST_MEDIA_TYPE.to_string()),
+        config: OciDescriptor {
+            media_type: "application/vnd.oci.image.config.v1+json".to_string(),
+            digest: "sha256:abc123".to_string(),
+            size: 100,
+            urls: None,
+            annotations: None,
+        },
+        layers: vec![OciDescriptor {
+            media_type: "application/wasm".to_string(),
+            digest: "sha256:def456".to_string(),
+            size: 1024,
+            urls: None,
+            annotations: None,
+        }],
+        artifact_type: None,
+        annotations: None,
+        subject: None,
+    }
+}
+
 // =============================================================================
 // LocalView Snapshot Tests
 // =============================================================================
@@ -87,11 +113,11 @@ fn test_local_view_empty_snapshot() {
 #[test]
 fn test_local_view_with_files_snapshot() {
     let wasm_files = vec![
-        WasmEntry::new_for_testing(PathBuf::from(
+        WasmEntry::new(PathBuf::from(
             "./target/wasm32-unknown-unknown/release/app.wasm",
         )),
-        WasmEntry::new_for_testing(PathBuf::from("./pkg/component.wasm")),
-        WasmEntry::new_for_testing(PathBuf::from("./examples/hello.wasm")),
+        WasmEntry::new(PathBuf::from("./pkg/component.wasm")),
+        WasmEntry::new(PathBuf::from("./examples/hello.wasm")),
     ];
     let output = render_to_string(LocalView::new(&wasm_files), 80, 15);
     assert_snapshot!(output);
@@ -111,29 +137,27 @@ fn test_interfaces_view_snapshot() {
 
 #[test]
 fn test_interfaces_view_populated_snapshot() {
-    use wasm_package_manager::WitInterface;
+    use wasm_package_manager::WitInterfaceView;
 
     let interfaces = vec![
         (
-            WitInterface::new_for_testing(
-                1,
-                "wasi:http".to_string(),
-                Some("0.2.0".to_string()),
-                None,
-                Some("package wasi:http@0.2.0;\n\nworld proxy {\n  import wasi:http/types;\n  export wasi:http/handler;\n}".to_string()),
-                "2024-01-15T10:30:00Z".to_string(),
-            ),
+            WitInterfaceView {
+                package_name: "wasi:http".to_string(),
+                version: Some("0.2.0".to_string()),
+                description: None,
+                wit_text: Some("package wasi:http@0.2.0;\n\nworld proxy {\n  import wasi:http/types;\n  export wasi:http/handler;\n}".to_string()),
+                created_at: "2024-01-15T10:30:00Z".to_string(),
+            },
             "ghcr.io/example/http-proxy:v1.0.0".to_string(),
         ),
         (
-            WitInterface::new_for_testing(
-                2,
-                "wasi:cli".to_string(),
-                Some("0.2.0".to_string()),
-                None,
-                Some("package wasi:cli@0.2.0;\n\nworld command {\n  import wasi:cli/stdin;\n  import wasi:cli/stdout;\n  export run;\n}".to_string()),
-                "2024-01-16T11:20:00Z".to_string(),
-            ),
+            WitInterfaceView {
+                package_name: "wasi:cli".to_string(),
+                version: Some("0.2.0".to_string()),
+                description: None,
+                wit_text: Some("package wasi:cli@0.2.0;\n\nworld command {\n  import wasi:cli/stdin;\n  import wasi:cli/stdout;\n  export run;\n}".to_string()),
+                created_at: "2024-01-16T11:20:00Z".to_string(),
+            },
             "ghcr.io/example/cli-tool:latest".to_string(),
         ),
     ];
@@ -156,27 +180,33 @@ fn test_packages_view_empty_snapshot() {
 #[test]
 fn test_packages_view_with_packages_snapshot() {
     let packages = vec![
-        ImageEntry::new_for_testing(
-            "ghcr.io".to_string(),
-            "bytecode-alliance/wasmtime".to_string(),
-            Some("v1.0.0".to_string()),
-            Some("sha256:abc123def456".to_string()),
-            1024 * 1024 * 5, // 5 MB
-        ),
-        ImageEntry::new_for_testing(
-            "docker.io".to_string(),
-            "example/hello-wasm".to_string(),
-            Some("latest".to_string()),
-            None,
-            1024 * 512, // 512 KB
-        ),
-        ImageEntry::new_for_testing(
-            "ghcr.io".to_string(),
-            "user/my-component".to_string(),
-            Some("v2.1.0".to_string()),
-            Some("sha256:789xyz".to_string()),
-            1024 * 1024 * 2, // 2 MB
-        ),
+        ImageView {
+            ref_registry: "ghcr.io".to_string(),
+            ref_repository: "bytecode-alliance/wasmtime".to_string(),
+            ref_mirror_registry: None,
+            ref_tag: Some("v1.0.0".to_string()),
+            ref_digest: Some("sha256:abc123def456".to_string()),
+            manifest: test_manifest(),
+            size_on_disk: 1024 * 1024 * 5, // 5 MB
+        },
+        ImageView {
+            ref_registry: "docker.io".to_string(),
+            ref_repository: "example/hello-wasm".to_string(),
+            ref_mirror_registry: None,
+            ref_tag: Some("latest".to_string()),
+            ref_digest: None,
+            manifest: test_manifest(),
+            size_on_disk: 1024 * 512, // 512 KB
+        },
+        ImageView {
+            ref_registry: "ghcr.io".to_string(),
+            ref_repository: "user/my-component".to_string(),
+            ref_mirror_registry: None,
+            ref_tag: Some("v2.1.0".to_string()),
+            ref_digest: Some("sha256:789xyz".to_string()),
+            manifest: test_manifest(),
+            size_on_disk: 1024 * 1024 * 2, // 2 MB
+        },
     ];
     let output = render_to_string(PackagesView::new(&packages), 100, 15);
     assert_snapshot!(output);
@@ -194,13 +224,15 @@ fn test_packages_view_with_filter_active_snapshot() {
 
 #[test]
 fn test_packages_view_filter_with_results_snapshot() {
-    let packages = vec![ImageEntry::new_for_testing(
-        "ghcr.io".to_string(),
-        "bytecode-alliance/wasi-http".to_string(),
-        Some("v0.2.0".to_string()),
-        Some("sha256:wasi123".to_string()),
-        1024 * 256, // 256 KB
-    )];
+    let packages = vec![ImageView {
+        ref_registry: "ghcr.io".to_string(),
+        ref_repository: "bytecode-alliance/wasi-http".to_string(),
+        ref_mirror_registry: None,
+        ref_tag: Some("v0.2.0".to_string()),
+        ref_digest: Some("sha256:wasi123".to_string()),
+        manifest: test_manifest(),
+        size_on_disk: 1024 * 256, // 256 KB
+    }];
     let mut state = PackagesViewState::new();
     state.filter_query = "wasi".to_string();
     let output = render_stateful_to_string(PackagesView::new(&packages), &mut state, 100, 12);
@@ -213,26 +245,30 @@ fn test_packages_view_filter_with_results_snapshot() {
 
 #[test]
 fn test_package_detail_view_snapshot() {
-    let package = ImageEntry::new_for_testing(
-        "ghcr.io".to_string(),
-        "bytecode-alliance/wasmtime".to_string(),
-        Some("v1.0.0".to_string()),
-        Some("sha256:abc123def456789".to_string()),
-        1024 * 1024 * 5, // 5 MB
-    );
+    let package = ImageView {
+        ref_registry: "ghcr.io".to_string(),
+        ref_repository: "bytecode-alliance/wasmtime".to_string(),
+        ref_mirror_registry: None,
+        ref_tag: Some("v1.0.0".to_string()),
+        ref_digest: Some("sha256:abc123def456789".to_string()),
+        manifest: test_manifest(),
+        size_on_disk: 1024 * 1024 * 5, // 5 MB
+    };
     let output = render_to_string(PackageDetailView::new(&package), 80, 25);
     assert_snapshot!(output);
 }
 
 #[test]
 fn test_package_detail_view_without_tag_snapshot() {
-    let package = ImageEntry::new_for_testing(
-        "docker.io".to_string(),
-        "library/hello-world".to_string(),
-        None,
-        Some("sha256:digest123".to_string()),
-        1024 * 128, // 128 KB
-    );
+    let package = ImageView {
+        ref_registry: "docker.io".to_string(),
+        ref_repository: "library/hello-world".to_string(),
+        ref_mirror_registry: None,
+        ref_tag: None,
+        ref_digest: Some("sha256:digest123".to_string()),
+        manifest: test_manifest(),
+        size_on_disk: 1024 * 128, // 128 KB
+    };
     let output = render_to_string(PackageDetailView::new(&package), 80, 25);
     assert_snapshot!(output);
 }
@@ -251,26 +287,26 @@ fn test_search_view_empty_snapshot() {
 #[test]
 fn test_search_view_with_packages_snapshot() {
     let packages = vec![
-        KnownPackage::new_for_testing(
-            "ghcr.io".to_string(),
-            "bytecode-alliance/wasi-http".to_string(),
-            Some("WASI HTTP interface".to_string()),
-            vec!["v0.2.0".to_string(), "v0.1.0".to_string()],
-            vec![],
-            vec![],
-            "2024-01-15T10:30:00Z".to_string(),
-            "2024-01-01T08:00:00Z".to_string(),
-        ),
-        KnownPackage::new_for_testing(
-            "ghcr.io".to_string(),
-            "user/my-component".to_string(),
-            None,
-            vec!["latest".to_string()],
-            vec![],
-            vec![],
-            "2024-02-01T12:00:00Z".to_string(),
-            "2024-01-20T09:00:00Z".to_string(),
-        ),
+        KnownPackageView {
+            registry: "ghcr.io".to_string(),
+            repository: "bytecode-alliance/wasi-http".to_string(),
+            description: Some("WASI HTTP interface".to_string()),
+            tags: vec!["v0.2.0".to_string(), "v0.1.0".to_string()],
+            signature_tags: vec![],
+            attestation_tags: vec![],
+            last_seen_at: "2024-01-15T10:30:00Z".to_string(),
+            created_at: "2024-01-01T08:00:00Z".to_string(),
+        },
+        KnownPackageView {
+            registry: "ghcr.io".to_string(),
+            repository: "user/my-component".to_string(),
+            description: None,
+            tags: vec!["latest".to_string()],
+            signature_tags: vec![],
+            attestation_tags: vec![],
+            last_seen_at: "2024-02-01T12:00:00Z".to_string(),
+            created_at: "2024-01-20T09:00:00Z".to_string(),
+        },
     ];
     let output = render_to_string(SearchView::new(&packages), 100, 15);
     assert_snapshot!(output);
@@ -288,22 +324,22 @@ fn test_search_view_with_search_active_snapshot() {
 
 #[test]
 fn test_search_view_with_many_tags_snapshot() {
-    let packages = vec![KnownPackage::new_for_testing(
-        "ghcr.io".to_string(),
-        "project/component".to_string(),
-        Some("A component with many tags".to_string()),
-        vec![
+    let packages = vec![KnownPackageView {
+        registry: "ghcr.io".to_string(),
+        repository: "project/component".to_string(),
+        description: Some("A component with many tags".to_string()),
+        tags: vec![
             "v3.0.0".to_string(),
             "v2.0.0".to_string(),
             "v1.0.0".to_string(),
             "beta".to_string(),
             "alpha".to_string(),
         ],
-        vec!["v3.0.0.sig".to_string()],
-        vec!["v3.0.0.att".to_string()],
-        "2024-03-01T10:00:00Z".to_string(),
-        "2023-06-01T08:00:00Z".to_string(),
-    )];
+        signature_tags: vec!["v3.0.0.sig".to_string()],
+        attestation_tags: vec!["v3.0.0.att".to_string()],
+        last_seen_at: "2024-03-01T10:00:00Z".to_string(),
+        created_at: "2023-06-01T08:00:00Z".to_string(),
+    }];
     let output = render_to_string(SearchView::new(&packages), 100, 12);
     assert_snapshot!(output);
 }
@@ -314,36 +350,36 @@ fn test_search_view_with_many_tags_snapshot() {
 
 #[test]
 fn test_known_package_detail_view_snapshot() {
-    let package = KnownPackage::new_for_testing(
-        "ghcr.io".to_string(),
-        "user/example-package".to_string(),
-        Some("An example WASM component package".to_string()),
-        vec![
+    let package = KnownPackageView {
+        registry: "ghcr.io".to_string(),
+        repository: "user/example-package".to_string(),
+        description: Some("An example WASM component package".to_string()),
+        tags: vec![
             "v1.0.0".to_string(),
             "v0.9.0".to_string(),
             "latest".to_string(),
         ],
-        vec!["v1.0.0.sig".to_string()],
-        vec!["v1.0.0.att".to_string()],
-        "2024-01-15T10:30:00Z".to_string(),
-        "2024-01-01T08:00:00Z".to_string(),
-    );
+        signature_tags: vec!["v1.0.0.sig".to_string()],
+        attestation_tags: vec!["v1.0.0.att".to_string()],
+        last_seen_at: "2024-01-15T10:30:00Z".to_string(),
+        created_at: "2024-01-01T08:00:00Z".to_string(),
+    };
     let output = render_to_string(KnownPackageDetailView::new(&package), 80, 20);
     assert_snapshot!(output);
 }
 
 #[test]
 fn test_known_package_detail_view_minimal_snapshot() {
-    let package = KnownPackage::new_for_testing(
-        "docker.io".to_string(),
-        "library/minimal".to_string(),
-        None,
-        vec!["latest".to_string()],
-        vec![],
-        vec![],
-        "2024-02-01T12:00:00Z".to_string(),
-        "2024-02-01T12:00:00Z".to_string(),
-    );
+    let package = KnownPackageView {
+        registry: "docker.io".to_string(),
+        repository: "library/minimal".to_string(),
+        description: None,
+        tags: vec!["latest".to_string()],
+        signature_tags: vec![],
+        attestation_tags: vec![],
+        last_seen_at: "2024-02-01T12:00:00Z".to_string(),
+        created_at: "2024-02-01T12:00:00Z".to_string(),
+    };
     let output = render_to_string(KnownPackageDetailView::new(&package), 80, 15);
     assert_snapshot!(output);
 }
@@ -360,7 +396,17 @@ fn test_settings_view_loading_snapshot() {
 
 #[test]
 fn test_settings_view_with_state_info_snapshot() {
-    let state_info = StateInfo::new_for_testing();
+    let state_info = StateInfo::new_at(
+        PathBuf::from("/home/user/.local/share/wasm"),
+        PathBuf::from("/home/user/.config/wasm/config.toml"),
+        wasm_package_manager::Migrations {
+            current: 3,
+            total: 3,
+        },
+        1024 * 1024 * 10, // 10 MB
+        1024 * 64,        // 64 KB
+    )
+    .with_executable(PathBuf::from("/usr/local/bin/wasm"));
     let output = render_to_string(SettingsView::new(Some(&state_info)), 100, 15);
     assert_snapshot!(output);
 }

@@ -162,25 +162,6 @@ impl OciRepository {
         }
         Ok(result)
     }
-
-    /// Creates a new `OciRepository` for testing purposes.
-    #[cfg(any(test, feature = "test-helpers"))]
-    #[allow(dead_code)]
-    #[must_use]
-    pub(crate) fn new_for_testing(
-        registry: String,
-        repository: String,
-        created_at: String,
-        updated_at: String,
-    ) -> Self {
-        Self {
-            id: 0,
-            registry,
-            repository,
-            created_at,
-            updated_at,
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -452,39 +433,6 @@ impl OciManifest {
             oci_base_name: row.get(23)?,
         })
     }
-
-    /// Creates a new `OciManifest` for testing purposes.
-    #[cfg(any(test, feature = "test-helpers"))]
-    #[allow(dead_code)]
-    #[must_use]
-    pub(crate) fn new_for_testing(oci_repository_id: i64, digest: String) -> Self {
-        Self {
-            id: 0,
-            oci_repository_id,
-            digest,
-            media_type: None,
-            raw_json: None,
-            size_bytes: None,
-            created_at: String::new(),
-            artifact_type: None,
-            config_media_type: None,
-            config_digest: None,
-            oci_created: None,
-            oci_authors: None,
-            oci_url: None,
-            oci_documentation: None,
-            oci_source: None,
-            oci_version: None,
-            oci_revision: None,
-            oci_vendor: None,
-            oci_licenses: None,
-            oci_ref_name: None,
-            oci_title: None,
-            oci_description: None,
-            oci_base_digest: None,
-            oci_base_name: None,
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -596,25 +544,6 @@ impl OciTag {
             Err(e) => Err(e.into()),
         }
     }
-
-    /// Creates a new `OciTag` for testing purposes.
-    #[cfg(any(test, feature = "test-helpers"))]
-    #[allow(dead_code)]
-    #[must_use]
-    pub(crate) fn new_for_testing(
-        oci_repository_id: i64,
-        tag: String,
-        manifest_digest: String,
-    ) -> Self {
-        Self {
-            id: 0,
-            oci_repository_id,
-            manifest_digest,
-            tag,
-            created_at: String::new(),
-            updated_at: String::new(),
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -719,27 +648,6 @@ impl OciLayer {
             Err(e) => Err(e.into()),
         }
     }
-
-    /// Creates a new `OciLayer` for testing purposes.
-    #[cfg(any(test, feature = "test-helpers"))]
-    #[allow(dead_code)]
-    #[must_use]
-    pub(crate) fn new_for_testing(
-        oci_manifest_id: i64,
-        digest: String,
-        media_type: Option<String>,
-        size_bytes: Option<i64>,
-        position: i32,
-    ) -> Self {
-        Self {
-            id: 0,
-            oci_manifest_id,
-            digest,
-            media_type,
-            size_bytes,
-            position,
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -813,24 +721,6 @@ impl OciReferrer {
             result.push(row?);
         }
         Ok(result)
-    }
-
-    /// Creates a new `OciReferrer` for testing purposes.
-    #[cfg(any(test, feature = "test-helpers"))]
-    #[allow(dead_code)]
-    #[must_use]
-    pub(crate) fn new_for_testing(
-        subject_manifest_id: i64,
-        referrer_manifest_id: i64,
-        artifact_type: String,
-    ) -> Self {
-        Self {
-            id: 0,
-            subject_manifest_id,
-            referrer_manifest_id,
-            artifact_type,
-            created_at: String::new(),
-        }
     }
 }
 

@@ -47,9 +47,10 @@ wasmtime-wasi = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+oci-client = { workspace = true }
 tempfile = { workspace = true }
-wasm-detector = { workspace = true, features = ["test-helpers"] }
-wasm-package-manager = { workspace = true, features = ["test-helpers"] }
+wasm-detector = { workspace = true }
+wasm-package-manager = { workspace = true }
 
 [lints]
 workspace = true

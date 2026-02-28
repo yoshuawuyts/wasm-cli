@@ -60,12 +60,12 @@ impl SearchOpts {
     }
 }
 
-/// Render a list of [`KnownPackage`]s as a `comfy-table` table string.
+/// Render a list of [`KnownPackageView`]s as a `comfy-table` table string.
 ///
 /// Extracted for testability — the CLI calls this via `SearchOpts::run`,
 /// but unit tests can call it directly without a database.
 #[must_use]
-pub(crate) fn render_search_table(packages: &[wasm_package_manager::KnownPackage]) -> String {
+pub(crate) fn render_search_table(packages: &[wasm_package_manager::KnownPackageView]) -> String {
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
     table.set_header(vec!["PACKAGE", "DESCRIPTION", "TAGS"]);
@@ -87,31 +87,31 @@ pub(crate) fn render_search_table(packages: &[wasm_package_manager::KnownPackage
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasm_package_manager::KnownPackage;
+    use wasm_package_manager::KnownPackageView;
 
     #[test]
     fn test_render_search_table_with_results() {
         let packages = vec![
-            KnownPackage::new_for_testing(
-                "ghcr.io".into(),
-                "example/http-server".into(),
-                Some("A simple HTTP server component".into()),
-                vec!["0.1.0".into(), "0.2.0".into()],
-                vec![],
-                vec![],
-                "2025-01-01 00:00:00".into(),
-                "2025-01-01 00:00:00".into(),
-            ),
-            KnownPackage::new_for_testing(
-                "ghcr.io".into(),
-                "example/logger".into(),
-                None,
-                vec![],
-                vec![],
-                vec![],
-                "2025-01-01 00:00:00".into(),
-                "2025-01-01 00:00:00".into(),
-            ),
+            KnownPackageView {
+                registry: "ghcr.io".into(),
+                repository: "example/http-server".into(),
+                description: Some("A simple HTTP server component".into()),
+                tags: vec!["0.1.0".into(), "0.2.0".into()],
+                signature_tags: vec![],
+                attestation_tags: vec![],
+                last_seen_at: "2025-01-01 00:00:00".into(),
+                created_at: "2025-01-01 00:00:00".into(),
+            },
+            KnownPackageView {
+                registry: "ghcr.io".into(),
+                repository: "example/logger".into(),
+                description: None,
+                tags: vec![],
+                signature_tags: vec![],
+                attestation_tags: vec![],
+                last_seen_at: "2025-01-01 00:00:00".into(),
+                created_at: "2025-01-01 00:00:00".into(),
+            },
         ];
 
         let output = render_search_table(&packages);
