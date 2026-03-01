@@ -46,6 +46,19 @@ jobs:
     - name: Run xtask test
       run: cargo xtask test
 
+  tracey:
+    name: Spec coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+
+    - name: Install tracey
+      run: |
+        curl --proto '=https' --tlsv1.2 -LsSf https://github.com/bearcove/tracey/releases/latest/download/tracey-installer.sh | sh
+
+    - name: Run tracey
+      run: tracey query validate
+
   check_docs:
     name: Checking docs
     runs-on: ubuntu-latest
