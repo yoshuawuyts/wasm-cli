@@ -6,9 +6,8 @@ use rusqlite::Connection;
 
 /// A world declared inside a WIT interface package.
 #[derive(Debug, Clone)]
-#[allow(dead_code, unreachable_pub)]
+#[allow(unreachable_pub)]
 pub struct WitWorld {
-    #[allow(dead_code)]
     id: i64,
     /// Foreign key to `wit_interface`.
     pub wit_interface_id: i64,
@@ -20,11 +19,10 @@ pub struct WitWorld {
     pub created_at: String,
 }
 
-#[allow(dead_code)]
 impl WitWorld {
     /// Returns the primary-key ID.
     #[must_use]
-    #[allow(dead_code, unreachable_pub)]
+    #[allow(unreachable_pub)]
     pub fn id(&self) -> i64 {
         self.id
     }
@@ -53,6 +51,7 @@ impl WitWorld {
     }
 
     /// List all worlds belonging to a given interface.
+    #[allow(dead_code)]
     pub(crate) fn list_by_interface(
         conn: &Connection,
         wit_interface_id: i64,
@@ -117,9 +116,8 @@ impl WitWorld {
 
 /// An import declaration inside a WIT world.
 #[derive(Debug, Clone)]
-#[allow(dead_code, unreachable_pub)]
+#[allow(unreachable_pub)]
 pub struct WitWorldImport {
-    #[allow(dead_code)]
     id: i64,
     /// Foreign key to `wit_world`.
     pub wit_world_id: i64,
@@ -133,11 +131,10 @@ pub struct WitWorldImport {
     pub resolved_interface_id: Option<i64>,
 }
 
-#[allow(dead_code)]
 impl WitWorldImport {
     /// Returns the primary-key ID.
     #[must_use]
-    #[allow(dead_code, unreachable_pub)]
+    #[allow(unreachable_pub)]
     pub fn id(&self) -> i64 {
         self.id
     }
@@ -191,9 +188,8 @@ impl WitWorldImport {
 
 /// An export declaration inside a WIT world.
 #[derive(Debug, Clone)]
-#[allow(dead_code, unreachable_pub)]
+#[allow(unreachable_pub)]
 pub struct WitWorldExport {
-    #[allow(dead_code)]
     id: i64,
     /// Foreign key to `wit_world`.
     pub wit_world_id: i64,
@@ -207,11 +203,10 @@ pub struct WitWorldExport {
     pub resolved_interface_id: Option<i64>,
 }
 
-#[allow(dead_code)]
 impl WitWorldExport {
     /// Returns the primary-key ID.
     #[must_use]
-    #[allow(dead_code, unreachable_pub)]
+    #[allow(unreachable_pub)]
     pub fn id(&self) -> i64 {
         self.id
     }
@@ -265,9 +260,8 @@ impl WitWorldExport {
 
 /// A dependency edge between two WIT interface packages.
 #[derive(Debug, Clone)]
-#[allow(dead_code, unreachable_pub)]
+#[allow(unreachable_pub)]
 pub struct WitInterfaceDependency {
-    #[allow(dead_code)]
     id: i64,
     /// The interface that *has* the dependency (foreign key to `wit_interface`).
     pub dependent_id: i64,
@@ -279,11 +273,10 @@ pub struct WitInterfaceDependency {
     pub resolved_interface_id: Option<i64>,
 }
 
-#[allow(dead_code)]
 impl WitInterfaceDependency {
     /// Returns the primary-key ID.
     #[must_use]
-    #[allow(dead_code, unreachable_pub)]
+    #[allow(unreachable_pub)]
     pub fn id(&self) -> i64 {
         self.id
     }

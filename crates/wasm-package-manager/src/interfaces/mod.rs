@@ -14,5 +14,4 @@ pub use detect::is_wit_package;
 pub use models::WitInterface;
 pub(crate) use parser::extract_wit_metadata;
 pub use views::WitInterfaceView;
-#[allow(unused_imports, unreachable_pub)]
 pub use worlds::{WitInterfaceDependency, WitWorld, WitWorldExport, WitWorldImport};

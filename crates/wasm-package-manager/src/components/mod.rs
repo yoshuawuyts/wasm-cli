@@ -5,5 +5,4 @@
 
 mod models;
 
-#[allow(unused_imports, unreachable_pub)]
 pub use models::{ComponentTarget, WasmComponent};

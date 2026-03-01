@@ -6,9 +6,8 @@ use rusqlite::Connection;
 
 /// A compiled WebAssembly component stored in the registry.
 #[derive(Debug, Clone)]
-#[allow(dead_code, unreachable_pub)]
+#[allow(unreachable_pub)]
 pub struct WasmComponent {
-    #[allow(dead_code)]
     id: i64,
     /// Foreign key to `oci_manifest`.
     pub oci_manifest_id: i64,
@@ -22,11 +21,10 @@ pub struct WasmComponent {
     pub created_at: String,
 }
 
-#[allow(dead_code)]
 impl WasmComponent {
     /// Returns the primary-key ID.
     #[must_use]
-    #[allow(dead_code, unreachable_pub)]
+    #[allow(unreachable_pub)]
     pub fn id(&self) -> i64 {
         self.id
     }
@@ -62,6 +60,7 @@ impl WasmComponent {
     }
 
     /// Find the component associated with a given OCI manifest.
+    #[allow(dead_code)]
     pub(crate) fn find_by_manifest(
         conn: &Connection,
         oci_manifest_id: i64,
@@ -82,6 +81,7 @@ impl WasmComponent {
     }
 
     /// List every component in the database.
+    #[allow(dead_code)]
     pub(crate) fn list_all(conn: &Connection) -> anyhow::Result<Vec<Self>> {
         let mut stmt = conn.prepare(
             "SELECT id, oci_manifest_id, oci_layer_id, name, description, created_at
@@ -117,9 +117,8 @@ impl WasmComponent {
 
 /// A world that a Wasm component targets.
 #[derive(Debug, Clone)]
-#[allow(dead_code, unreachable_pub)]
+#[allow(unreachable_pub)]
 pub struct ComponentTarget {
-    #[allow(dead_code)]
     id: i64,
     /// Foreign key to `wasm_component`.
     pub wasm_component_id: i64,
@@ -133,11 +132,10 @@ pub struct ComponentTarget {
     pub wit_world_id: Option<i64>,
 }
 
-#[allow(dead_code)]
 impl ComponentTarget {
     /// Returns the primary-key ID.
     #[must_use]
-    #[allow(dead_code, unreachable_pub)]
+    #[allow(unreachable_pub)]
     pub fn id(&self) -> i64 {
         self.id
     }
@@ -185,6 +183,7 @@ impl ComponentTarget {
     }
 
     /// List all targets for a given component.
+    #[allow(dead_code)]
     pub(crate) fn list_by_component(
         conn: &Connection,
         wasm_component_id: i64,

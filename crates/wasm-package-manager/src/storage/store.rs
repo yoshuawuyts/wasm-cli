@@ -5,7 +5,11 @@ use std::path::Path;
 
 use super::config::StateInfo;
 use super::models::{KnownPackage, Migrations};
-use crate::interfaces::{WitInterface, extract_wit_metadata};
+use crate::components::{ComponentTarget, WasmComponent};
+use crate::interfaces::{
+    WitInterface, WitInterfaceDependency, WitWorld, WitWorldExport, WitWorldImport,
+    extract_wit_metadata,
+};
 use crate::oci::{ImageEntry, InsertResult, OciLayer, OciManifest, OciRepository, OciTag};
 use futures_concurrency::prelude::*;
 use oci_client::{Reference, client::ImageData, manifest::OciImageManifest};
@@ -290,7 +294,7 @@ impl Store {
         // Split "namespace:name@version" into (package_name, version).
         let (package_name, version) = split_package_version(raw_name);
 
-        if let Err(e) = WitInterface::insert(
+        let wit_interface_id = match WitInterface::insert(
             &self.conn,
             package_name,
             version,
@@ -299,11 +303,110 @@ impl Store {
             Some(manifest_id),
             layer_id,
         ) {
-            tracing::warn!(
-                "Failed to insert WIT interface for manifest {}: {}",
+            Ok(id) => id,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to insert WIT interface for manifest {}: {}",
+                    manifest_id,
+                    e
+                );
+                return;
+            }
+        };
+
+        // Insert worlds, imports, and exports
+        for world in &metadata.worlds {
+            let wit_world_id = match WitWorld::insert(
+                &self.conn,
+                wit_interface_id,
+                &world.name,
+                None,
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::warn!("Failed to insert WIT world '{}': {}", world.name, e);
+                    continue;
+                }
+            };
+
+            for item in &world.imports {
+                if let Err(e) = WitWorldImport::insert(
+                    &self.conn,
+                    wit_world_id,
+                    &item.declared_package,
+                    item.declared_interface.as_deref(),
+                    item.declared_version.as_deref(),
+                    None,
+                ) {
+                    tracing::warn!("Failed to insert WIT world import: {}", e);
+                }
+            }
+
+            for item in &world.exports {
+                if let Err(e) = WitWorldExport::insert(
+                    &self.conn,
+                    wit_world_id,
+                    &item.declared_package,
+                    item.declared_interface.as_deref(),
+                    item.declared_version.as_deref(),
+                    None,
+                ) {
+                    tracing::warn!("Failed to insert WIT world export: {}", e);
+                }
+            }
+        }
+
+        // Insert interface dependencies
+        for dep in &metadata.dependencies {
+            if let Err(e) = WitInterfaceDependency::insert(
+                &self.conn,
+                wit_interface_id,
+                &dep.declared_package,
+                dep.declared_version.as_deref(),
+                None,
+            ) {
+                tracing::warn!("Failed to insert WIT interface dependency: {}", e);
+            }
+        }
+
+        // For compiled components, create wasm_component and component_target rows
+        if metadata.is_component {
+            let component_id = match WasmComponent::insert(
+                &self.conn,
                 manifest_id,
-                e
-            );
+                layer_id,
+                None,
+                None,
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::warn!("Failed to insert WasmComponent: {}", e);
+                    return;
+                }
+            };
+
+            for world in &metadata.worlds {
+                // Look up the wit_world_id we just inserted
+                let wit_world_id = WitWorld::find_by_name(
+                    &self.conn,
+                    wit_interface_id,
+                    &world.name,
+                )
+                .ok()
+                .flatten()
+                .map(|w| w.id());
+
+                if let Err(e) = ComponentTarget::insert(
+                    &self.conn,
+                    component_id,
+                    package_name,
+                    &world.name,
+                    version,
+                    wit_world_id,
+                ) {
+                    tracing::warn!("Failed to insert ComponentTarget: {}", e);
+                }
+            }
         }
     }
 
@@ -454,6 +557,7 @@ impl Store {
     }
 
     /// Get a value from the `_sync_meta` table.
+    #[allow(dead_code)]
     pub(crate) fn get_sync_meta(&self, key: &str) -> anyhow::Result<Option<String>> {
         let mut stmt = self
             .conn
@@ -466,6 +570,7 @@ impl Store {
     }
 
     /// Set a value in the `_sync_meta` table.
+    #[allow(dead_code)]
     pub(crate) fn set_sync_meta(&self, key: &str, value: &str) -> anyhow::Result<()> {
         self.conn.execute(
             "INSERT INTO _sync_meta (key, value) VALUES (?1, ?2)
