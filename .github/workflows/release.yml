@@ -5,8 +5,8 @@ name: Publish
 # How it works:
 # 1. When code is pushed to main, the "release-pr" job creates or updates a release PR
 #    with changelogs and version bumps based on conventional commits.
-# 2. When a release PR is merged (detected by release-plz commit message pattern),
-#    the "release" job publishes the crates to crates.io and creates GitHub releases.
+# 2. On every push to main, the "release" job runs release-plz idempotently — it only
+#    publishes crates whose version in Cargo.toml is higher than what's on crates.io.
 on:
   push:
     branches:
@@ -15,11 +15,6 @@ on:
 jobs:
   release-plz-release:
     name: Release-plz release
-    # Only run release when a release-plz PR is merged (detected by commit message pattern)
-    if: |
-      github.event.head_commit.message == 'chore: release' ||
-      startsWith(github.event.head_commit.message, 'chore(release):') ||
-      startsWith(github.event.head_commit.message, 'chore: release ')
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # Enable OIDC for trusted publishing to crates.io
