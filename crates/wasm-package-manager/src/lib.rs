@@ -72,11 +72,6 @@ pub fn format_size(bytes: u64) -> String {
     }
 }
 
-/// Re-exports for the `run` command.
-pub mod run_support {
-    pub use super::manager::Manager;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
