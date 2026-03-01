@@ -19,11 +19,6 @@ use clap::{ColorChoice, CommandFactory, Parser};
 #[command(propagate_version = true)]
 pub(crate) struct Cli {
     /// When to use colored output.
-    ///
-    /// Can also be controlled via environment variables:
-    /// - NO_COLOR=1 (disables color)
-    /// - CLICOLOR=0 (disables color)
-    /// - CLICOLOR_FORCE=1 (forces color)
     #[arg(
         long,
         value_name = "WHEN",
@@ -34,9 +29,6 @@ pub(crate) struct Cli {
     color: ColorChoice,
 
     /// Run in offline mode.
-    ///
-    /// Disables all network operations. Commands that require network access
-    /// will fail with an error. Local-only commands will continue to work.
     #[arg(long, global = true, help_heading = "Global Options")]
     offline: bool,
 

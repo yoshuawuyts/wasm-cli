@@ -67,25 +67,12 @@ Commands:
   help      Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
+  -h, --help     Print help
+  -V, --version  Print version
 
 Global Options:
-      --color <WHEN>
-          When to use colored output.
-
-          Can also be controlled via environment variables: - NO_COLOR=1 (disables color) - CLICOLOR=0 (disables color) - CLICOLOR_FORCE=1 (forces color)
-
-          [default: auto]
-          [possible values: auto, always, never]
-
-      --offline
-          Run in offline mode.
-
-          Disables all network operations. Commands that require network access will fail with an error. Local-only commands will continue to work.
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode
 ```
 <!-- commands-end -->
 

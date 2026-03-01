@@ -7,32 +7,14 @@ List all available tags for a component
 Usage: wasm registry tags [OPTIONS] <REFERENCE>
 
 Arguments:
-  <REFERENCE>
-          The reference to list tags for (e.g., ghcr.io/example/component or oci://ghcr.io/example/component)
+  <REFERENCE>  The reference to list tags for (e.g., ghcr.io/example/component or oci://ghcr.io/example/component)
 
 Options:
-      --signatures
-          Include signature tags (ending in .sig)
-
-      --attestations
-          Include attestation tags (ending in .att)
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
+      --signatures    Include signature tags (ending in .sig)
+      --attestations  Include attestation tags (ending in .att)
+  -h, --help          Print help
+  -V, --version       Print version
 
 Global Options:
-      --color <WHEN>
-          When to use colored output.
-          
-          Can also be controlled via environment variables: - NO_COLOR=1 (disables color) - CLICOLOR=0 (disables color) - CLICOLOR_FORCE=1 (forces color)
-          
-          [default: auto]
-          [possible values: auto, always, never]
-
-      --offline
-          Run in offline mode.
-          
-          Disables all network operations. Commands that require network access will fail with an error. Local-only commands will continue to work.
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode

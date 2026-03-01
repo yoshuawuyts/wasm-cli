@@ -7,34 +7,14 @@ List local WASM files in the current directory
 Usage: wasm local list [OPTIONS] [PATH]
 
 Arguments:
-  [PATH]
-          Directory to search for WASM files (defaults to current directory)
-          
-          [default: .]
+  [PATH]  Directory to search for WASM files (defaults to current directory) [default: .]
 
 Options:
-      --hidden
-          Include hidden files and directories
-
-      --follow-links
-          Follow symbolic links
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
+      --hidden        Include hidden files and directories
+      --follow-links  Follow symbolic links
+  -h, --help          Print help
+  -V, --version       Print version
 
 Global Options:
-      --color <WHEN>
-          When to use colored output.
-          
-          Can also be controlled via environment variables: - NO_COLOR=1 (disables color) - CLICOLOR=0 (disables color) - CLICOLOR_FORCE=1 (forces color)
-          
-          [default: auto]
-          [possible values: auto, always, never]
-
-      --offline
-          Run in offline mode.
-          
-          Disables all network operations. Commands that require network access will fail with an error. Local-only commands will continue to work.
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode
