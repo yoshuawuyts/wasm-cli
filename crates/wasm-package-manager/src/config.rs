@@ -38,6 +38,12 @@ const DEFAULT_CONFIG: &str = r#"# wasm(1) configuration file
 # [registries."my-registry.example.com"]
 # credential-helper.username = "/path/to/get-user.sh"
 # credential-helper.password = "/path/to/get-pass.sh"
+
+# Default sandbox permissions for `wasm run`:
+# [run.permissions]
+# inherit-stdio = true
+# inherit-env = false
+# inherit-network = false
 "#;
 
 /// The main configuration struct.
@@ -47,6 +53,10 @@ pub struct Config {
     /// Per-registry configuration.
     #[serde(default)]
     pub registries: HashMap<String, RegistryConfig>,
+
+    /// Default runtime settings for `wasm run`.
+    #[serde(default)]
+    pub run: Option<RunConfig>,
 
     /// Runtime credential cache (not serialized).
     #[serde(skip)]
@@ -80,6 +90,15 @@ pub struct RegistryConfig {
     /// Credential helper configuration for this registry.
     #[serde(rename = "credential-helper")]
     pub credential_helper: Option<CredentialHelper>,
+}
+
+/// Runtime configuration for `wasm run`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RunConfig {
+    /// Default sandbox permissions applied to all components.
+    #[serde(default)]
+    pub permissions: wasm_manifest::RunPermissions,
 }
 
 impl Config {
@@ -117,10 +136,19 @@ impl Config {
     /// Merge another config into this one, with the other config taking precedence.
     ///
     /// Per-registry settings from `other` override those in `self`.
+    /// The `run` section is merged at the permissions level.
     #[must_use]
     pub fn merge(mut self, other: Self) -> Self {
         for (name, registry) in other.registries {
             self.registries.insert(name, registry);
+        }
+        if let Some(other_run) = other.run {
+            self.run = Some(match self.run {
+                Some(base) => RunConfig {
+                    permissions: base.permissions.merge(other_run.permissions),
+                },
+                None => other_run,
+            });
         }
         self
     }
@@ -169,6 +197,55 @@ impl Config {
     #[must_use]
     pub fn local_config_path() -> PathBuf {
         PathBuf::from(".config").join("wasm").join("config.toml")
+    }
+
+    /// Returns the path to the global components manifest file.
+    ///
+    /// Located at `$XDG_CONFIG_HOME/wasm/components.toml`. This file uses the
+    /// same format as the local `wasm.toml` manifest and provides global
+    /// per-component permission overrides.
+    #[must_use]
+    pub fn components_path() -> PathBuf {
+        Self::components_path_from(None)
+    }
+
+    /// Returns the path to the global components manifest from a specified directory.
+    #[must_use]
+    pub fn components_path_from(config_dir: Option<PathBuf>) -> PathBuf {
+        let base = config_dir
+            .unwrap_or_else(|| dirs::config_dir().unwrap_or_else(|| PathBuf::from(".config")));
+        base.join("wasm").join("components.toml")
+    }
+
+    /// Load the global components manifest from `$XDG_CONFIG_HOME/wasm/components.toml`.
+    ///
+    /// Returns `None` if the file does not exist. The file uses the same
+    /// [`wasm_manifest::Manifest`] format as the local `wasm.toml`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file exists but cannot be read or parsed.
+    pub fn load_components() -> Result<Option<wasm_manifest::Manifest>> {
+        Self::load_components_from(None)
+    }
+
+    /// Load the global components manifest from a specified config directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file exists but cannot be read or parsed.
+    pub fn load_components_from(
+        config_dir: Option<PathBuf>,
+    ) -> Result<Option<wasm_manifest::Manifest>> {
+        let path = Self::components_path_from(config_dir);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let content = fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read components file: {}", path.display()))?;
+        let manifest: wasm_manifest::Manifest = toml::from_str(&content)
+            .with_context(|| format!("Failed to parse components file: {}", path.display()))?;
+        Ok(Some(manifest))
     }
 
     /// Ensures the configuration file exists, creating a default one if not.

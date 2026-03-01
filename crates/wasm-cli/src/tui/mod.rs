@@ -238,7 +238,7 @@ async fn run_manager(
                     .ok();
             }
             AppEvent::RequestLogLines => {
-                let log_path = wasm_package_manager::StateInfo::default_log_dir().join("wasm.log");
+                let log_path = StateInfo::default_log_dir().join("wasm.log");
                 let lines = if log_path.exists() {
                     std::fs::read_to_string(&log_path)
                         .unwrap_or_default()

@@ -40,8 +40,10 @@
 
 mod lockfile;
 mod manifest;
+mod permissions;
 mod validation;
 
 pub use lockfile::{LOCKFILE_VERSION, Lockfile, Package, PackageDependency};
 pub use manifest::{Dependency, Manifest, PackageType};
+pub use permissions::{ResolvedPermissions, RunPermissions};
 pub use validation::{ValidationError, validate};

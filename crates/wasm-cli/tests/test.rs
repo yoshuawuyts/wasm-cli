@@ -510,6 +510,50 @@ fn test_install_help_snapshot() {
 }
 
 // =============================================================================
+// Run Command Tests
+// =============================================================================
+
+#[test]
+fn test_cli_run_help_snapshot() {
+    let output = run_cli(&["run", "--help"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_run_core_module_rejected() {
+    let fixture = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/core_module.wasm"
+    );
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["run", fixture])
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("core module"),
+        "Expected 'core module' error message, got: {stderr}"
+    );
+}
+
+#[test]
+fn test_run_missing_file() {
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["run", "/nonexistent/path/to/component.wasm"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("failed to read"),
+        "Expected file-not-found error, got: {stderr}"
+    );
+}
+
+// =============================================================================
 // Dotenv Tests
 // =============================================================================
 

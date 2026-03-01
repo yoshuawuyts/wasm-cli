@@ -288,6 +288,7 @@ fn reference_from_dependency(dep: &wasm_manifest::Dependency) -> Result<Referenc
             namespace,
             package,
             version,
+            ..
         } => format!("{registry}/{namespace}/{package}:{version}"),
     };
     crate::util::parse_reference(&s).map_err(|e| anyhow::anyhow!("{e}"))

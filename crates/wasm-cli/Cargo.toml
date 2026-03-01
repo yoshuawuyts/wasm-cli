@@ -42,6 +42,7 @@ wasm-detector = { workspace = true }
 wasm-manifest = { workspace = true }
 wasm-metadata = { workspace = true }
 wasm-package-manager = { workspace = true, features = ["http-sync"] }
+wasmparser = { workspace = true }
 wasmtime = { workspace = true }
 wasmtime-wasi = { workspace = true }
 

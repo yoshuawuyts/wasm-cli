@@ -1,5 +1,6 @@
 //! Types for the WASM manifest file (`wasm.toml`).
 
+use crate::permissions::RunPermissions;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -95,6 +96,9 @@ pub enum Dependency {
         package: String,
         /// The package version (e.g., "1.0.0").
         version: String,
+        /// Optional sandbox permissions for running this component.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        permissions: Option<RunPermissions>,
     },
 }
 
@@ -150,6 +154,7 @@ mod tests {
                 namespace,
                 package,
                 version,
+                ..
             } => {
                 assert_eq!(registry, "ghcr.io");
                 assert_eq!(namespace, "webassembly");
@@ -188,6 +193,7 @@ mod tests {
                 namespace: "webassembly".to_string(),
                 package: "wasi-logging".to_string(),
                 version: "1.0.0".to_string(),
+                permissions: None,
             },
         );
 
@@ -253,5 +259,60 @@ mod tests {
         let has_interface = all.iter().any(|(_, _, pt)| *pt == PackageType::Interface);
         assert!(has_component);
         assert!(has_interface);
+    }
+
+    #[test]
+    fn test_parse_explicit_with_permissions() {
+        let toml = r#"
+            [components."root:component"]
+            registry = "ghcr.io"
+            namespace = "yoshuawuyts"
+            package = "fetch"
+            version = "latest"
+            permissions.inherit-env = true
+            permissions.allow-dirs = ["/data", "./output"]
+        "#;
+
+        let manifest: Manifest = toml::from_str(toml).expect("Failed to parse manifest");
+
+        match &manifest.components["root:component"] {
+            Dependency::Explicit {
+                registry,
+                permissions,
+                ..
+            } => {
+                assert_eq!(registry, "ghcr.io");
+                let perms = permissions.as_ref().expect("Expected permissions");
+                assert_eq!(perms.inherit_env, Some(true));
+                assert_eq!(
+                    perms.allow_dirs,
+                    Some(vec![
+                        std::path::PathBuf::from("/data"),
+                        std::path::PathBuf::from("./output"),
+                    ])
+                );
+            }
+            _ => panic!("Expected explicit format"),
+        }
+    }
+
+    #[test]
+    fn test_explicit_without_permissions_still_works() {
+        let toml = r#"
+            [components."root:component"]
+            registry = "ghcr.io"
+            namespace = "yoshuawuyts"
+            package = "fetch"
+            version = "latest"
+        "#;
+
+        let manifest: Manifest = toml::from_str(toml).expect("Failed to parse manifest");
+
+        match &manifest.components["root:component"] {
+            Dependency::Explicit { permissions, .. } => {
+                assert!(permissions.is_none());
+            }
+            _ => panic!("Expected explicit format"),
+        }
     }
 }

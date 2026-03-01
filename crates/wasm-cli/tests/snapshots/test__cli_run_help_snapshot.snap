@@ -1,0 +1,23 @@
+---
+source: crates/wasm-cli/tests/test.rs
+expression: output
+---
+Execute a Wasm Component
+
+Usage: wasm run [OPTIONS] <INPUT>
+
+Arguments:
+  <INPUT>  Local file path or OCI reference to a Wasm Component
+
+Options:
+      --env <KEY=VAL>    Pass an environment variable to the guest (repeatable)
+      --dir <HOST_PATH>  Pre-open a host directory for the guest (repeatable)
+      --inherit-env      Inherit all host environment variables
+      --inherit-network  Allow the guest to access the network
+      --no-stdio         Suppress stdin/stdout/stderr inheritance
+  -h, --help             Print help
+  -V, --version          Print version
+
+Global Options:
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode
