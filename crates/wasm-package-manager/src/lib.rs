@@ -72,8 +72,10 @@ pub fn format_size(bytes: u64) -> String {
     }
 }
 
-// Re-export Manager at the crate root for convenience.
-pub use manager::Manager;
+/// Re-exports for the `run` command.
+pub mod run_support {
+    pub use super::manager::Manager;
+}
 
 #[cfg(test)]
 mod tests {
