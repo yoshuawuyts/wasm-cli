@@ -145,8 +145,11 @@ impl Client {
 
         match self.inner.pull_referrers(reference, None).await {
             Ok(index) => Ok(Some(index)),
-            // Registry does not support referrers — silently skip.
-            Err(_) => Ok(None),
+            // Registry may not support the Referrers API — log and skip.
+            Err(e) => {
+                tracing::debug!("Referrers API unavailable for {}: {}", reference, e);
+                Ok(None)
+            }
         }
     }
 }

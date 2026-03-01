@@ -838,13 +838,14 @@ impl Manager {
         };
 
         for entry in &index.manifests {
-            let artifact_type = entry.media_type.as_str();
+            // Use media_type as artifact_type — the oci-client ImageIndexEntry
+            // does not expose a separate artifact_type field.
             if let Err(e) = self.store.store_referrer(
                 manifest_id,
                 reference.registry(),
                 reference.repository(),
                 &entry.digest,
-                artifact_type,
+                &entry.media_type,
             ) {
                 tracing::warn!("Failed to store referrer {}: {}", entry.digest, e);
             }
