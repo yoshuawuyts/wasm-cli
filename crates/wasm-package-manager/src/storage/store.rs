@@ -602,10 +602,7 @@ impl Store {
 /// Resolve `wit_world_import.resolved_interface_id` for imports belonging to
 /// the given `wit_interface_id` by matching `(declared_package, declared_version)`
 /// against existing `wit_interface` rows.
-fn resolve_import_foreign_keys(
-    conn: &Connection,
-    wit_interface_id: i64,
-) -> anyhow::Result<usize> {
+fn resolve_import_foreign_keys(conn: &Connection, wit_interface_id: i64) -> anyhow::Result<usize> {
     let updated = conn.execute(
         "UPDATE wit_world_import
          SET resolved_interface_id = (
@@ -623,10 +620,7 @@ fn resolve_import_foreign_keys(
 
 /// Resolve `wit_world_export.resolved_interface_id` for exports belonging to
 /// the given `wit_interface_id`.
-fn resolve_export_foreign_keys(
-    conn: &Connection,
-    wit_interface_id: i64,
-) -> anyhow::Result<usize> {
+fn resolve_export_foreign_keys(conn: &Connection, wit_interface_id: i64) -> anyhow::Result<usize> {
     let updated = conn.execute(
         "UPDATE wit_world_export
          SET resolved_interface_id = (

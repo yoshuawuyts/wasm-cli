@@ -65,7 +65,6 @@ multiple_crate_versions = "allow"
 doc_markdown = "allow"
 cargo_common_metadata = "allow"
 str_to_string = "allow"
-string_to_string = "allow"
 
 [workspace.dependencies]
 

@@ -123,8 +123,7 @@ async fn run_manager(
             AppEvent::Pull(reference_str) => {
                 let result = match crate::util::parse_reference(&reference_str) {
                     Ok(reference) => {
-                        let (progress_tx, mut progress_rx) =
-                            mpsc::channel::<ProgressEvent>(64);
+                        let (progress_tx, mut progress_rx) = mpsc::channel::<ProgressEvent>(64);
                         let sender_clone = sender.clone();
                         // Forward progress events to the TUI
                         let forwarder = tokio::task::spawn_local(async move {
