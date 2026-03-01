@@ -14,7 +14,7 @@ use wasmtime_wasi::p2::bindings::sync::Command;
 use wasmtime_wasi::{DirPerms, FilePerms, ResourceTable, WasiCtxBuilder, WasiCtxView, WasiView};
 
 use wasm_manifest::RunPermissions;
-use wasm_package_manager::Manager;
+use wasm_package_manager::manager::Manager;
 
 /// Options for the `wasm run` command.
 #[derive(clap::Parser)]
