@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use futures_concurrency::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use wasm_package_manager::manager::{Manager, InstallResult, derive_component_name};
+use wasm_package_manager::manager::{InstallResult, Manager, derive_component_name};
 use wasm_package_manager::types::DependencyItem;
 use wasm_package_manager::{ProgressEvent, Reference};
 
@@ -330,18 +330,17 @@ async fn install_transitive_deps(
             continue;
         };
 
-        let dep_result = match install_one(manager, multi.clone(), false, &dep_ref, wasm_vendor_dir)
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::debug!(
-                    "Failed to install WIT dependency '{}': {e} — skipping",
-                    dep.package,
-                );
-                continue;
-            }
-        };
+        let dep_result =
+            match install_one(manager, multi.clone(), false, &dep_ref, wasm_vendor_dir).await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::debug!(
+                        "Failed to install WIT dependency '{}': {e} — skipping",
+                        dep.package,
+                    );
+                    continue;
+                }
+            };
 
         if let Err(e) = re_vendor_wit_files(&dep_result, wit_vendor_dir).await {
             tracing::debug!(

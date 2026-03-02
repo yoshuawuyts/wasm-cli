@@ -333,6 +333,28 @@ Known package reference strings MUST be generated correctly.
 r[db.known-packages.reference-default-tag]
 Known package references with a default tag MUST be generated correctly.
 
+r[db.known-packages.search-by-wit-name]
+Searching known packages by WIT name (e.g. `wasi:http`) MUST convert
+the name to a repository search pattern and return the best match.
+
+r[db.known-packages.search-by-wit-name-not-found]
+Searching known packages by WIT name MUST return `None` when no match
+is found.
+
+### WIT Packages
+
+r[db.wit-package.find-oci-reference]
+Given a WIT package name and version, the store MUST resolve the OCI
+registry and repository by JOINing through `oci_manifest` → `oci_repository`.
+
+r[db.wit-package.find-oci-reference-not-found]
+Looking up an OCI reference for a WIT package that does not exist MUST
+return `None`.
+
+r[db.wit-package.find-oci-reference-no-version]
+Looking up an OCI reference for a WIT package without a version MUST
+still resolve correctly when the package was stored without a version.
+
 ## Formatting
 
 r[format.size.bytes]

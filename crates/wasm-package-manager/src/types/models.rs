@@ -220,3 +220,96 @@ impl WitPackage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::oci::{OciManifest, OciRepository};
+    use crate::storage::Migrations;
+    use std::collections::HashMap;
+
+    /// Create an in-memory database with migrations applied for testing.
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        Migrations::run_all(&conn).unwrap();
+        conn
+    }
+
+    /// Helper: create a repo + manifest in the test DB, returning the manifest ID.
+    fn insert_test_manifest(conn: &Connection, registry: &str, repository: &str) -> i64 {
+        let repo_id = OciRepository::upsert(conn, registry, repository).unwrap();
+        let annotations = HashMap::new();
+        let (manifest_id, _) = OciManifest::upsert(
+            conn,
+            repo_id,
+            "sha256:abc123",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some("{}"),
+            Some(1024),
+            None,
+            None,
+            None,
+            &annotations,
+        )
+        .unwrap();
+        manifest_id
+    }
+
+    // r[verify db.wit-package.find-oci-reference]
+    #[test]
+    fn find_oci_reference_returns_registry_and_repository() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn, "ghcr.io", "webassembly/wasi/http");
+
+        WitPackage::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let result = WitPackage::find_oci_reference(&conn, "wasi:http", Some("0.2.0")).unwrap();
+        assert!(result.is_some());
+        let (registry, repository) = result.unwrap();
+        assert_eq!(registry, "ghcr.io");
+        assert_eq!(repository, "webassembly/wasi/http");
+    }
+
+    // r[verify db.wit-package.find-oci-reference-not-found]
+    #[test]
+    fn find_oci_reference_returns_none_when_not_found() {
+        let conn = setup_test_db();
+
+        let result =
+            WitPackage::find_oci_reference(&conn, "wasi:nonexistent", Some("1.0.0")).unwrap();
+        assert!(result.is_none());
+    }
+
+    // r[verify db.wit-package.find-oci-reference-no-version]
+    #[test]
+    fn find_oci_reference_without_version() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn, "ghcr.io", "webassembly/wasi/clocks");
+
+        WitPackage::insert(
+            &conn,
+            "wasi:clocks",
+            None,
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let result = WitPackage::find_oci_reference(&conn, "wasi:clocks", None).unwrap();
+        assert!(result.is_some());
+        let (registry, repository) = result.unwrap();
+        assert_eq!(registry, "ghcr.io");
+        assert_eq!(repository, "webassembly/wasi/clocks");
+    }
+}

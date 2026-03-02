@@ -1321,7 +1321,7 @@ mod tests {
         );
     }
 
-    // r[verify wit.find-oci-reference]
+    // r[verify db.wit-package.find-oci-reference]
     #[test]
     fn find_oci_reference_returns_registry_and_repository() {
         let conn = setup_test_db();
@@ -1363,7 +1363,7 @@ mod tests {
         );
     }
 
-    // r[verify wit.find-oci-reference.not-found]
+    // r[verify db.wit-package.find-oci-reference-not-found]
     #[test]
     fn find_oci_reference_returns_none_when_not_found() {
         let conn = setup_test_db();
