@@ -317,6 +317,7 @@ async fn install_transitive_deps(
 
     while let Some(dep) = work_queue.pop_front() {
         let dep_key = (dep.package.clone(), dep.version.clone());
+        // `insert` returns `false` when the key was already present
         if !visited.insert(dep_key) {
             continue;
         }
@@ -349,12 +350,12 @@ async fn install_transitive_deps(
             );
         }
 
-        // Queue transitive dependencies before consuming dep_result
-        for transitive_dep in &dep_result.dependencies {
-            work_queue.push_back(transitive_dep.clone());
-        }
-
         upsert_lockfile_type(lockfile, &dep_result);
+
+        // Queue transitive dependencies (consuming dep_result.dependencies)
+        for transitive_dep in dep_result.dependencies {
+            work_queue.push_back(transitive_dep);
+        }
     }
 
     Ok(())
