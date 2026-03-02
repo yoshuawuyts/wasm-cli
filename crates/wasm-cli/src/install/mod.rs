@@ -251,7 +251,7 @@ impl Opts {
                     }
 
                     // Derive lockfile entry for the transitive dep
-                    let dep_dep_name = dep_result.package_name.as_deref().map_or_else(
+                    let resolved_dep_name = dep_result.package_name.as_deref().map_or_else(
                         || format!("{}/{}", dep_result.registry, dep_result.repository),
                         |name| name.split('@').next().unwrap_or(name).to_string(),
                     );
@@ -270,7 +270,7 @@ impl Opts {
                         .collect();
 
                     let dep_package = wasm_manifest::Package {
-                        name: dep_dep_name.clone(),
+                        name: resolved_dep_name.clone(),
                         version: dep_version,
                         registry: dep_registry_path.clone(),
                         digest: dep_digest,
@@ -278,10 +278,9 @@ impl Opts {
                     };
 
                     // Add to lockfile types (transitive deps are always types)
-                    let existing = lockfile
-                        .types
-                        .iter()
-                        .position(|p| p.name == dep_dep_name && p.registry == dep_registry_path);
+                    let existing = lockfile.types.iter().position(|p| {
+                        p.name == resolved_dep_name && p.registry == dep_registry_path
+                    });
                     if let Some(existing_pkg) = existing.and_then(|idx| lockfile.types.get_mut(idx))
                     {
                         *existing_pkg = dep_package;
