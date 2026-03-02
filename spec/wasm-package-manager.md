@@ -135,6 +135,10 @@ Filtering MUST handle layers with no WASM content.
 r[oci.layers.filter-empty]
 Filtering MUST handle an empty layer list.
 
+r[oci.layers.cacache-roundtrip]
+Data written to cacache with a layer digest key MUST be retrievable using the
+digest obtained from `filter_wasm_layers`.
+
 ### Orphaned Layers
 
 r[oci.layers.orphaned-disjoint]

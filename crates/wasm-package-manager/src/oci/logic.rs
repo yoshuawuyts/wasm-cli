@@ -266,4 +266,49 @@ mod tests {
         assert!(signature.is_empty());
         assert!(attestation.is_empty());
     }
+
+    // ── cacache round-trip ──────────────────────────────────────────────
+
+    // r[verify oci.layers.cacache-roundtrip]
+    #[tokio::test]
+    async fn cacache_roundtrip_via_layer_digest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache = tmp.path();
+
+        // Simulate what Store::insert does: write layer data keyed by digest.
+        let digest = "sha256:aaa111bbb222";
+        let data = b"fake wasm component bytes";
+        cacache::write(cache, digest, data).await.unwrap();
+
+        // Build a manifest layer list like a real OCI manifest would have.
+        let layers = vec![
+            OciDescriptor {
+                media_type: "application/vnd.oci.image.config.v1+json".to_string(),
+                digest: "sha256:cfgcfg".to_string(),
+                size: 50,
+                urls: None,
+                annotations: None,
+            },
+            OciDescriptor {
+                media_type: "application/wasm".to_string(),
+                digest: digest.to_string(),
+                size: data.len() as i64,
+                urls: None,
+                annotations: None,
+            },
+        ];
+
+        // Use filter_wasm_layers to find the correct key — exactly as `run` does.
+        let wasm = filter_wasm_layers(&layers);
+        assert_eq!(wasm.len(), 1);
+        let key = &wasm[0].digest;
+
+        // Read back using the layer digest — this is the pattern the run command uses.
+        let read_back = cacache::read(cache, key).await.unwrap();
+        assert_eq!(read_back, data);
+
+        // Verify that using an OCI reference string as key does NOT find the data.
+        let bad_key = "ghcr.io/example/my-component:1.0.0";
+        assert!(cacache::read(cache, bad_key).await.is_err());
+    }
 }

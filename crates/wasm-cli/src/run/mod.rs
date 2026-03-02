@@ -82,10 +82,18 @@ impl Opts {
             } else {
                 Manager::open().await?
             };
-            let _pull_result = manager.pull(oci_ref.clone()).await?;
-            let key = oci_ref.whole();
+            let pull_result = manager.pull(oci_ref.clone()).await?;
+            let manifest = pull_result
+                .manifest
+                .as_ref()
+                .context("pulled image has no manifest")?;
+            let wasm_layers = wasm_package_manager::oci::filter_wasm_layers(&manifest.layers);
+            let layer = wasm_layers
+                .first()
+                .context("manifest contains no application/wasm layer")?;
+            let key = &layer.digest;
             manager
-                .get(&key)
+                .get(key)
                 .await
                 .with_context(|| format!("failed to read cached component for {key}"))?
         } else {
