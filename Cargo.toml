@@ -11,7 +11,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 documentation = "https://github.com/yoshuawuyts/wasm"
 repository = "https://github.com/yoshuawuyts/wasm"
 edition = "2024"
@@ -69,10 +69,10 @@ str_to_string = "allow"
 [workspace.dependencies]
 
 # local dependencies
-wasm-manifest = { path = "crates/wasm-manifest", version = "0.1.0" }
-wasm-meta-registry = { path = "crates/wasm-meta-registry", version = "0.1.0" }
-wasm-package-manager = { path = "crates/wasm-package-manager", version = "0.1.0" }
-wasm-detector = { path = "crates/wasm-detector", version = "0.1.0" }
+wasm-manifest = { path = "crates/wasm-manifest", version = "0.2.0" }
+wasm-meta-registry = { path = "crates/wasm-meta-registry", version = "0.2.0" }
+wasm-package-manager = { path = "crates/wasm-package-manager", version = "0.2.0" }
+wasm-detector = { path = "crates/wasm-detector", version = "0.2.0" }
 
 # shared dependencies
 anyhow = "1.0.100"
