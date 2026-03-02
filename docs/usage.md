@@ -319,6 +319,57 @@ For network-related failures:
 - [Configuration](configuration.md) - Understand storage and settings
 - [API Documentation](https://docs.rs/wasm) - Library usage
 
+## Component Composition
+
+### Workspace Layout
+
+Running `wasm init` creates a workspace that includes composition directories:
+
+```text
+my-workspace/
+├── types/         # WIT interface definition files (.wit)
+├── seams/         # WAC composition scripts (.wac)
+├── build/         # Composed output artifacts
+└── deps/
+    ├── vendor/
+    │   ├── wasm/  # Vendored component binaries
+    │   └── wit/   # Vendored WIT interfaces
+    ├── wasm.toml
+    └── wasm.lock.toml
+```
+
+### WAC Scripts
+
+[WAC (WebAssembly Composition)](https://github.com/bytecodealliance/wac) is a
+declarative language for composing Wasm components. Place `.wac` files in the
+`seams/` directory to define how components are wired together.
+
+### `wasm compose`
+
+Compose Wasm components from WAC scripts:
+
+```bash
+# Compose a named WAC file (looks for seams/my-composition.wac)
+wasm compose my-composition
+
+# Compose all WAC files in seams/
+wasm compose
+
+# Use dynamic linking (import dependencies instead of embedding)
+wasm compose my-composition --linker=dynamic
+
+# Specify output directory
+wasm compose my-composition -o output/
+```
+
+### Package Resolution
+
+When resolving packages referenced in WAC files, the resolver checks:
+
+1. **Manifest entries** — components and types in `deps/wasm.toml` mapped
+   to vendored files in `deps/vendor/wasm/` and `deps/vendor/wit/`.
+2. **Local directories** — `.wasm` and `.wit` files in `types/`.
+
 ## Getting Help
 
 - GitHub Issues: [https://github.com/yoshuawuyts/wasm/issues](https://github.com/yoshuawuyts/wasm/issues)

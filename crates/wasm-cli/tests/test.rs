@@ -712,3 +712,40 @@ fn test_system_env_takes_precedence_over_dotenv() {
         "CLI should succeed and not have PATH overridden by .env"
     );
 }
+
+// =============================================================================
+// Compose Command Help Tests
+// =============================================================================
+
+// r[verify cli.help.compose]
+#[test]
+fn test_cli_compose_help_snapshot() {
+    let output = run_cli(&["compose", "--help"]);
+    assert_snapshot!(output);
+}
+
+// =============================================================================
+// Compose Init Integration Tests
+// =============================================================================
+
+// r[verify init.composition-dirs]
+#[test]
+fn test_init_creates_composition_directories() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["init"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(
+        output.status.success(),
+        "init failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify composition directories
+    assert!(dir.path().join("types").is_dir());
+    assert!(dir.path().join("seams").is_dir());
+    assert!(dir.path().join("build").is_dir());
+}

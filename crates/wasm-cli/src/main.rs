@@ -2,6 +2,7 @@
 //!
 
 mod add;
+mod compose;
 mod init;
 mod install;
 mod local;
@@ -43,6 +44,7 @@ impl Cli {
             Some(Command::Run(opts)) => opts.run(self.offline).await?,
             Some(Command::Local(opts)) => opts.run(),
             Some(Command::Registry(opts)) => opts.run(self.offline).await?,
+            Some(Command::Compose(opts)) => opts.run()?,
             Some(Command::Init(opts)) => opts.run().await?,
             Some(Command::Add(opts)) => opts.run(self.offline).await?,
             Some(Command::Install(opts)) => opts.run(self.offline).await?,
@@ -67,6 +69,8 @@ enum Command {
     Add(add::Opts),
     /// Install a dependency from an OCI registry
     Install(install::Opts),
+    /// Compose Wasm components from WAC scripts
+    Compose(compose::Opts),
     /// Detect and manage local WASM files
     #[command(subcommand)]
     Local(local::Opts),

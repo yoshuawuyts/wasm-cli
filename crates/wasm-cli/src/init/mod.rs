@@ -20,6 +20,11 @@ impl Opts {
         tokio::fs::create_dir_all(deps.join("vendor/wit")).await?;
         tokio::fs::create_dir_all(deps.join("vendor/wasm")).await?;
 
+        // Create composition workspace directories
+        tokio::fs::create_dir_all(base.join("types")).await?;
+        tokio::fs::create_dir_all(base.join("seams")).await?;
+        tokio::fs::create_dir_all(base.join("build")).await?;
+
         let manifest = wasm_manifest::Manifest::default();
         let manifest = toml::to_string_pretty(&manifest)?;
         tokio::fs::write(deps.join("wasm.toml"), manifest.as_bytes()).await?;

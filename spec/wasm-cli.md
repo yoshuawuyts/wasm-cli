@@ -67,6 +67,9 @@ The CLI MUST provide `--help` output for the `install` command.
 r[cli.help.run]
 The CLI MUST provide `--help` output for the `run` command.
 
+r[cli.help.compose]
+The CLI MUST provide `--help` output for the `compose` command.
+
 r[cli.version]
 The CLI MUST print a version string containing the program name when invoked
 with `--version`.
@@ -148,6 +151,10 @@ manifest, and lockfile in the current directory.
 r[init.explicit-path]
 Running `wasm init <path>` MUST create the directory structure and files at
 the specified path.
+
+r[init.composition-dirs]
+Running `wasm init` MUST create the composition workspace directories:
+`types/`, `seams/`, and `build/`.
 
 ## Run Command
 

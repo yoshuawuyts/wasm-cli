@@ -1,0 +1,44 @@
+---
+source: crates/wasm-cli/tests/test.rs
+expression: output
+---
+Compose Wasm components from WAC scripts
+
+Usage: wasm compose [OPTIONS] [NAME]
+
+Arguments:
+  [NAME]
+          Name of a `.wac` file in `seams/` to compose.
+          
+          For example, `wasm compose foo` resolves to `seams/foo.wac`. If omitted, all `.wac` files in `seams/` are composed.
+
+Options:
+      --linker <LINKER>
+          How to link dependencies
+
+          Possible values:
+          - static:  Embed all dependencies into the output component (default)
+          - dynamic: Import dependencies rather than embedding them
+          
+          [default: static]
+
+  -o, --output <OUTPUT>
+          Output path for the composed component
+          
+          [default: build]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
+Global Options:
+      --color <WHEN>
+          When to use colored output
+          
+          [default: auto]
+          [possible values: auto, always, never]
+
+      --offline
+          Run in offline mode
