@@ -21,7 +21,6 @@ impl Opts {
         tokio::fs::create_dir_all(deps.join("vendor/wasm")).await?;
 
         // Create composition workspace directories
-        tokio::fs::create_dir_all(base.join("components")).await?;
         tokio::fs::create_dir_all(base.join("types")).await?;
         tokio::fs::create_dir_all(base.join("seams")).await?;
         tokio::fs::create_dir_all(base.join("build")).await?;

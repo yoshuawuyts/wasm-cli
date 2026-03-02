@@ -70,21 +70,6 @@ The CLI MUST provide `--help` output for the `run` command.
 r[cli.help.compose]
 The CLI MUST provide `--help` output for the `compose` command.
 
-r[cli.help.compose-build]
-The CLI MUST provide `--help` output for the `compose build` command.
-
-r[cli.help.compose-plug]
-The CLI MUST provide `--help` output for the `compose plug` command.
-
-r[cli.help.compose-targets]
-The CLI MUST provide `--help` output for the `compose targets` command.
-
-r[cli.help.compose-parse]
-The CLI MUST provide `--help` output for the `compose parse` command.
-
-r[cli.help.compose-resolve]
-The CLI MUST provide `--help` output for the `compose resolve` command.
-
 r[cli.version]
 The CLI MUST print a version string containing the program name when invoked
 with `--version`.
@@ -169,7 +154,7 @@ the specified path.
 
 r[init.composition-dirs]
 Running `wasm init` MUST create the composition workspace directories:
-`components/`, `types/`, `seams/`, and `build/`.
+`types/`, `seams/`, and `build/`.
 
 ## Run Command
 

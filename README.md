@@ -73,7 +73,7 @@ Commands:
   init      Create a new wasm component in an existing directory
   add       Add a dependency to the manifest without installing it
   install   Install a dependency from an OCI registry
-  compose   Compose and manage sets of interdependent Wasm components
+  compose   Compose Wasm components from WAC scripts
   local     Detect and manage local WASM files
   registry  Manage Wasm Components and WIT interfaces in OCI registries
   self      Configure the `wasm(1)` tool, generate completions, & manage state

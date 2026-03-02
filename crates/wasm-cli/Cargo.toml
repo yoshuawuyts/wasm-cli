@@ -46,10 +46,8 @@ wasmparser = { workspace = true }
 wac-parser = { workspace = true }
 wac-graph = { workspace = true }
 wac-resolver = { workspace = true }
-wac-types = { workspace = true }
 wasmtime = { workspace = true }
 wasmtime-wasi = { workspace = true }
-wit-parser = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

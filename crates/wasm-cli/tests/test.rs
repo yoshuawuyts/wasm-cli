@@ -724,41 +724,6 @@ fn test_cli_compose_help_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify cli.help.compose-build]
-#[test]
-fn test_cli_compose_build_help_snapshot() {
-    let output = run_cli(&["compose", "build", "--help"]);
-    assert_snapshot!(output);
-}
-
-// r[verify cli.help.compose-plug]
-#[test]
-fn test_cli_compose_plug_help_snapshot() {
-    let output = run_cli(&["compose", "plug", "--help"]);
-    assert_snapshot!(output);
-}
-
-// r[verify cli.help.compose-targets]
-#[test]
-fn test_cli_compose_targets_help_snapshot() {
-    let output = run_cli(&["compose", "targets", "--help"]);
-    assert_snapshot!(output);
-}
-
-// r[verify cli.help.compose-parse]
-#[test]
-fn test_cli_compose_parse_help_snapshot() {
-    let output = run_cli(&["compose", "parse", "--help"]);
-    assert_snapshot!(output);
-}
-
-// r[verify cli.help.compose-resolve]
-#[test]
-fn test_cli_compose_resolve_help_snapshot() {
-    let output = run_cli(&["compose", "resolve", "--help"]);
-    assert_snapshot!(output);
-}
-
 // =============================================================================
 // Compose Init Integration Tests
 // =============================================================================
@@ -780,7 +745,6 @@ fn test_init_creates_composition_directories() {
     );
 
     // Verify composition directories
-    assert!(dir.path().join("components").is_dir());
     assert!(dir.path().join("types").is_dir());
     assert!(dir.path().join("seams").is_dir());
     assert!(dir.path().join("build").is_dir());

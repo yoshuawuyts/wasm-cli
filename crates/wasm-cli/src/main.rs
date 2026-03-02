@@ -69,8 +69,7 @@ enum Command {
     Add(add::Opts),
     /// Install a dependency from an OCI registry
     Install(install::Opts),
-    /// Compose and manage sets of interdependent Wasm components
-    #[command(subcommand)]
+    /// Compose Wasm components from WAC scripts
     Compose(compose::Opts),
     /// Detect and manage local WASM files
     #[command(subcommand)]

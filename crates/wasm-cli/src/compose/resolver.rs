@@ -10,8 +10,7 @@ use wac_resolver::FileSystemPackageResolver;
 /// Resolution order:
 /// 1. Vendored artifacts listed in `deps/wasm.toml` (components → `deps/vendor/wasm/`,
 ///    interfaces → `deps/vendor/wit/`).
-/// 2. Local files found in the `components/` and `types/` directories at the
-///    project root.
+/// 2. Local files found in the `types/` directory at the project root.
 ///
 /// The returned resolver is intended for use with
 /// [`wac_parser::Document::resolve`].
@@ -49,14 +48,10 @@ pub(crate) fn build_resolver(base: &Path) -> Result<FileSystemPackageResolver> {
         }
     }
 
-    // Also scan components/ and types/ for local packages
-    for (dir_name, dir_path) in [
-        ("components", base.join("components")),
-        ("types", base.join("types")),
-    ] {
-        if dir_path.is_dir() {
-            scan_directory_for_packages(&dir_path, dir_name, &mut overrides)?;
-        }
+    // Also scan types/ for local packages
+    let types_dir = base.join("types");
+    if types_dir.is_dir() {
+        scan_directory_for_packages(&types_dir, &mut overrides)?;
     }
 
     Ok(FileSystemPackageResolver::new(base, overrides, false))
@@ -64,11 +59,7 @@ pub(crate) fn build_resolver(base: &Path) -> Result<FileSystemPackageResolver> {
 
 /// Scan a directory for `.wasm` and `.wit` files, adding them to the overrides
 /// map. The key is derived from the file stem.
-fn scan_directory_for_packages(
-    dir: &Path,
-    _dir_name: &str,
-    overrides: &mut HashMap<String, PathBuf>,
-) -> Result<()> {
+fn scan_directory_for_packages(dir: &Path, overrides: &mut HashMap<String, PathBuf>) -> Result<()> {
     let entries = std::fs::read_dir(dir)
         .with_context(|| format!("could not read directory '{}'", dir.display()))?;
 

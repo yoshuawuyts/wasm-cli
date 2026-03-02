@@ -54,7 +54,7 @@ parsing and dispatches to one of the following command modules:
 | `init`       | `init/`         | Scaffold a `deps/` directory with manifest, lockfile, and vendor dirs |
 | `add`        | `add/`          | Add a dependency to the manifest without pulling layers |
 | `install`    | `install/`      | Pull packages and vendor them into `deps/vendor/` |
-| `compose`    | `compose/`      | Compose and manage sets of interdependent Wasm components via WAC |
+| `compose`    | `compose/`      | Compose Wasm components from WAC scripts |
 | `local`      | `local/`        | Detect `.wasm` files in the current project |
 | `registry`   | `registry/`     | Manage cached packages (pull, tags, search, sync, delete, list, known, inspect) |
 | `self`       | `self_/`        | Tool configuration, completions, man pages, state, logs, clean |
