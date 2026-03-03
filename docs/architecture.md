@@ -135,11 +135,19 @@ src/
 │   ├── store.rs        # SQLite operations + cacache layer caching
 │   ├── config.rs       # StateInfo (cache dirs, database path, log dir)
 │   ├── models/         # RawKnownPackage, Migrations
-│   ├── known_package.rs # KnownPackage — public query result type
+│   ├── known_package.rs # KnownPackage — re-exported from wasm-meta-registry-client
 │   ├── schema.sql      # Canonical database schema (source of truth)
 │   └── migrations/     # Auto-generated SQL migration files
-└── network/            # Network utilities (RegistryClient)
 ```
+
+### wasm-meta-registry-client
+
+A standalone crate that provides the HTTP client for fetching package metadata
+from a `wasm-meta-registry` instance. It contains:
+
+- `KnownPackage` — the shared wire type returned by the `/v1/packages` endpoint.
+- `RegistryClient` — HTTP client with ETag-based conditional fetches and
+  exponential-backoff retries (behind the `client` feature).
 
 ### Manager
 

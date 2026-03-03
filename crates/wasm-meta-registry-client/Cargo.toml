@@ -1,0 +1,27 @@
+[package]
+name = "wasm-meta-registry-client"
+description = "HTTP client for fetching package metadata from a wasm-meta-registry instance"
+readme = "README.md"
+repository = { workspace = true }
+documentation = { workspace = true }
+version = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+categories = { workspace = true }
+keywords = { workspace = true }
+
+[features]
+default = ["client"]
+# Enable the HTTP client (RegistryClient). Disable to use only the shared types.
+client = ["dep:reqwest", "dep:exponential-backoff", "dep:tokio"]
+
+[dependencies]
+anyhow = { workspace = true }
+exponential-backoff = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+serde = { workspace = true }
+tokio = { workspace = true, optional = true }
+
+[lints]
+workspace = true

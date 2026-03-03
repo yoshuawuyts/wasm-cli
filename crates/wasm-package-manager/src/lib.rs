@@ -42,7 +42,6 @@ mod config;
 mod credential_helper;
 /// Core manager functionality for pulling, installing, and listing packages.
 pub mod manager;
-mod network;
 pub mod oci;
 mod progress;
 /// Storage layer for persisting package metadata and state.

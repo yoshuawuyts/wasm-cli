@@ -6,11 +6,11 @@ use std::time::Duration;
 
 use exponential_backoff::Backoff;
 
-use crate::storage::KnownPackage;
+use crate::KnownPackage;
 
 /// Result of fetching packages from the meta-registry.
 #[derive(Debug)]
-pub(crate) enum FetchResult {
+pub enum FetchResult {
     /// The server returned 304 Not Modified; local data is still fresh.
     NotModified,
     /// The server returned new data.
@@ -24,14 +24,15 @@ pub(crate) enum FetchResult {
 
 /// HTTP client for the meta-registry's `/v1/packages` endpoint.
 #[derive(Debug)]
-pub(crate) struct RegistryClient {
+pub struct RegistryClient {
     base_url: String,
     http: reqwest::Client,
 }
 
 impl RegistryClient {
     /// Create a new registry client pointing at `base_url`.
-    pub(crate) fn new(base_url: &str) -> Self {
+    #[must_use]
+    pub fn new(base_url: &str) -> Self {
         // The builder only fails if a TLS backend cannot be initialized,
         // which would indicate a broken system-level configuration.
         let http = reqwest::Client::builder()
@@ -54,7 +55,7 @@ impl RegistryClient {
     /// # Errors
     ///
     /// Returns an error if all retry attempts fail.
-    pub(crate) async fn fetch_packages(
+    pub async fn fetch_packages(
         &self,
         etag: Option<&str>,
         limit: u32,

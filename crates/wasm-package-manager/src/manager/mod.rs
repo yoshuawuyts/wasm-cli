@@ -866,7 +866,7 @@ impl Manager {
         sync_interval: u64,
         policy: SyncPolicy,
     ) -> anyhow::Result<SyncResult> {
-        use crate::network::registry_client::{FetchResult, RegistryClient};
+        use wasm_meta_registry_client::{FetchResult, RegistryClient};
 
         // Check the minimum interval unless forced.
         if policy == SyncPolicy::IfStale {
