@@ -65,14 +65,14 @@ impl TypesViewState {
     }
 }
 
-/// View for displaying WIT types
+/// View for displaying WIT interfaces
 #[derive(Debug)]
 pub struct TypesView<'a> {
     interfaces: &'a [(WitPackage, String)],
 }
 
 impl<'a> TypesView<'a> {
-    /// Create a new TypesView with the given types
+    /// Create a new TypesView with the given interfaces
     #[must_use]
     pub fn new(interfaces: &'a [(WitPackage, String)]) -> Self {
         Self { interfaces }
@@ -84,7 +84,7 @@ impl StatefulWidget for TypesView<'_> {
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         if self.interfaces.is_empty() {
-            let msg = "No WIT types found.\n\nPull a WebAssembly component to see its types here.\nPress [2] to go to Components, then [p] to pull a package.";
+            let msg = "No WIT interfaces found.\n\nPull a WebAssembly component to see its interfaces here.\nPress [2] to go to Components, then [p] to pull a package.";
             Paragraph::new(msg)
                 .centered()
                 .wrap(Wrap { trim: false })

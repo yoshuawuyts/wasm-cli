@@ -74,7 +74,7 @@ Commands:
   install   Install a dependency from an OCI registry
   compose   Compose Wasm components from WAC scripts
   local     Detect and manage local WASM files
-  registry  Manage Wasm Components and WIT types in OCI registries
+  registry  Manage Wasm Components and WIT interfaces in OCI registries
   self      Configure the `wasm(1)` tool, generate completions, & manage state
   help      Print this message or the help of the given subcommand(s)
 

@@ -756,7 +756,7 @@ impl Manager {
             .ok_or_else(|| anyhow::anyhow!("failed to retrieve indexed package"))
     }
 
-    /// Get all WIT types with their associated component references.
+    /// Get all WIT interfaces with their associated component references.
     pub fn list_wit_packages_with_components(&self) -> anyhow::Result<Vec<(WitPackage, String)>> {
         Ok(self
             .store

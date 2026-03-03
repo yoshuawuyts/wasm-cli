@@ -10,7 +10,7 @@ mod inspect;
 mod search;
 mod sync;
 
-/// Manage Wasm Components and WIT types in OCI registries
+/// Manage Wasm Components and WIT interfaces in OCI registries
 #[derive(clap::Parser)]
 pub(crate) enum Opts {
     /// Fetch OCI metadata for a component

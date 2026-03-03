@@ -36,8 +36,8 @@ pub(crate) fn build_resolver(base: &Path) -> Result<FileSystemPackageResolver> {
             }
         }
 
-        // Map [types] entries to vendored .wasm or .wit files
-        for name in manifest.types.keys() {
+        // Map [interfaces] entries to vendored .wasm or .wit files
+        for name in manifest.interfaces.keys() {
             let wasm_file = wit_vendor.join(format!("{name}.wasm"));
             let wit_file = wit_vendor.join(format!("{name}.wit"));
             if wasm_file.exists() {

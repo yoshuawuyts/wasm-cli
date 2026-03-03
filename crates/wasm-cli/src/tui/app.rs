@@ -22,7 +22,7 @@ use super::{AppEvent, ManagerEvent};
 pub(crate) enum Tab {
     Local,
     Components,
-    Types,
+    Interfaces,
     Search,
     Settings,
     Log,
@@ -32,7 +32,7 @@ impl Tab {
     const ALL: [Tab; 6] = [
         Tab::Local,
         Tab::Components,
-        Tab::Types,
+        Tab::Interfaces,
         Tab::Search,
         Tab::Settings,
         Tab::Log,
@@ -48,7 +48,7 @@ impl TabItem for Tab {
         match self {
             Tab::Local => "Local [1]",
             Tab::Components => "Components [2]",
-            Tab::Types => "Types [3]",
+            Tab::Interfaces => "Interfaces [3]",
             Tab::Search => "Search [4]",
             Tab::Settings => "Settings [5]",
             Tab::Log => "Log [6]",
@@ -103,7 +103,7 @@ pub(crate) struct App {
     search_view_state: SearchViewState,
     /// Known packages for search results
     known_packages: Vec<KnownPackage>,
-    /// WIT types with their component references
+    /// WIT interfaces with their component references
     wit_types: Vec<(WitPackage, String)>,
     /// Types view state
     types_view_state: TypesViewState,
@@ -198,7 +198,7 @@ impl App {
                     );
                 }
             }
-            Tab::Types => {
+            Tab::Interfaces => {
                 frame.render_stateful_widget(
                     TypesView::new(&self.wit_types),
                     content_area,
@@ -434,7 +434,7 @@ impl App {
             }
             (KeyCode::Char('1'), _) => self.current_tab = Tab::Local,
             (KeyCode::Char('2'), _) => self.current_tab = Tab::Components,
-            (KeyCode::Char('3'), _) => self.current_tab = Tab::Types,
+            (KeyCode::Char('3'), _) => self.current_tab = Tab::Interfaces,
             (KeyCode::Char('4'), _) => self.current_tab = Tab::Search,
             (KeyCode::Char('5'), _) => self.current_tab = Tab::Settings,
             (KeyCode::Char('6'), _) => {
@@ -509,14 +509,14 @@ impl App {
             (KeyCode::Char('/'), _) if self.current_tab == Tab::Search => {
                 self.input_mode = InputMode::SearchInput;
             }
-            // Types tab navigation
-            (KeyCode::Up | KeyCode::Char('k'), _) if self.current_tab == Tab::Types => {
+            // Interfaces tab navigation
+            (KeyCode::Up | KeyCode::Char('k'), _) if self.current_tab == Tab::Interfaces => {
                 self.types_view_state.select_prev(self.wit_types.len());
             }
-            (KeyCode::Down | KeyCode::Char('j'), _) if self.current_tab == Tab::Types => {
+            (KeyCode::Down | KeyCode::Char('j'), _) if self.current_tab == Tab::Interfaces => {
                 self.types_view_state.select_next(self.wit_types.len());
             }
-            (KeyCode::Enter, _) if self.current_tab == Tab::Types => {
+            (KeyCode::Enter, _) if self.current_tab == Tab::Interfaces => {
                 if !self.wit_types.is_empty() {
                     self.types_view_state.viewing_detail = true;
                     self.types_view_state.detail_scroll = 0;

@@ -98,12 +98,12 @@ impl Opts {
             // Derive the dependency name.
             // For components, use `derive_component_name` which tries WIT metadata,
             // OCI title annotation, last repository segment, then full path.
-            // For types, use the WIT package name (always available).
+            // For interfaces, use the WIT package name (always available).
             let dep_name = if result.is_component {
                 let existing_names: std::collections::HashSet<String> = manifest
                     .components
                     .keys()
-                    .chain(manifest.types.keys())
+                    .chain(manifest.interfaces.keys())
                     .cloned()
                     .collect();
                 derive_component_name(
@@ -122,7 +122,7 @@ impl Opts {
             // Determine the version from the tag
             let version = result.tag.clone().unwrap_or_default();
 
-            // Add to manifest (compact format) — route to components or types.
+            // Add to manifest (compact format) — route to components or interfaces.
             // Only update the manifest when a reference was explicitly provided;
             // for the 0-args case the entries are already in the manifest.
             if update_manifest {
@@ -131,7 +131,7 @@ impl Opts {
                 if result.is_component {
                     manifest.components.insert(dep_name.clone(), dep);
                 } else {
-                    manifest.types.insert(dep_name.clone(), dep);
+                    manifest.interfaces.insert(dep_name.clone(), dep);
                 }
             }
 
@@ -145,7 +145,7 @@ impl Opts {
                 })
                 .collect();
 
-            // Add to lockfile — route to components or types
+            // Add to lockfile — route to components or interfaces
             let registry_path = format!("{}/{}", result.registry, result.repository);
             let digest = result.digest.unwrap_or_default();
 
@@ -171,13 +171,15 @@ impl Opts {
                 }
             } else {
                 let existing = lockfile
-                    .types
+                    .interfaces
                     .iter()
                     .position(|p| p.name == dep_name && p.registry == registry_path);
-                if let Some(existing_pkg) = existing.and_then(|idx| lockfile.types.get_mut(idx)) {
+                if let Some(existing_pkg) =
+                    existing.and_then(|idx| lockfile.interfaces.get_mut(idx))
+                {
                     *existing_pkg = package;
                 } else {
-                    lockfile.types.push(package);
+                    lockfile.interfaces.push(package);
                 }
             }
 
@@ -302,7 +304,7 @@ async fn re_vendor_wit_files(
 ///
 /// Uses a work queue and visited set to avoid cycles and duplicates.
 /// Each resolved dependency is installed, vendored to `wit/`, and added
-/// to `lockfile.types`. The manifest is **not** modified.
+/// to `lockfile.interfaces`. The manifest is **not** modified.
 async fn install_transitive_deps(
     initial_deps: Vec<DependencyItem>,
     manager: &Manager,
@@ -323,7 +325,7 @@ async fn install_transitive_deps(
         }
 
         // Skip if already present in the lockfile
-        if lockfile.types.iter().any(|p| p.name == dep.package) {
+        if lockfile.interfaces.iter().any(|p| p.name == dep.package) {
             continue;
         }
 
@@ -385,7 +387,7 @@ fn resolve_dep_reference(manager: &Manager, dep: &DependencyItem) -> Option<Refe
 }
 
 /// Build a [`wasm_manifest::Package`] from an [`InstallResult`] and upsert it
-/// into `lockfile.types`.
+/// into `lockfile.interfaces`.
 fn upsert_lockfile_type(lockfile: &mut wasm_manifest::Lockfile, result: &InstallResult) {
     let name = result.package_name.as_deref().map_or_else(
         || format!("{}/{}", result.registry, result.repository),
@@ -408,13 +410,13 @@ fn upsert_lockfile_type(lockfile: &mut wasm_manifest::Lockfile, result: &Install
     };
 
     if let Some(existing) = lockfile
-        .types
+        .interfaces
         .iter_mut()
         .find(|p| p.name == name && p.registry == registry)
     {
         *existing = package;
     } else {
-        lockfile.types.push(package);
+        lockfile.interfaces.push(package);
     }
 }
 
