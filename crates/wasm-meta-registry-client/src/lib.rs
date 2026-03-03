@@ -85,6 +85,7 @@ impl KnownPackage {
 mod tests {
     use super::*;
 
+    // r[verify client.known-package.reference]
     #[test]
     fn known_package_reference() {
         let pkg = KnownPackage {
@@ -100,6 +101,7 @@ mod tests {
         assert_eq!(pkg.reference(), "ghcr.io/user/repo");
     }
 
+    // r[verify client.known-package.reference-with-tag]
     #[test]
     fn known_package_reference_with_tag() {
         let pkg = KnownPackage {
@@ -115,6 +117,7 @@ mod tests {
         assert_eq!(pkg.reference_with_tag(), "ghcr.io/user/repo:v1.0");
     }
 
+    // r[verify client.known-package.reference-default-tag]
     #[test]
     fn known_package_reference_with_tag_default() {
         let pkg = KnownPackage {
