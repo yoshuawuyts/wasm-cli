@@ -109,9 +109,9 @@ Don't be a bad actor.
 
 ## Releasing
 
-This project uses a two-step workflow for publishing crates to crates.io via
+This project uses an automated workflow for publishing crates to crates.io via
 [trusted publishing (OIDC)](https://crates.io/docs/trusted-publishing) — no
-long-lived API tokens are required.
+long-lived API tokens or manual tagging required.
 
 ### 1. Create a bump PR
 
@@ -121,23 +121,18 @@ Go to **Actions → Release Bump → Run workflow**, then select the bump type
 - Bump the workspace version in every `Cargo.toml`
 - Open a PR titled **Release v&lt;version&gt;**
 
-### 2. Merge the PR and tag
+### 2. Merge the PR
 
-After the PR is reviewed and merged:
-
-```sh
-git checkout main && git pull
-git tag v<version>
-git push origin v<version>
-```
-
-### 3. Publish
-
-Pushing the tag triggers the **Publish** workflow, which:
+After the PR is reviewed and merged, the **Publish** workflow automatically:
 
 - Authenticates with crates.io using OIDC (via the `crates-io-publish` environment)
-- Publishes `wasm-package-manager`, then `wasm` (in dependency order)
+- Publishes all 6 public crates in dependency order (`wasm-detector`,
+  `wasm-manifest`, `wasm-meta-registry-client`, `wasm-package-manager`,
+  `wasm-meta-registry`, `wasm`)
+- Creates and pushes the git tag (`v<version>`)
 - Creates a GitHub Release with auto-generated notes
+
+No manual `git tag` or `git push` step is needed.
 
 ## Snapshot Testing
 
