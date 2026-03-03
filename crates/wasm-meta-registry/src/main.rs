@@ -13,8 +13,16 @@ use wasm_meta_registry::{Config, Indexer, router};
 #[derive(Parser)]
 #[command(author, version, about)]
 struct Cli {
-    /// Path to the TOML configuration file.
-    config: std::path::PathBuf,
+    /// Path to the registry directory containing per-namespace TOML files.
+    registry_dir: std::path::PathBuf,
+
+    /// Sync interval in seconds.
+    #[arg(long, default_value_t = 3600)]
+    sync_interval: u64,
+
+    /// HTTP server bind address.
+    #[arg(long, default_value = "0.0.0.0:8080")]
+    bind: String,
 }
 
 #[tokio::main]
@@ -24,9 +32,8 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
-    // Read and parse configuration
-    let config_str = tokio::fs::read_to_string(&cli.config).await?;
-    let config = Config::from_toml(&config_str)?;
+    // Read and parse configuration from registry directory
+    let config = Config::from_registry_dir(&cli.registry_dir, cli.sync_interval, cli.bind)?;
 
     info!(
         bind = %config.bind,

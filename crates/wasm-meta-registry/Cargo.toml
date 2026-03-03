@@ -34,6 +34,7 @@ wasm-package-manager = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 reqwest = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

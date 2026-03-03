@@ -5,35 +5,63 @@ exposes a search API.
 
 ## Overview
 
-`wasm-meta-registry` takes a TOML config listing OCI repositories, periodically
-syncs manifest and config metadata via `wasm-package-manager`, and serves search
-results over HTTP. The `wasm` CLI can query this API for remote package
-discovery — users then install packages from the actual OCI registries.
+`wasm-meta-registry` reads a directory of per-namespace TOML registry files,
+periodically syncs manifest and config metadata via `wasm-package-manager`, and
+serves search results over HTTP. The `wasm` CLI can query this API for remote
+package discovery — users then install packages from the actual OCI registries.
 
-## Configuration
+## Registry format
 
-Create a `registries.toml` file:
+Create a `registry/` directory with one TOML file per WIT namespace:
+
+```
+registry/
+  ba.toml
+  wasi.toml
+  microsoft.toml
+```
+
+Each file defines a `[namespace]` table and zero or more `[[component]]` and
+`[[interface]]` entries:
 
 ```toml
-# Sync interval in seconds (default: 3600)
-sync_interval = 3600
+# wasi.toml
+[namespace]
+name = "wasi"
+registry = "ghcr.io/webassembly"
 
-# HTTP server bind address
-bind = "0.0.0.0:8080"
+[[interface]]
+name = "io"
+repository = "wasi/io"
 
-[[packages]]
-registry = "ghcr.io"
-repository = "bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust"
-
-[[packages]]
-registry = "ghcr.io"
-repository = "webassembly/wasi/clocks"
+[[interface]]
+name = "clocks"
+repository = "wasi/clocks"
 ```
+
+```toml
+# ba.toml
+[namespace]
+name = "ba"
+registry = "ghcr.io/bytecodealliance"
+
+[[component]]
+name = "sample-wasi-http-rust"
+repository = "sample-wasi-http-rust/sample-wasi-http-rust"
+```
+
+- **`[namespace]`** — maps a WIT namespace to an OCI registry base path
+- **`[[component]]`** — a runnable Wasm component
+- **`[[interface]]`** — a WIT interface type package
+- **`name`** — the package name under the namespace (e.g., `wasi:io`)
+- **`repository`** — the OCI repository path, relative to the namespace's `registry`
+
+The filename (without `.toml`) must match the `namespace.name` field inside.
 
 ## Usage
 
 ```sh
-wasm-meta-registry registries.toml
+wasm-meta-registry registry/ --sync-interval 3600 --bind 0.0.0.0:8080
 ```
 
 ## API Endpoints

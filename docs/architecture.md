@@ -214,7 +214,7 @@ may be git-ignored.
 An HTTP server in `crates/wasm-meta-registry` that indexes OCI registries and
 exposes a search API. It consists of:
 
-- **`config.rs`** — TOML configuration (bind address, sync interval, package list).
+- **`config.rs`** — per-namespace TOML registry file parsing and configuration.
 - **`indexer.rs`** — background thread that periodically syncs package metadata
   using `wasm-package-manager::Manager`.
 - **`server.rs`** — [axum] HTTP router with search endpoints.
