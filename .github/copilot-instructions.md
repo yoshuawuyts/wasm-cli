@@ -25,6 +25,16 @@ This command runs:
 - Use `#[must_use]` where appropriate
 - Prefer `expect()` over `unwrap()` with descriptive messages
 
+## Code Quality
+
+- Extract loops inside conditionals into their own functions
+- Limit indentation to 3 levels; extract deeper logic into helper functions
+- Split `if`/`else` blocks where each branch exceeds 60 lines into separate functions
+- Replace exhaustive `if let..else` (e.g., `if let Some(..) { .. } else { .. }`) with `match` blocks
+- Keep one primary struct/enum per file; split large files accordingly (small helpers exempted)
+
+For detailed guidelines, examples, and a review workflow see the `code-quality` skill.
+
 ## Database Schema Changes
 
 When changing the database schema, edit `crates/wasm-package-manager/src/storage/schema.sql`
