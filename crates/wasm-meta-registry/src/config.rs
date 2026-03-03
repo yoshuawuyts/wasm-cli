@@ -161,7 +161,9 @@ impl Config {
                 let content = std::fs::read_to_string(&path)?;
                 let registry_file = RegistryFile::from_toml(&content)?;
 
-                let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                let stem = path.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
+                    anyhow::anyhow!("registry filename is not valid UTF-8: {}", path.display())
+                })?;
                 if stem != registry_file.namespace.name {
                     anyhow::bail!(
                         "filename '{stem}.toml' does not match namespace name '{}'",
@@ -207,10 +209,10 @@ repository = "wasi/clocks"
         assert_eq!(file.namespace.registry, "ghcr.io/webassembly");
         assert!(file.component.is_empty());
         assert_eq!(file.interface.len(), 2);
-        assert_eq!(file.interface.get(0).unwrap().name, "io");
-        assert_eq!(file.interface.get(0).unwrap().repository, "wasi/io");
-        assert_eq!(file.interface.get(1).unwrap().name, "clocks");
-        assert_eq!(file.interface.get(1).unwrap().repository, "wasi/clocks");
+        assert_eq!(file.interface[0].name, "io");
+        assert_eq!(file.interface[0].repository, "wasi/io");
+        assert_eq!(file.interface[1].name, "clocks");
+        assert_eq!(file.interface[1].repository, "wasi/clocks");
     }
 
     #[test]
@@ -234,8 +236,8 @@ repository = "eval-py"
         assert_eq!(file.namespace.registry, "ghcr.io/microsoft");
         assert_eq!(file.component.len(), 2);
         assert!(file.interface.is_empty());
-        assert_eq!(file.component.get(0).unwrap().name, "fetch-rs");
-        assert_eq!(file.component.get(1).unwrap().name, "eval-py");
+        assert_eq!(file.component[0].name, "fetch-rs");
+        assert_eq!(file.component[1].name, "eval-py");
     }
 
     #[test]
@@ -323,15 +325,17 @@ repository = "wasi/io"
         let sources = file.into_package_sources();
         assert_eq!(sources.len(), 2);
 
-        assert_eq!(sources.get(0).unwrap().registry, "ghcr.io/webassembly");
-        assert_eq!(sources.get(0).unwrap().repository, "wasi/my-component");
-        assert_eq!(sources.get(0).unwrap().name, "my-component");
-        assert_eq!(sources.get(0).unwrap().kind, PackageKind::Component);
+        let component = &sources[0];
+        assert_eq!(component.registry, "ghcr.io/webassembly");
+        assert_eq!(component.repository, "wasi/my-component");
+        assert_eq!(component.name, "my-component");
+        assert_eq!(component.kind, PackageKind::Component);
 
-        assert_eq!(sources.get(1).unwrap().registry, "ghcr.io/webassembly");
-        assert_eq!(sources.get(1).unwrap().repository, "wasi/io");
-        assert_eq!(sources.get(1).unwrap().name, "io");
-        assert_eq!(sources.get(1).unwrap().kind, PackageKind::Interface);
+        let interface = &sources[1];
+        assert_eq!(interface.registry, "ghcr.io/webassembly");
+        assert_eq!(interface.repository, "wasi/io");
+        assert_eq!(interface.name, "io");
+        assert_eq!(interface.kind, PackageKind::Interface);
     }
 
     #[test]
