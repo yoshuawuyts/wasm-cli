@@ -166,7 +166,7 @@ and recursively install each resolvable dependency into `deps/vendor/wit/`.
 
 r[install.wit-deps.lockfile-only]
 Transitive WIT dependencies MUST be recorded in `wasm.lock.toml`
-`[[types]]` entries. The manifest (`wasm.toml`) MUST NOT be modified
+`[[interfaces]]` entries. The manifest (`wasm.toml`) MUST NOT be modified
 for transitive dependencies.
 
 r[install.wit-deps.skip-offline]

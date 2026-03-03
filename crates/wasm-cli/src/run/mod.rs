@@ -197,7 +197,7 @@ fn find_matching_permissions(
     let ref_registry = reference.registry();
     let ref_repository = reference.repository();
 
-    for (_, dep) in manifest.components.iter().chain(manifest.types.iter()) {
+    for (_, dep) in manifest.components.iter().chain(manifest.interfaces.iter()) {
         match dep {
             wasm_manifest::Dependency::Explicit {
                 registry,

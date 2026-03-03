@@ -366,7 +366,7 @@ wasm compose my-composition -o output/
 
 When resolving packages referenced in WAC files, the resolver checks:
 
-1. **Manifest entries** — components and types in `deps/wasm.toml` mapped
+1. **Manifest entries** — components and interfaces in `deps/wasm.toml` mapped
    to vendored files in `deps/vendor/wasm/` and `deps/vendor/wit/`.
 2. **Local directories** — `.wasm` and `.wit` files in `types/`.
 

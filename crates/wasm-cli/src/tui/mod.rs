@@ -33,7 +33,7 @@ pub enum AppEvent {
     RequestKnownPackages,
     /// Refresh tags for a package (registry, repository)
     RefreshTags(String, String),
-    /// Request all WIT types
+    /// Request all WIT interfaces
     RequestWitTypes,
     /// Request to detect local WASM files
     DetectLocalWasm,
@@ -60,7 +60,7 @@ pub enum ManagerEvent {
     KnownPackagesList(Vec<KnownPackage>),
     /// Result of refreshing tags for a package
     RefreshTagsResult(Result<usize, String>),
-    /// List of WIT types with their component references
+    /// List of WIT interfaces with their component references
     WitTypesList(Vec<(WitPackage, String)>),
     /// List of local WASM files
     LocalWasmList(Vec<wasm_detector::WasmEntry>),
