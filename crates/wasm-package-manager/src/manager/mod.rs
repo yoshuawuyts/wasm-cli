@@ -82,22 +82,6 @@ pub struct InstallResult {
     pub dependencies: Vec<crate::types::DependencyItem>,
 }
 
-/// Result of an add operation.
-///
-/// Contains metadata about the package for updating the manifest
-/// without having pulled the actual layers.
-#[derive(Debug, Clone)]
-pub struct AddResult {
-    /// The registry hostname (e.g., "ghcr.io").
-    pub registry: String,
-    /// The repository path (e.g., "webassembly/wasi-logging").
-    pub repository: String,
-    /// The tag, if present (e.g., "1.0.0").
-    pub tag: Option<String>,
-    /// The resolved dependency name for the manifest key.
-    pub dep_name: String,
-}
-
 /// A cache on disk
 #[derive(Debug)]
 pub struct Manager {
@@ -545,70 +529,6 @@ impl Manager {
             vendored_files,
             is_component,
             dependencies,
-        })
-    }
-
-    /// Add a package reference to the manifest without pulling layers.
-    ///
-    /// Resolves the dependency name using the following priority:
-    /// 1. Local search index (known packages in the database).
-    /// 2. OCI `org.opencontainers.image.title` annotation (manifest-only fetch).
-    /// 3. Last segment of the repository path (fallback).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the manifest fetch fails when online, or if
-    /// offline mode is enabled and no local metadata is available to derive
-    /// a name.
-    pub async fn add(
-        &self,
-        reference: &Reference,
-        existing_names: &std::collections::HashSet<String>,
-    ) -> anyhow::Result<AddResult> {
-        let registry = reference.registry().to_string();
-        let repository = reference.repository().to_string();
-        let tag = reference.tag().map(str::to_string);
-
-        // 1. Check the local search index for a known package name.
-        if let Some(known) = self
-            .store
-            .get_known_package(reference.registry(), reference.repository())?
-            && let Some(desc) = &known.description
-            && let Some(sanitized) = sanitize_to_wit_identifier(desc)
-        {
-            return Ok(AddResult {
-                registry,
-                repository,
-                tag,
-                dep_name: sanitized,
-            });
-        }
-
-        // 2. OCI annotation metadata (manifest-only, no layer fetch).
-        if !self.offline
-            && let Ok((manifest, _digest)) = self.client.pull_manifest(reference).await
-            && let Some(title) = manifest
-                .annotations
-                .as_ref()
-                .and_then(|a| a.get("org.opencontainers.image.title").cloned())
-            && let Some(sanitized) = sanitize_to_wit_identifier(&title)
-        {
-            return Ok(AddResult {
-                registry,
-                repository,
-                tag,
-                dep_name: sanitized,
-            });
-        }
-
-        // 3. Fall back to the repository name.
-        let dep_name = derive_component_name(None, None, &repository, existing_names);
-
-        Ok(AddResult {
-            registry,
-            repository,
-            tag,
-            dep_name,
         })
     }
 

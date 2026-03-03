@@ -1,7 +1,6 @@
 //! Wasm CLI command
 //!
 
-mod add;
 mod compose;
 mod init;
 mod install;
@@ -46,7 +45,6 @@ impl Cli {
             Some(Command::Registry(opts)) => opts.run(self.offline).await?,
             Some(Command::Compose(opts)) => opts.run()?,
             Some(Command::Init(opts)) => opts.run().await?,
-            Some(Command::Add(opts)) => opts.run(self.offline).await?,
             Some(Command::Install(opts)) => opts.run(self.offline).await?,
             Some(Command::Self_(opts)) => opts.run().await?,
             None if std::io::stdin().is_terminal() => tui::run(self.offline).await?,
@@ -65,8 +63,6 @@ enum Command {
     Run(run::Opts),
     /// Create a new wasm component in an existing directory
     Init(init::Opts),
-    /// Add a dependency to the manifest without installing it
-    Add(add::Opts),
     /// Install a dependency from an OCI registry
     Install(install::Opts),
     /// Compose Wasm components from WAC scripts

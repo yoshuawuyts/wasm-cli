@@ -9,7 +9,6 @@ Usage: wasm [OPTIONS] [COMMAND]
 Commands:
   run       Execute a Wasm Component
   init      Create a new wasm component in an existing directory
-  add       Add a dependency to the manifest without installing it
   install   Install a dependency from an OCI registry
   compose   Compose Wasm components from WAC scripts
   local     Detect and manage local WASM files
