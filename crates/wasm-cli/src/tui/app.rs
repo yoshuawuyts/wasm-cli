@@ -103,7 +103,7 @@ pub(crate) struct App {
     search_view_state: SearchViewState,
     /// Known packages for search results
     known_packages: Vec<KnownPackage>,
-    /// WIT types with their component references
+    /// WIT interfaces with their component references
     wit_types: Vec<(WitPackage, String)>,
     /// Types view state
     types_view_state: TypesViewState,

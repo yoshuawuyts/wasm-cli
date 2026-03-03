@@ -2,7 +2,7 @@
 source: crates/wasm-cli/tests/test.rs
 expression: output
 ---
-Manage Wasm Components and WIT types in OCI registries
+Manage Wasm Components and WIT interfaces in OCI registries
 
 Usage: wasm registry [OPTIONS] <COMMAND>
 
