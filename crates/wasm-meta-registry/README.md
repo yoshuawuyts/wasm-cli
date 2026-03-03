@@ -73,4 +73,4 @@ wasm-meta-registry registry/ --sync-interval 3600 --bind 0.0.0.0:8080
 
 ## License
 
-Licensed under either of Apache License, Version 2.0 or MIT license at your option.
+Licensed under Apache License, Version 2.0, with LLVM Exceptions.

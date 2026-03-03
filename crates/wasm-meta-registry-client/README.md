@@ -31,4 +31,4 @@ async fn main() -> anyhow::Result<()> {
 
 ## License
 
-Licensed under either of Apache License, Version 2.0 or MIT license at your option.
+Licensed under Apache License, Version 2.0, with LLVM Exceptions.
