@@ -63,14 +63,6 @@ jobs:
           body: |
             Bump workspace version to **v${{ steps.version.outputs.version }}** (`${{ inputs.bump }}` bump).
 
-            ## After merging
-
-            Tag and push to trigger the publish workflow:
-
-            ```sh
-            git checkout main && git pull
-            git tag v${{ steps.version.outputs.version }}
-            git push origin v${{ steps.version.outputs.version }}
-            ```
+            Merging this PR will automatically publish to crates.io, create the git tag, and produce a GitHub Release.
           branch: release/v${{ steps.version.outputs.version }}
           labels: release

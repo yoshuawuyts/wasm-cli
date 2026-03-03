@@ -1,17 +1,57 @@
 name: Publish
 
 on:
-  push:
-    tags:
-      - "v*"
+  pull_request_target:
+    types: [closed]
+    branches: [main]
 
 jobs:
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/v')
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Verify PR author
+        if: github.event.pull_request.user.login != 'github-actions[bot]'
+        run: |
+          echo "::error::Release PRs must be created by github-actions[bot], not ${{ github.event.pull_request.user.login }}"
+          exit 1
+
+      - name: Extract version from branch name
+        id: version
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          VERSION="${BRANCH#release/v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify version matches Cargo.toml
+        run: |
+          CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "wasm") | .version')
+          if [ "$CARGO_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::Branch version ${{ steps.version.outputs.version }} does not match Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
+
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
+    needs: prepare
     environment: crates-io-publish
     permissions:
-      contents: write
+      contents: read
       id-token: write
     steps:
       - name: Checkout repository
@@ -23,16 +63,65 @@ jobs:
       - name: Authenticate with crates.io
         uses: rust-lang/crates-io-auth-action@v1
 
+      # Tier 1: leaf crates with no inter-workspace dependencies
+      - name: Publish wasm-detector
+        run: cargo publish --package wasm-detector
+
+      - name: Publish wasm-manifest
+        run: cargo publish --package wasm-manifest
+
+      - name: Publish wasm-meta-registry-client
+        run: cargo publish --package wasm-meta-registry-client
+
+      - name: Wait for crates.io indexing
+        run: sleep 30
+
+      # Tier 2: depends on wasm-manifest + wasm-meta-registry-client
       - name: Publish wasm-package-manager
         run: cargo publish --package wasm-package-manager
 
       - name: Wait for crates.io indexing
         run: sleep 30
 
+      # Tier 3: depends on wasm-package-manager
+      - name: Publish wasm-meta-registry
+        run: cargo publish --package wasm-meta-registry
+
+      - name: Wait for crates.io indexing
+        run: sleep 30
+
+      # Tier 4: depends on wasm-detector + wasm-manifest + wasm-package-manager
       - name: Publish wasm
         run: cargo publish --package wasm
+
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    needs: [prepare, publish]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check tag does not already exist
+        run: |
+          if git tag -l "v${{ needs.prepare.outputs.version }}" | grep -q .; then
+            echo "::error::Tag v${{ needs.prepare.outputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ needs.prepare.outputs.version }}"
+          git push origin "v${{ needs.prepare.outputs.version }}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: "v${{ needs.prepare.outputs.version }}"
           generate_release_notes: true
