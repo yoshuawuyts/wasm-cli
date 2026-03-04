@@ -91,6 +91,7 @@ runs:
         key: wasm-cli-${{ steps.version.outputs.tag }}-${{ runner.os }}-${{ runner.arch }}
 
     - name: Download pre-built binary
+      id: download
       if: >-
         steps.version.outputs.tag != '' &&
         steps.platform.outputs.target != '' &&
@@ -105,25 +106,34 @@ runs:
         mkdir -p "$DEST"
         echo "Downloading $URL"
         if [[ "$EXT" == "tar.gz" ]]; then
-          curl -fsSL "$URL" | tar xz -C "$DEST"
+          if ! curl -fsSL "$URL" | tar xz -C "$DEST"; then
+            echo "::warning::Failed to download pre-built binary from $URL"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
         else
-          curl -fsSL "$URL" -o /tmp/wasm.zip
+          if ! curl -fsSL "$URL" -o /tmp/wasm.zip; then
+            echo "::warning::Failed to download pre-built binary from $URL"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           unzip -o /tmp/wasm.zip -d "$DEST"
           rm -f /tmp/wasm.zip
         fi
         if [ -f "$DEST/wasm" ]; then
           chmod +x "$DEST/wasm"
         fi
+        echo "ok=true" >> "$GITHUB_OUTPUT"
 
     - name: Add binary to PATH
-      if: steps.version.outputs.tag != '' && steps.platform.outputs.target != ''
+      if: >-
+        steps.version.outputs.tag != '' &&
+        steps.platform.outputs.target != '' &&
+        (steps.cache.outputs.cache-hit == 'true' || steps.download.outputs.ok == 'true')
       shell: bash
       run: echo "${{ runner.tool_cache }}/wasm-cli" >> "$GITHUB_PATH"
 
     - name: Fallback to cargo install
-      if: >-
-        steps.version.outputs.tag == '' ||
-        steps.platform.outputs.target == ''
       shell: bash
       run: |
         if ! command -v wasm &>/dev/null; then
