@@ -73,6 +73,9 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
       - name: Build release binary
         run: cargo build --release --package wasm
 
@@ -157,13 +160,17 @@ jobs:
           fetch-depth: 0
 
       - name: Check tag does not already exist
+        id: check-tag
         run: |
           if git tag -l "v${{ needs.prepare.outputs.version }}" | grep -q .; then
-            echo "::error::Tag v${{ needs.prepare.outputs.version }} already exists"
-            exit 1
+            echo "::warning::Tag v${{ needs.prepare.outputs.version }} already exists, skipping tag creation"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create and push tag
+        if: steps.check-tag.outputs.exists != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

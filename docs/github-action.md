@@ -19,7 +19,8 @@ updates:
 ```
 
 You can also pin to an exact version (`@v0.3.0`) or to the development
-branch (`@main`, which falls back to building from source).
+branch (`@main`), which generally runs the latest released binary for your platform and
+only falls back to building from source if no suitable pre-built binary is available.
 
 ## Inputs
 

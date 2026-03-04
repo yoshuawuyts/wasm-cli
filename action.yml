@@ -49,11 +49,22 @@ runs:
       shell: bash
       run: |
         ACTION_REF="${{ github.action_ref }}"
-        if [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+        REPO="${{ github.action_repository || 'yoshuawuyts/wasm-cli' }}"
+        if [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
           echo "tag=$ACTION_REF" >> "$GITHUB_OUTPUT"
         else
-          TAG=$(curl -sf https://api.github.com/repos/yoshuawuyts/wasm-cli/releases/latest \
-            | jq -r '.tag_name // empty') || true
+          TAG=$(curl -sf \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/releases/latest" \
+            | node -e "
+              let d='';
+              process.stdin.on('data',c=>d+=c);
+              process.stdin.on('end',()=>{
+                try{const j=JSON.parse(d);if(typeof j.tag_name==='string')process.stdout.write(j.tag_name)}
+                catch{}
+              })
+            ") || true
           if [ -n "$TAG" ]; then
             echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           else
@@ -85,7 +96,7 @@ runs:
     - name: Cache wasm CLI binary
       if: steps.version.outputs.tag != '' && steps.platform.outputs.target != ''
       id: cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ${{ runner.tool_cache }}/wasm-cli
         key: wasm-cli-${{ steps.version.outputs.tag }}-${{ runner.os }}-${{ runner.arch }}
@@ -101,7 +112,8 @@ runs:
         TAG="${{ steps.version.outputs.tag }}"
         TARGET="${{ steps.platform.outputs.target }}"
         EXT="${{ steps.platform.outputs.ext }}"
-        URL="https://github.com/yoshuawuyts/wasm-cli/releases/download/${TAG}/wasm-${TARGET}.${EXT}"
+        REPO="${{ github.action_repository || 'yoshuawuyts/wasm-cli' }}"
+        URL="https://github.com/${REPO}/releases/download/${TAG}/wasm-${TARGET}.${EXT}"
         DEST="${{ runner.tool_cache }}/wasm-cli"
         mkdir -p "$DEST"
         echo "Downloading $URL"
@@ -142,7 +154,8 @@ runs:
       shell: bash
       run: |
         if ! command -v wasm &>/dev/null; then
-          cargo install --git https://github.com/yoshuawuyts/wasm-cli.git wasm
+          REPO="${{ github.action_repository || 'yoshuawuyts/wasm-cli' }}"
+          cargo install --git "https://github.com/${REPO}.git" wasm
         fi
 
     - name: Verify wasm is available
