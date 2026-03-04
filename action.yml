@@ -117,7 +117,12 @@ runs:
             echo "ok=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          unzip -o /tmp/wasm.zip -d "$DEST"
+          if ! unzip -o /tmp/wasm.zip -d "$DEST"; then
+            echo "::warning::Failed to extract pre-built binary archive"
+            rm -f /tmp/wasm.zip
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           rm -f /tmp/wasm.zip
         fi
         if [ -f "$DEST/wasm" ]; then
