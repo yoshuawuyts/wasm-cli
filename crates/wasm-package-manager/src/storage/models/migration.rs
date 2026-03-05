@@ -43,6 +43,8 @@ pub struct Migrations {
 
 impl Migrations {
     /// Initialize the migrations table and run all pending migrations.
+    // r[impl db.migrations.create-tables]
+    // r[impl db.migrations.idempotent]
     pub(crate) fn run_all(conn: &Connection) -> anyhow::Result<()> {
         // Create the migrations table if it doesn't exist
         conn.execute_batch(include_str!("../migrations/00_migrations.sql"))?;
@@ -77,6 +79,7 @@ impl Migrations {
     }
 
     /// Returns information about the current migration state.
+    // r[impl db.migrations.info]
     pub(crate) fn get(conn: &Connection) -> Self {
         let current: u32 = conn
             .query_row(

@@ -93,6 +93,7 @@ impl WasmEntry {
     /// let entry = WasmEntry::new(PathBuf::from("pkg/module.wasm"));
     /// assert_eq!(entry.path(), PathBuf::from("pkg/module.wasm"));
     /// ```
+    // r[impl detector.entry-methods]
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
@@ -193,6 +194,7 @@ impl WasmDetector {
     /// # Errors
     ///
     /// Returns an error if the detection fails to complete.
+    // r[impl detector.convenience]
     pub fn detect(&self) -> Result<Vec<WasmEntry>, ignore::Error> {
         self.iter().collect()
     }
@@ -204,6 +206,9 @@ impl WasmDetector {
     }
 
     /// Find all well-known wasm directories that exist in the root.
+    // r[impl detector.target-dir]
+    // r[impl detector.pkg-dir]
+    // r[impl detector.dist-dir]
     fn find_well_known_dirs(&self) -> Vec<PathBuf> {
         let mut dirs = Vec::new();
 
@@ -300,6 +305,9 @@ impl std::fmt::Debug for WasmDetectorIter {
     }
 }
 
+// r[impl detector.find-wasm]
+// r[impl detector.gitignore]
+// r[impl detector.empty-dir]
 impl WasmDetectorIter {
     fn new(detector: &WasmDetector) -> Self {
         // Build the main walker that respects gitignore

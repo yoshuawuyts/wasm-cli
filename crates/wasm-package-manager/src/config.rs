@@ -57,6 +57,7 @@ const DEFAULT_CONFIG: &str = r#"# wasm(1) configuration file
 /// assert!(config.registries.is_empty());
 /// assert!(config.run.is_none());
 /// ```
+// r[impl config.default]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -205,6 +206,7 @@ impl Config {
     /// assert!(merged.registries.contains_key("ghcr.io"));
     /// assert!(merged.registries.contains_key("my-registry.io"));
     /// ```
+    // r[impl config.local-overrides]
     #[must_use]
     pub fn merge(mut self, other: Self) -> Self {
         for (name, registry) in other.registries {
@@ -238,6 +240,8 @@ impl Config {
     /// let config = Config::load_from_path(Path::new("/etc/wasm/config.toml"))?;
     /// # Ok::<(), anyhow::Error>(())
     /// ```
+    // r[impl config.load-missing]
+    // r[impl config.load-valid]
     pub fn load_from_path(config_path: &Path) -> Result<Self> {
         if !config_path.exists() {
             return Ok(Self::default());
@@ -430,6 +434,8 @@ impl Config {
     /// assert!(path.exists());
     /// # Ok::<(), anyhow::Error>(())
     /// ```
+    // r[impl config.ensure-exists]
+    // r[impl config.ensure-idempotent]
     pub fn ensure_exists_at(config_dir: Option<PathBuf>) -> Result<PathBuf> {
         let config_path = Self::config_path_from(config_dir);
 
@@ -475,6 +481,8 @@ impl Config {
     /// }
     /// # Ok::<(), anyhow::Error>(())
     /// ```
+    // r[impl config.credentials.cache]
+    // r[impl config.credentials.no-helper]
     pub fn get_credentials(&self, registry: &str) -> Result<Option<(String, String)>> {
         // Check cache first - if lock is poisoned, skip cache and fetch fresh credentials
         if let Ok(cache) = self.credential_cache.cache.read()

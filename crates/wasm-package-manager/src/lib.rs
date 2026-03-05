@@ -65,6 +65,10 @@ pub use progress::ProgressEvent;
 /// assert_eq!(format_size(1_048_576), "1.00 MB");
 /// assert_eq!(format_size(1_073_741_824), "1.00 GB");
 /// ```
+// r[impl format.size.bytes]
+// r[impl format.size.kilobytes]
+// r[impl format.size.megabytes]
+// r[impl format.size.gigabytes]
 #[must_use]
 pub fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;

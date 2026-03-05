@@ -20,6 +20,10 @@ const DIGEST_PREFIX_LEN: usize = 12;
 /// let name = vendor_filename("ghcr.io", "user/repo", Some("v1.0"), "sha256:abcdef1234567890");
 /// assert_eq!(name, "ghcr-io-user-repo-v1.0-abcdef123456.wasm");
 /// ```
+// r[impl manager.vendor-filename.basic]
+// r[impl manager.vendor-filename.nested]
+// r[impl manager.vendor-filename.no-tag]
+// r[impl manager.vendor-filename.short-digest]
 #[must_use]
 pub fn vendor_filename(
     registry: &str,
@@ -54,6 +58,9 @@ pub fn vendor_filename(
 /// // Recently synced — skip.
 /// assert!(!should_sync(Some(1000), 3600, 2000));
 /// ```
+// r[impl manager.sync.fresh]
+// r[impl manager.sync.stale]
+// r[impl manager.sync.no-previous]
 #[must_use]
 pub fn should_sync(last_synced_epoch: Option<i64>, sync_interval: u64, now_epoch: i64) -> bool {
     match last_synced_epoch {
@@ -77,6 +84,10 @@ pub fn should_sync(last_synced_epoch: Option<i64>, sync_interval: u64, now_epoch
 /// assert_eq!(sanitize_to_wit_identifier("123fetch"), Some("fetch".to_string()));
 /// assert_eq!(sanitize_to_wit_identifier("!!!"), None);
 /// ```
+// r[impl manager.name.sanitize.valid]
+// r[impl manager.name.sanitize.uppercase]
+// r[impl manager.name.sanitize.underscores]
+// r[impl manager.name.sanitize.leading-digits]
 #[must_use]
 pub fn sanitize_to_wit_identifier(input: &str) -> Option<String> {
     // Lowercase and replace non-alphanumeric characters with hyphens.
@@ -130,6 +141,10 @@ pub fn sanitize_to_wit_identifier(input: &str) -> Option<String> {
 /// );
 /// assert_eq!(name, "wasi:http");
 /// ```
+// r[impl manager.name.last-segment]
+// r[impl manager.name.wit-package]
+// r[impl manager.name.oci-title]
+// r[impl manager.name.collision]
 #[must_use]
 pub fn derive_component_name<S: std::hash::BuildHasher>(
     package_name: Option<&str>,

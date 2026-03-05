@@ -78,6 +78,22 @@ jobs:
           exit 1
         fi
 
+    - name: Check minimum implementation coverage
+      run: |
+        coverage=$(tracey query status --json)
+        total=$(echo "$coverage" | jq -e '.impls[0].totalRules') || { echo "::error::Failed to read totalRules from tracey output"; exit 1; }
+        covered=$(echo "$coverage" | jq -e '.impls[0].coveredRules') || { echo "::error::Failed to read coveredRules from tracey output"; exit 1; }
+        if [ "$total" -eq 0 ]; then
+          echo "::error::No spec rules found"
+          exit 1
+        fi
+        percent=$((covered * 100 / total))
+        echo "Implementation coverage: ${covered}/${total} (${percent}%)"
+        if [ "$percent" -lt 10 ]; then
+          echo "::error::Implementation coverage ${percent}% is below the minimum threshold of 10%"
+          exit 1
+        fi
+
   check_docs:
     name: Checking docs
     runs-on: ubuntu-latest

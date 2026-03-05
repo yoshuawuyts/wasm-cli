@@ -30,6 +30,10 @@ use std::process::Command;
 ///     password: "/path/to/get-pass.sh".into(),
 /// };
 /// ```
+// r[impl credential.no-leak-debug]
+// r[impl credential.no-leak-display]
+// r[impl credential.json]
+// r[impl credential.split]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CredentialHelper {
