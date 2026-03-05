@@ -172,7 +172,7 @@ mod tests {
         let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
 
         let manifest_json = serde_json::to_string(&OciImageManifest::default()).unwrap();
-        let (mid, _) = OciManifest::upsert(
+        let (_mid, _) = OciManifest::upsert(
             &conn,
             repo_id,
             "sha256:valid",
