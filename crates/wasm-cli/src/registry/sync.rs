@@ -31,10 +31,7 @@ impl SyncOpts {
                 println!("Already up to date (synced recently)");
             }
             SyncResult::Degraded { error } => {
-                return Err(super::errors::SyncError::Degraded {
-                    reason: error.clone(),
-                }
-                .into());
+                return Err(super::errors::SyncError::Degraded { reason: error }.into());
             }
         }
 

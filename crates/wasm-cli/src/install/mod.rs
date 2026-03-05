@@ -458,7 +458,7 @@ fn reference_from_dependency(dep: &wasm_manifest::Dependency) -> anyhow::Result<
         } => format!("{registry}/{namespace}/{package}:{version}"),
     };
     crate::util::parse_reference(&s)
-        .map_err(|e| InstallError::InvalidReference { reason: e.clone() }.into())
+        .map_err(|e| InstallError::InvalidReference { reason: e }.into())
 }
 
 /// Resolve CLI install inputs into `(Reference, update_manifest)` pairs.
