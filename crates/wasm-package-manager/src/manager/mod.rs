@@ -2,6 +2,7 @@ use oci_client::Reference;
 use std::path::Path;
 use tokio_stream::StreamExt;
 
+mod errors;
 mod logic;
 mod models;
 
@@ -11,6 +12,7 @@ use crate::progress::ProgressEvent;
 use crate::storage::{KnownPackage, StateInfo, Store};
 use crate::types::WitPackage;
 
+pub use errors::ManagerError;
 pub use logic::{derive_component_name, sanitize_to_wit_identifier, should_sync, vendor_filename};
 pub use models::{InstallResult, PullResult, SyncPolicy, SyncResult};
 
@@ -123,7 +125,7 @@ impl Manager {
     /// Returns an error if offline mode is enabled.
     pub async fn pull(&self, reference: Reference) -> anyhow::Result<PullResult> {
         if self.offline {
-            anyhow::bail!("cannot pull packages in offline mode");
+            return Err(ManagerError::OfflinePull.into());
         }
 
         let image = self.client.pull(&reference).await?;
@@ -172,7 +174,7 @@ impl Manager {
         progress_tx: &tokio::sync::mpsc::Sender<ProgressEvent>,
     ) -> anyhow::Result<PullResult> {
         if self.offline {
-            anyhow::bail!("cannot pull packages in offline mode");
+            return Err(ManagerError::OfflinePull.into());
         }
 
         // Fetch manifest and config
@@ -656,7 +658,7 @@ impl Manager {
     /// Returns an error if offline mode is enabled or if network operations fail.
     pub async fn index_package(&self, reference: &Reference) -> anyhow::Result<KnownPackage> {
         if self.offline {
-            anyhow::bail!("cannot index packages in offline mode");
+            return Err(ManagerError::OfflineIndex.into());
         }
 
         // Discover available tags first — the reference may not carry a valid
@@ -704,10 +706,11 @@ impl Manager {
         }
 
         // Return the indexed package.
-        self.store
+        Ok(self
+            .store
             .get_known_package(reference.registry(), reference.repository())?
             .map(KnownPackage::from)
-            .ok_or_else(|| anyhow::anyhow!("failed to retrieve indexed package"))
+            .ok_or(ManagerError::IndexRetrievalFailed)?)
     }
 
     /// Get all WIT interfaces with their associated component references.
@@ -776,9 +779,10 @@ impl Manager {
             Err(e) if has_cached_data => Ok(SyncResult::Degraded {
                 error: e.to_string(),
             }),
-            Err(e) => Err(anyhow::anyhow!(
-                "{e}. No local data available. Please check your network connection and run 'wasm package sync' to fetch the package index."
-            )),
+            Err(e) => Err(ManagerError::SyncNoLocalData {
+                reason: e.to_string(),
+            }
+            .into()),
         }
     }
 

@@ -6,9 +6,12 @@
 //! sandboxed by default — WASI capabilities (env, filesystem, network, stdio)
 //! are only granted through CLI flags or layered config.
 
+mod errors;
+
 use std::path::PathBuf;
 
-use miette::{Context, IntoDiagnostic, bail};
+use errors::RunError;
+use miette::{Context, IntoDiagnostic};
 use wasmparser::{Encoding, Parser, Payload};
 use wasmtime::component::Component;
 use wasmtime::{Engine, Store};
@@ -224,18 +227,19 @@ fn validate_component(bytes: &[u8]) -> miette::Result<()> {
             Ok(Payload::Version { encoding, .. }) => {
                 return match encoding {
                     Encoding::Component => Ok(()),
-                    Encoding::Module => {
-                        bail!(
-                            "only Wasm Components can be executed; this appears to be a core module"
-                        )
-                    }
+                    Encoding::Module => Err(RunError::CoreModule.into()),
                 };
             }
-            Err(e) => bail!("invalid Wasm binary: {e}"),
+            Err(e) => {
+                return Err(RunError::InvalidBinary {
+                    reason: e.to_string(),
+                }
+                .into());
+            }
             _ => {}
         }
     }
-    bail!("invalid Wasm binary: no version header found")
+    Err(RunError::NoVersionHeader.into())
 }
 
 /// Build the Wasmtime runtime, instantiate the component, and invoke
@@ -345,20 +349,20 @@ fn resolve_manifest_key(input: &str) -> miette::Result<Option<PathBuf>> {
         .components
         .iter()
         .find(|p| p.name == input)
-        .ok_or_else(|| {
-            miette::miette!(
-                "component '{input}' is in the manifest but not in the lockfile; run `wasm install` first"
-            )
+        .ok_or_else(|| RunError::NotInLockfile {
+            name: input.to_string(),
         })?;
 
     // Reconstruct the vendor filename from lockfile data.
     // The lockfile `registry` field is "host/repository" (e.g., "ghcr.io/user/repo").
-    let (registry_host, repository) = package.registry.split_once('/').ok_or_else(|| {
-        miette::miette!(
-            "invalid registry path '{}' in lockfile for '{input}'",
-            package.registry
-        )
-    })?;
+    let (registry_host, repository) =
+        package
+            .registry
+            .split_once('/')
+            .ok_or_else(|| RunError::InvalidRegistryPath {
+                path: package.registry.clone(),
+                name: input.to_string(),
+            })?;
 
     let filename = wasm_package_manager::manager::vendor_filename(
         registry_host,
@@ -369,11 +373,11 @@ fn resolve_manifest_key(input: &str) -> miette::Result<Option<PathBuf>> {
 
     let vendored_path = PathBuf::from("deps/vendor/wasm").join(filename);
     if !vendored_path.exists() {
-        return Err(miette::miette!(
-            "vendored file '{}' not found; run `wasm install {}` first",
-            vendored_path.display(),
-            input
-        ));
+        return Err(RunError::VendoredFileMissing {
+            path: vendored_path.display().to_string(),
+            name: input.to_string(),
+        }
+        .into());
     }
 
     Ok(Some(vendored_path))
@@ -394,14 +398,9 @@ async fn fetch_oci_bytes(
         .pull(oci_ref.clone())
         .await
         .map_err(crate::util::into_miette)?;
-    let manifest = pull_result
-        .manifest
-        .as_ref()
-        .ok_or_else(|| miette::miette!("pulled image has no manifest"))?;
+    let manifest = pull_result.manifest.as_ref().ok_or(RunError::NoManifest)?;
     let wasm_layers = wasm_package_manager::oci::filter_wasm_layers(&manifest.layers);
-    let layer = wasm_layers
-        .first()
-        .ok_or_else(|| miette::miette!("manifest contains no application/wasm layer"))?;
+    let layer = wasm_layers.first().ok_or(RunError::NoWasmLayer)?;
     let key = &layer.digest;
     manager
         .get(key)

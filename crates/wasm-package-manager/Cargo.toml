@@ -21,6 +21,7 @@ http-sync = ["wasm-meta-registry-client/client", "serde"]
 [dependencies]
 anyhow = { workspace = true }
 cacache = { workspace = true }
+miette = { workspace = true }
 dirs = { workspace = true }
 docker_credential = { workspace = true }
 futures-concurrency = { workspace = true }

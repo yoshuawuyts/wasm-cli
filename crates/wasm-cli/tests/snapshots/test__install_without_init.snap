@@ -2,7 +2,9 @@
 source: crates/wasm-cli/tests/test.rs
 expression: stderr
 ---
-Error:   × no local `wasm.toml` manifest found
+Error: wasm::install::no_manifest
+
+  × no local `wasm.toml` manifest found
   help: call `wasm init` to create a `wasm.toml` manifest locally
         call `wasm registry fetch <component>` to fetch the package without
         affecting the local manifest

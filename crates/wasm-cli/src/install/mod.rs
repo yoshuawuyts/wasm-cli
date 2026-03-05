@@ -1,5 +1,7 @@
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
+mod errors;
+
 use futures_concurrency::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use miette::{IntoDiagnostic, WrapErr};
@@ -8,6 +10,7 @@ use wasm_package_manager::types::DependencyItem;
 use wasm_package_manager::{ProgressEvent, Reference};
 
 use crate::util::write_lock_file;
+use errors::InstallError;
 
 /// Options for the `install` command.
 #[derive(clap::Parser)]
@@ -30,10 +33,7 @@ impl Opts {
 
         // Abort early if `wasm.toml` does not exist — guide the user
         if !manifest_path.exists() {
-            return Err(miette::miette!(
-                help = "call `wasm init` to create a `wasm.toml` manifest locally\ncall `wasm registry fetch <component>` to fetch the package without affecting the local manifest",
-                "no local `wasm.toml` manifest found"
-            ));
+            return Err(InstallError::NoManifest.into());
         }
 
         // Read existing manifest

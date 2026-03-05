@@ -1,10 +1,12 @@
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
+mod errors;
 mod resolver;
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
+use errors::ComposeError;
 
 /// How to link dependencies in the composed component.
 #[derive(Clone, Debug, Default, clap::ValueEnum)]
@@ -40,7 +42,7 @@ impl Opts {
         let wac_files = self.collect_wac_files()?;
 
         if wac_files.is_empty() {
-            bail!("no .wac files found; add files to `seams/`");
+            return Err(ComposeError::NoWacFiles.into());
         }
 
         std::fs::create_dir_all(&self.output).with_context(|| {
@@ -64,7 +66,7 @@ impl Opts {
         if let Some(ref name) = self.name {
             // Reject names with path separators or traversal sequences.
             if name.contains('/') || name.contains('\\') || name.contains("..") {
-                bail!("invalid composition name '{name}': must be a plain name, not a path");
+                return Err(ComposeError::InvalidName { name: name.clone() }.into());
             }
 
             // Treat the argument as a name and look under seams/
@@ -75,17 +77,23 @@ impl Opts {
 
             // Not found — list what's available
             let available = Self::list_available_wac_files(&seams_dir);
-            if available.is_empty() {
-                bail!("WAC file 'seams/{name}.wac' not found and no .wac files exist in `seams/`");
+            let hint = if available.is_empty() {
+                "no .wac files exist in `seams/`".to_string()
+            } else {
+                format!(
+                    "available WAC files:\n{}",
+                    available
+                        .iter()
+                        .map(|f| format!("  - {f}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            };
+            return Err(ComposeError::WacNotFound {
+                name: name.clone(),
+                hint,
             }
-            bail!(
-                "WAC file 'seams/{name}.wac' not found. Available WAC files:\n{}",
-                available
-                    .iter()
-                    .map(|f| format!("  - {f}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
+            .into());
         }
 
         // No name given — compose all .wac files in seams/
