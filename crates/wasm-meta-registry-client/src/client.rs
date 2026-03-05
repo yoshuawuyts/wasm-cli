@@ -9,6 +9,31 @@ use exponential_backoff::Backoff;
 use crate::KnownPackage;
 
 /// Result of fetching packages from the meta-registry.
+///
+/// # Example
+///
+/// ```rust
+/// use wasm_meta_registry_client::{KnownPackage, FetchResult};
+///
+/// let result = FetchResult::Updated {
+///     packages: vec![KnownPackage {
+///         registry: "ghcr.io".into(),
+///         repository: "user/repo".into(),
+///         description: None,
+///         tags: vec!["v1.0".into()],
+///         signature_tags: vec![],
+///         attestation_tags: vec![],
+///         last_seen_at: String::new(),
+///         created_at: String::new(),
+///     }],
+///     etag: Some("\"abc123\"".into()),
+/// };
+///
+/// if let FetchResult::Updated { packages, etag } = result {
+///     assert_eq!(packages.len(), 1);
+///     assert!(etag.is_some());
+/// }
+/// ```
 #[derive(Debug)]
 pub enum FetchResult {
     /// The server returned 304 Not Modified; local data is still fresh.
@@ -23,6 +48,22 @@ pub enum FetchResult {
 }
 
 /// HTTP client for the meta-registry's `/v1/packages` endpoint.
+///
+/// # Example
+///
+/// ```no_run
+/// use wasm_meta_registry_client::{RegistryClient, FetchResult};
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     let client = RegistryClient::new("http://localhost:3000");
+///     let result = client.fetch_packages(None, 100).await?;
+///     if let FetchResult::Updated { packages, .. } = result {
+///         println!("fetched {} packages", packages.len());
+///     }
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug)]
 pub struct RegistryClient {
     base_url: String,
@@ -31,6 +72,14 @@ pub struct RegistryClient {
 
 impl RegistryClient {
     /// Create a new registry client pointing at `base_url`.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use wasm_meta_registry_client::RegistryClient;
+    ///
+    /// let client = RegistryClient::new("http://localhost:3000");
+    /// ```
     #[must_use]
     pub fn new(base_url: &str) -> Self {
         // The builder only fails if a TLS backend cannot be initialized,
@@ -55,6 +104,31 @@ impl RegistryClient {
     /// # Errors
     ///
     /// Returns an error if all retry attempts fail.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use wasm_meta_registry_client::{RegistryClient, FetchResult};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> anyhow::Result<()> {
+    ///     let client = RegistryClient::new("http://localhost:3000");
+    ///
+    ///     // First fetch without an ETag.
+    ///     let result = client.fetch_packages(None, 50).await?;
+    ///     let etag = match result {
+    ///         FetchResult::Updated { packages, etag } => {
+    ///             println!("got {} packages", packages.len());
+    ///             etag
+    ///         }
+    ///         FetchResult::NotModified => None,
+    ///     };
+    ///
+    ///     // Subsequent fetch with the ETag for conditional update.
+    ///     let _result = client.fetch_packages(etag.as_deref(), 50).await?;
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn fetch_packages(
         &self,
         etag: Option<&str>,

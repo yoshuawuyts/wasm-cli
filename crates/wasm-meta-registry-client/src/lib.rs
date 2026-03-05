@@ -41,6 +41,25 @@ pub use client::{FetchResult, RegistryClient};
 /// This type matches the JSON schema returned by the `/v1/packages` endpoint
 /// and is the primary wire type shared between the meta-registry server and
 /// its clients.
+///
+/// # Example
+///
+/// ```rust
+/// use wasm_meta_registry_client::KnownPackage;
+///
+/// let pkg = KnownPackage {
+///     registry: "ghcr.io".into(),
+///     repository: "user/my-component".into(),
+///     description: Some("A useful component".into()),
+///     tags: vec!["v1.0.0".into(), "latest".into()],
+///     signature_tags: vec![],
+///     attestation_tags: vec![],
+///     last_seen_at: "2025-01-01T00:00:00Z".into(),
+///     created_at: "2024-06-15T12:00:00Z".into(),
+/// };
+///
+/// assert_eq!(pkg.reference(), "ghcr.io/user/my-component");
+/// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct KnownPackage {
     /// Registry hostname (e.g. `"ghcr.io"`).
@@ -65,12 +84,53 @@ pub struct KnownPackage {
 
 impl KnownPackage {
     /// Returns the full reference string for this package (e.g., `"ghcr.io/user/repo"`).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use wasm_meta_registry_client::KnownPackage;
+    ///
+    /// let pkg = KnownPackage {
+    ///     registry: "ghcr.io".into(),
+    ///     repository: "user/repo".into(),
+    ///     description: None,
+    ///     tags: vec![],
+    ///     signature_tags: vec![],
+    ///     attestation_tags: vec![],
+    ///     last_seen_at: String::new(),
+    ///     created_at: String::new(),
+    /// };
+    ///
+    /// assert_eq!(pkg.reference(), "ghcr.io/user/repo");
+    /// ```
     #[must_use]
     pub fn reference(&self) -> String {
         format!("{}/{}", self.registry, self.repository)
     }
 
     /// Returns the full reference string with the most recent tag.
+    ///
+    /// Uses the first tag in [`tags`](KnownPackage::tags), or `"latest"` when
+    /// no tags are present.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use wasm_meta_registry_client::KnownPackage;
+    ///
+    /// let pkg = KnownPackage {
+    ///     registry: "ghcr.io".into(),
+    ///     repository: "user/repo".into(),
+    ///     description: None,
+    ///     tags: vec!["v1.0".into(), "latest".into()],
+    ///     signature_tags: vec![],
+    ///     attestation_tags: vec![],
+    ///     last_seen_at: String::new(),
+    ///     created_at: String::new(),
+    /// };
+    ///
+    /// assert_eq!(pkg.reference_with_tag(), "ghcr.io/user/repo:v1.0");
+    /// ```
     #[must_use]
     pub fn reference_with_tag(&self) -> String {
         if let Some(tag) = self.tags.first() {
