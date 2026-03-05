@@ -28,21 +28,27 @@ impl Opts {
         let wasm_vendor_dir = deps.join("vendor/wasm");
         let wit_vendor_dir = deps.join("vendor/wit");
 
-        // Read existing manifest — error if not found, recommend `wasm init`
+        // Abort early if `wasm.toml` does not exist — guide the user
+        if !manifest_path.exists() {
+            return Err(miette::miette!(
+                help = "call `wasm init` to create a `wasm.toml` manifest locally\ncall `wasm registry fetch <component>` to fetch the package without affecting the local manifest",
+                "no local `wasm.toml` manifest found"
+            ));
+        }
+
+        // Read existing manifest
         let manifest_str = tokio::fs::read_to_string(&manifest_path)
             .await
             .into_diagnostic()
-            .wrap_err_with(|| format!("could not read '{}'", manifest_path.display()))
-            .wrap_err("Run `wasm init` first to create the project files")?;
+            .wrap_err_with(|| format!("could not read '{}'", manifest_path.display()))?;
         let mut manifest: wasm_manifest::Manifest =
             toml::from_str(&manifest_str).into_diagnostic()?;
 
-        // Read existing lockfile — error if not found, recommend `wasm init`
+        // Read existing lockfile
         let lockfile_str = tokio::fs::read_to_string(&lockfile_path)
             .await
             .into_diagnostic()
-            .wrap_err_with(|| format!("could not read '{}'", lockfile_path.display()))
-            .wrap_err("Run `wasm init` first to create the project files")?;
+            .wrap_err_with(|| format!("could not read '{}'", lockfile_path.display()))?;
         let mut lockfile: wasm_manifest::Lockfile =
             toml::from_str(&lockfile_str).into_diagnostic()?;
 

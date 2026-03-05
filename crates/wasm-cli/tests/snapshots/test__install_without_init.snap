@@ -2,6 +2,7 @@
 source: crates/wasm-cli/tests/test.rs
 expression: stderr
 ---
-Error:   × Run `wasm init` first to create the project files
-  ├─▶ could not read 'deps/wasm.toml'
-  ╰─▶ No such file or directory (os error 2)
+Error:   × no local `wasm.toml` manifest found
+  help: call `wasm init` to create a `wasm.toml` manifest locally
+        call `wasm registry fetch <component>` to fetch the package without
+        affecting the local manifest

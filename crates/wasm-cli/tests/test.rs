@@ -583,6 +583,7 @@ fn test_install_help_snapshot() {
     assert_snapshot!(output);
 }
 
+// r[verify install.no-manifest]
 #[test]
 fn test_install_without_init() {
     let dir = TempDir::new().expect("Failed to create temp dir");
