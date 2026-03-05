@@ -29,15 +29,19 @@ impl InspectOpts {
         let reference = self.reference;
         let pull_result = store.pull(reference.clone()).await?;
 
-        let manifest = pull_result
-            .manifest
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("No manifest found for '{}'", reference.whole()))?;
+        let manifest = pull_result.manifest.as_ref().ok_or_else(|| {
+            super::errors::InspectError::NoManifest {
+                reference: reference.whole().clone(),
+            }
+        })?;
 
         let wasm_layers = filter_wasm_layers(&manifest.layers);
-        let layer = wasm_layers
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No wasm layers found for '{}'", reference.whole()))?;
+        let layer =
+            wasm_layers
+                .first()
+                .ok_or_else(|| super::errors::InspectError::NoWasmLayer {
+                    reference: reference.whole().clone(),
+                })?;
 
         let data = store.get(&layer.digest).await?;
         let payload = Payload::from_binary(&data)?;

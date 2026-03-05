@@ -52,25 +52,27 @@ pub fn filter_wasm_layers(layers: &[OciDescriptor]) -> Vec<&OciDescriptor> {
 ///
 /// # Errors
 ///
-/// Returns an error if the bundle has zero or more than one layer, or if
-/// the single layer does not have the `application/wasm` media type.
+/// Returns an [`OciLayerError`] if the bundle has zero or more than one
+/// layer, or if the single layer does not have the `application/wasm`
+/// media type.
 // r[impl oci.layers.reject-multi]
 // r[impl oci.layers.require-wasm-content-type]
-pub fn validate_single_wasm_layer(layers: &[OciDescriptor]) -> anyhow::Result<()> {
-    anyhow::ensure!(
-        layers.len() == 1,
-        "expected exactly 1 layer in OCI bundle, found {}; \
-         see https://tag-runtime.cncf.io/wgs/wasm/deliverables/wasm-oci-artifact/#faq",
-        layers.len()
-    );
+pub fn validate_single_wasm_layer(
+    layers: &[OciDescriptor],
+) -> Result<(), super::errors::OciLayerError> {
+    if layers.len() != 1 {
+        return Err(super::errors::OciLayerError::InvalidLayerCount {
+            found: layers.len(),
+        });
+    }
     let layer = layers
         .first()
         .expect("length checked to be 1 on the line above");
-    anyhow::ensure!(
-        layer.media_type == "application/wasm",
-        "expected layer media type `application/wasm`, found `{}`",
-        layer.media_type
-    );
+    if layer.media_type != "application/wasm" {
+        return Err(super::errors::OciLayerError::InvalidMediaType {
+            found: layer.media_type.clone(),
+        });
+    }
     Ok(())
 }
 

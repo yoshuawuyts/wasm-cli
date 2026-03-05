@@ -6,6 +6,7 @@ use wasm_package_manager::manager::Manager;
 use wasm_package_manager::oci::{ImageEntry, InsertResult};
 use wasm_package_manager::{Reference, format_size};
 
+mod errors;
 mod inspect;
 mod search;
 mod sync;

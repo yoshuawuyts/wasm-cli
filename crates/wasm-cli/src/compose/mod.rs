@@ -1,10 +1,12 @@
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
+mod errors;
 mod resolver;
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
+use errors::ComposeError;
 
 /// How to link dependencies in the composed component.
 #[derive(Clone, Debug, Default, clap::ValueEnum)]
@@ -40,7 +42,7 @@ impl Opts {
         let wac_files = self.collect_wac_files()?;
 
         if wac_files.is_empty() {
-            bail!("no .wac files found; add files to `seams/`");
+            return Err(ComposeError::NoWacFiles.into());
         }
 
         std::fs::create_dir_all(&self.output).with_context(|| {
@@ -64,7 +66,7 @@ impl Opts {
         if let Some(ref name) = self.name {
             // Reject names with path separators or traversal sequences.
             if name.contains('/') || name.contains('\\') || name.contains("..") {
-                bail!("invalid composition name '{name}': must be a plain name, not a path");
+                return Err(ComposeError::InvalidName { name: name.clone() }.into());
             }
 
             // Treat the argument as a name and look under seams/
@@ -75,17 +77,23 @@ impl Opts {
 
             // Not found — list what's available
             let available = Self::list_available_wac_files(&seams_dir);
-            if available.is_empty() {
-                bail!("WAC file 'seams/{name}.wac' not found and no .wac files exist in `seams/`");
+            let hint = if available.is_empty() {
+                "no .wac files exist in `seams/`".to_string()
+            } else {
+                format!(
+                    "available WAC files:\n{}",
+                    available
+                        .iter()
+                        .map(|f| format!("  - {f}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            };
+            return Err(ComposeError::WacNotFound {
+                name: name.clone(),
+                hint,
             }
-            bail!(
-                "WAC file 'seams/{name}.wac' not found. Available WAC files:\n{}",
-                available
-                    .iter()
-                    .map(|f| format!("  - {f}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
+            .into());
         }
 
         // No name given — compose all .wac files in seams/
@@ -132,29 +140,37 @@ impl Opts {
         let source = std::fs::read_to_string(wac_file)
             .with_context(|| format!("could not read '{}'", wac_file.display()))?;
 
-        let document = wac_parser::Document::parse(&source)
-            .map_err(|e| anyhow::anyhow!("parse error in '{}': {e}", wac_file.display()))?;
+        let document =
+            wac_parser::Document::parse(&source).map_err(|e| ComposeError::ParseFailed {
+                file: wac_file.display().to_string(),
+                reason: e.to_string(),
+            })?;
 
         let base = std::env::current_dir().context("could not determine current directory")?;
         let fs_resolver = resolver::build_resolver(&base)?;
 
         let keys = wac_resolver::packages(&document).map_err(|e| {
-            anyhow::anyhow!(
-                "could not determine packages in '{}': {e}",
-                wac_file.display()
-            )
+            ComposeError::PackageDiscoveryFailed {
+                file: wac_file.display().to_string(),
+                reason: e.to_string(),
+            }
         })?;
 
-        let packages = fs_resolver.resolve(&keys).map_err(|e| {
-            anyhow::anyhow!(
-                "could not resolve packages for '{}': {e}",
-                wac_file.display()
-            )
-        })?;
+        let packages =
+            fs_resolver
+                .resolve(&keys)
+                .map_err(|e| ComposeError::PackageResolutionFailed {
+                    file: wac_file.display().to_string(),
+                    reason: e.to_string(),
+                })?;
 
-        let resolution = document
-            .resolve(packages)
-            .map_err(|e| anyhow::anyhow!("resolution error in '{}': {e}", wac_file.display()))?;
+        let resolution =
+            document
+                .resolve(packages)
+                .map_err(|e| ComposeError::ResolutionFailed {
+                    file: wac_file.display().to_string(),
+                    reason: e.to_string(),
+                })?;
 
         let mut encode_options = wac_graph::EncodeOptions::default();
         if matches!(self.linker, LinkerMode::Dynamic) {
@@ -163,7 +179,10 @@ impl Opts {
 
         let bytes = resolution
             .encode(encode_options)
-            .map_err(|e| anyhow::anyhow!("encode error for '{}': {e}", wac_file.display()))?;
+            .map_err(|e| ComposeError::EncodeFailed {
+                file: wac_file.display().to_string(),
+                reason: e.to_string(),
+            })?;
 
         let stem = wac_file
             .file_stem()

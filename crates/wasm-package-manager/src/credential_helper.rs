@@ -5,8 +5,41 @@
 //! - Split: Separate commands for username and password
 
 use anyhow::{Context, Result};
+use miette::Diagnostic;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+
+/// Error type for credential helper failures.
+///
+/// Each variant carries a stable [diagnostic error code][miette::Diagnostic::code]
+/// that uniquely identifies the failure.
+#[derive(Debug, Clone, PartialEq, Eq, Diagnostic)]
+#[must_use]
+pub enum CredentialError {
+    /// An external credential helper command exited with a non-zero status.
+    #[diagnostic(
+        code(wasm::credential::command_failed),
+        help("command exited with {status}: {stderr}")
+    )]
+    CommandFailed {
+        /// The exit status of the command.
+        status: String,
+        /// Trimmed stderr output from the command.
+        stderr: String,
+    },
+}
+
+impl std::fmt::Display for CredentialError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CredentialError::CommandFailed { status, .. } => {
+                write!(f, "credential helper command exited with status {status}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CredentialError {}
 
 /// Credential helper configuration.
 ///
@@ -154,11 +187,11 @@ fn execute_shell_command(cmd: &str) -> Result<String> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!(
-            "Command exited with status {}: {}",
-            output.status,
-            stderr.trim()
-        );
+        return Err(CredentialError::CommandFailed {
+            status: output.status.to_string(),
+            stderr: stderr.trim().to_string(),
+        }
+        .into());
     }
 
     let stdout = String::from_utf8(output.stdout).context("Command output was not valid UTF-8")?;
@@ -288,5 +321,26 @@ mod tests {
         );
         // The credential helper struct stores commands, not credentials,
         // so Debug can never leak actual credential values
+    }
+
+    #[test]
+    fn test_all_variants_have_error_codes() {
+        use miette::Diagnostic;
+
+        let cmd_failed = CredentialError::CommandFailed {
+            status: "exit status: 1".to_string(),
+            stderr: "bad credentials".to_string(),
+        };
+        assert_eq!(
+            cmd_failed
+                .code()
+                .expect("CommandFailed must have a diagnostic code")
+                .to_string(),
+            "wasm::credential::command_failed",
+        );
+        assert!(
+            cmd_failed.help().is_some(),
+            "CommandFailed must have a help message"
+        );
     }
 }

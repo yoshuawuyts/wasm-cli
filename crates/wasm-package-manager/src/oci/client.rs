@@ -183,7 +183,7 @@ fn resolve_auth(reference: &Reference, config: &Config) -> anyhow::Result<Regist
             Ok(RegistryAuth::Basic(username, password))
         }
         Ok(DockerCredential::IdentityToken(_)) => {
-            Err(anyhow::anyhow!("identity tokens not supported"))
+            Err(crate::oci::OciLayerError::IdentityTokenNotSupported.into())
         }
         Err(_) => Ok(RegistryAuth::Anonymous),
     }

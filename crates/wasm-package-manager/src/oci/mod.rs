@@ -5,12 +5,14 @@
 //! pure logic for tag classification and layer management.
 
 mod client;
+mod errors;
 mod image_entry;
 mod logic;
 mod models;
 mod raw;
 
 pub(crate) use client::Client;
+pub use errors::OciLayerError;
 pub use image_entry::ImageEntry;
 pub use logic::{
     TagKind, classify_tag, classify_tags, compute_orphaned_layers, filter_wasm_layers,

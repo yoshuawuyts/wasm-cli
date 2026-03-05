@@ -49,7 +49,7 @@ pub mod storage;
 pub mod types;
 
 pub use config::{Config, RegistryConfig, RunConfig};
-pub use credential_helper::CredentialHelper;
+pub use credential_helper::{CredentialError, CredentialHelper};
 pub use oci_client::Reference;
 pub use progress::ProgressEvent;
 
