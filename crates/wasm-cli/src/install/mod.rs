@@ -5,12 +5,20 @@ mod errors;
 use futures_concurrency::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use miette::{IntoDiagnostic, WrapErr};
-use wasm_package_manager::manager::{InstallResult, Manager, derive_component_name};
+use wasm_package_manager::manager::{
+    InstallResult, Manager, SyncPolicy, SyncResult, derive_component_name,
+};
 use wasm_package_manager::types::DependencyItem;
 use wasm_package_manager::{ProgressEvent, Reference};
 
 use crate::util::write_lock_file;
 use errors::InstallError;
+
+/// Default meta-registry URL.
+const REGISTRY_URL: &str = "http://localhost:8080";
+
+/// Default sync interval in seconds (1 hour).
+const SYNC_INTERVAL: u64 = 3600;
 
 /// Options for the `install` command.
 #[derive(clap::Parser)]
@@ -60,6 +68,26 @@ impl Opts {
         } else {
             Manager::open().await.map_err(crate::util::into_miette)?
         };
+
+        // Sync the local package index from the meta-registry so WIT-style
+        // names and search-based lookups can be resolved.
+        if !offline {
+            match manager
+                .sync_from_meta_registry(REGISTRY_URL, SYNC_INTERVAL, SyncPolicy::IfStale)
+                .await
+            {
+                Ok(SyncResult::Degraded { error }) => {
+                    tracing::warn!("registry sync failed: {error}");
+                }
+                Err(e) => {
+                    tracing::warn!("{e}");
+                }
+                // Skipped (interval not elapsed), NotModified (ETag matched),
+                // and Updated (new data stored) are all success paths that need
+                // no user-visible output.
+                Ok(_) => {}
+            }
+        }
 
         let start_time = std::time::Instant::now();
 
