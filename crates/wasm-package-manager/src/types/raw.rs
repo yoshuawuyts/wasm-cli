@@ -315,4 +315,181 @@ mod tests {
         assert_eq!(registry, "ghcr.io");
         assert_eq!(repository, "webassembly/wasi/clocks");
     }
+
+    // r[verify db.wit-package.insert]
+    #[test]
+    fn insert_returns_id_and_is_idempotent() {
+        let conn = setup_test_db();
+
+        let id1 = RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+            .unwrap();
+        assert!(id1 > 0);
+
+        // Same insert returns the same ID (idempotent)
+        let id2 = RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+            .unwrap();
+        assert_eq!(id1, id2);
+
+        // Different version gets a different ID
+        let id3 = RawWitPackage::insert(&conn, "wasi:http", Some("0.3.0"), None, None, None, None)
+            .unwrap();
+        assert_ne!(id1, id3);
+    }
+
+    // r[verify db.wit-package.insert-with-metadata]
+    #[test]
+    fn insert_with_description_and_wit_text() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn, "ghcr.io", "webassembly/wasi/http");
+
+        let id = RawWitPackage::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            Some("HTTP types and handlers"),
+            Some("package wasi:http@0.2.0;"),
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let pkg = RawWitPackage::find(&conn, "wasi:http", Some("0.2.0"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(pkg.id(), id);
+        assert_eq!(pkg.description.as_deref(), Some("HTTP types and handlers"));
+        assert_eq!(pkg.wit_text.as_deref(), Some("package wasi:http@0.2.0;"));
+    }
+
+    // r[verify db.wit-package.find]
+    #[test]
+    fn find_returns_package_or_none() {
+        let conn = setup_test_db();
+
+        let not_found = RawWitPackage::find(&conn, "wasi:http", Some("0.2.0")).unwrap();
+        assert!(not_found.is_none());
+
+        RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None).unwrap();
+
+        let found = RawWitPackage::find(&conn, "wasi:http", Some("0.2.0"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(found.package_name, "wasi:http");
+        assert_eq!(found.version.as_deref(), Some("0.2.0"));
+    }
+
+    // r[verify db.wit-package.find-none-version]
+    #[test]
+    fn find_with_none_version() {
+        let conn = setup_test_db();
+
+        RawWitPackage::insert(&conn, "wasi:clocks", None, None, None, None, None).unwrap();
+
+        let found = RawWitPackage::find(&conn, "wasi:clocks", None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(found.package_name, "wasi:clocks");
+        assert!(found.version.is_none());
+    }
+
+    // r[verify db.wit-package.search]
+    #[test]
+    fn search_matches_name_and_description() {
+        let conn = setup_test_db();
+
+        RawWitPackage::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            Some("HTTP types"),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        RawWitPackage::insert(
+            &conn,
+            "wasi:clocks",
+            Some("0.2.0"),
+            Some("Clock functions"),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        RawWitPackage::insert(
+            &conn,
+            "wasi:io",
+            Some("0.2.0"),
+            Some("I/O streams"),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        // Search by name
+        let results = RawWitPackage::search(&conn, "http", 0, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].package_name, "wasi:http");
+
+        // Search by description
+        let results = RawWitPackage::search(&conn, "Clock", 0, 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].package_name, "wasi:clocks");
+
+        // Search with limit and offset
+        let results = RawWitPackage::search(&conn, "wasi", 0, 2).unwrap();
+        assert_eq!(results.len(), 2);
+
+        let results = RawWitPackage::search(&conn, "wasi", 2, 10).unwrap();
+        assert_eq!(results.len(), 1);
+    }
+
+    // r[verify db.wit-package.get-all]
+    #[test]
+    fn get_all_returns_ordered_results() {
+        let conn = setup_test_db();
+
+        let empty = RawWitPackage::get_all(&conn).unwrap();
+        assert!(empty.is_empty());
+
+        RawWitPackage::insert(&conn, "wasi:io", Some("0.2.0"), None, None, None, None).unwrap();
+        RawWitPackage::insert(&conn, "wasi:clocks", Some("0.1.0"), None, None, None, None).unwrap();
+        RawWitPackage::insert(&conn, "wasi:clocks", Some("0.2.0"), None, None, None, None).unwrap();
+
+        let all = RawWitPackage::get_all(&conn).unwrap();
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].package_name, "wasi:clocks");
+        assert_eq!(all[0].version.as_deref(), Some("0.1.0"));
+        assert_eq!(all[1].package_name, "wasi:clocks");
+        assert_eq!(all[1].version.as_deref(), Some("0.2.0"));
+        assert_eq!(all[2].package_name, "wasi:io");
+    }
+
+    // r[verify db.wit-package.get-all-with-images]
+    #[test]
+    fn get_all_with_images_returns_reference() {
+        let conn = setup_test_db();
+
+        let empty = RawWitPackage::get_all_with_images(&conn).unwrap();
+        assert!(empty.is_empty());
+
+        let manifest_id = insert_test_manifest(&conn, "ghcr.io", "webassembly/wasi/http");
+        RawWitPackage::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let results = RawWitPackage::get_all_with_images(&conn).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0.package_name, "wasi:http");
+        assert_eq!(results[0].1, "ghcr.io/webassembly/wasi/http");
+    }
 }

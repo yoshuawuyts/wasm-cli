@@ -117,4 +117,113 @@ mod tests {
         let entries = RawImageEntry::get_all(&conn).unwrap();
         assert!(entries.is_empty());
     }
+
+    #[test]
+    fn test_image_entry_reference_with_tag() {
+        let entry = RawImageEntry {
+            id: 1,
+            ref_registry: "ghcr.io".to_string(),
+            ref_repository: "user/repo".to_string(),
+            ref_mirror_registry: None,
+            ref_tag: Some("latest".to_string()),
+            ref_digest: Some("sha256:abc".to_string()),
+            manifest: OciImageManifest::default(),
+            size_on_disk: 1024,
+        };
+        assert_eq!(entry.reference(), "ghcr.io/user/repo:latest");
+    }
+
+    #[test]
+    fn test_image_entry_reference_with_digest_only() {
+        let entry = RawImageEntry {
+            id: 1,
+            ref_registry: "ghcr.io".to_string(),
+            ref_repository: "user/repo".to_string(),
+            ref_mirror_registry: None,
+            ref_tag: None,
+            ref_digest: Some("sha256:abc123".to_string()),
+            manifest: OciImageManifest::default(),
+            size_on_disk: 512,
+        };
+        assert_eq!(entry.reference(), "ghcr.io/user/repo@sha256:abc123");
+    }
+
+    #[test]
+    fn test_image_entry_reference_bare() {
+        let entry = RawImageEntry {
+            id: 1,
+            ref_registry: "ghcr.io".to_string(),
+            ref_repository: "user/repo".to_string(),
+            ref_mirror_registry: None,
+            ref_tag: None,
+            ref_digest: None,
+            manifest: OciImageManifest::default(),
+            size_on_disk: 0,
+        };
+        assert_eq!(entry.reference(), "ghcr.io/user/repo");
+    }
+
+    #[test]
+    fn test_image_entry_get_all_with_valid_manifest() {
+        use crate::oci::{OciManifest, OciRepository, OciTag};
+        use std::collections::HashMap;
+
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        let manifest_json = serde_json::to_string(&OciImageManifest::default()).unwrap();
+        let (_mid, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:valid",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some(&manifest_json),
+            Some(2048),
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        OciTag::upsert(&conn, repo_id, "v1.0", "sha256:valid").unwrap();
+
+        let entries = RawImageEntry::get_all(&conn).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].ref_registry, "ghcr.io");
+        assert_eq!(entries[0].ref_repository, "user/repo");
+        assert_eq!(entries[0].ref_tag.as_deref(), Some("v1.0"));
+        assert_eq!(entries[0].ref_digest.as_deref(), Some("sha256:valid"));
+        assert_eq!(entries[0].size_on_disk, 2048);
+    }
+
+    #[test]
+    fn test_image_entry_get_all_skips_invalid_json() {
+        use crate::oci::{OciManifest, OciRepository};
+        use std::collections::HashMap;
+
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        // Insert manifest with invalid JSON
+        OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:badjson",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some("{not valid json}"),
+            Some(100),
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        let entries = RawImageEntry::get_all(&conn).unwrap();
+        assert!(
+            entries.is_empty(),
+            "invalid JSON manifests should be skipped"
+        );
+    }
 }

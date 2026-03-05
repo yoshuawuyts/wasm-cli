@@ -214,3 +214,151 @@ impl ComponentTarget {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::oci::{OciManifest, OciRepository};
+    use crate::storage::Migrations;
+    use std::collections::HashMap;
+
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        Migrations::run_all(&conn).unwrap();
+        conn
+    }
+
+    fn insert_test_manifest(conn: &Connection) -> i64 {
+        let repo_id = OciRepository::upsert(conn, "ghcr.io", "user/repo").unwrap();
+        let (mid, _) = OciManifest::upsert(
+            conn,
+            repo_id,
+            "sha256:abc",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+        mid
+    }
+
+    // r[verify component.insert]
+    #[test]
+    fn test_wasm_component_insert_and_find() {
+        let conn = setup_test_db();
+        let mid = insert_test_manifest(&conn);
+
+        let id = WasmComponent::insert(&conn, mid, None, Some("my-comp"), Some("A test component"))
+            .unwrap();
+        assert!(id > 0);
+
+        let comp = WasmComponent::find_by_manifest(&conn, mid)
+            .unwrap()
+            .unwrap();
+        assert_eq!(comp.id(), id);
+        assert_eq!(comp.name.as_deref(), Some("my-comp"));
+        assert_eq!(comp.description.as_deref(), Some("A test component"));
+    }
+
+    // r[verify component.insert-idempotent]
+    #[test]
+    fn test_wasm_component_insert_idempotent() {
+        let conn = setup_test_db();
+        let mid = insert_test_manifest(&conn);
+
+        let id1 = WasmComponent::insert(&conn, mid, None, Some("comp"), None).unwrap();
+        let id2 = WasmComponent::insert(&conn, mid, None, Some("comp"), None).unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    // r[verify component.find-not-found]
+    #[test]
+    fn test_wasm_component_find_not_found() {
+        let conn = setup_test_db();
+        let result = WasmComponent::find_by_manifest(&conn, 9999).unwrap();
+        assert!(result.is_none());
+    }
+
+    // r[verify component.list-all]
+    #[test]
+    fn test_wasm_component_list_all() {
+        let conn = setup_test_db();
+        let empty = WasmComponent::list_all(&conn).unwrap();
+        assert!(empty.is_empty());
+
+        let mid = insert_test_manifest(&conn);
+        WasmComponent::insert(&conn, mid, None, Some("beta"), None).unwrap();
+
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "other/repo").unwrap();
+        let (mid2, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:def",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+        WasmComponent::insert(&conn, mid2, None, Some("alpha"), None).unwrap();
+
+        let all = WasmComponent::list_all(&conn).unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].name.as_deref(), Some("alpha"));
+        assert_eq!(all[1].name.as_deref(), Some("beta"));
+    }
+
+    // r[verify component-target.insert]
+    #[test]
+    fn test_component_target_insert_and_list() {
+        let conn = setup_test_db();
+        let mid = insert_test_manifest(&conn);
+        let comp_id = WasmComponent::insert(&conn, mid, None, Some("comp"), None).unwrap();
+
+        let tid =
+            ComponentTarget::insert(&conn, comp_id, "wasi:http", "proxy", Some("0.2.0"), None)
+                .unwrap();
+        assert!(tid > 0);
+
+        ComponentTarget::insert(&conn, comp_id, "wasi:cli", "command", None, None).unwrap();
+
+        let targets = ComponentTarget::list_by_component(&conn, comp_id).unwrap();
+        assert_eq!(targets.len(), 2);
+        assert_eq!(targets[0].declared_package, "wasi:cli");
+        assert_eq!(targets[0].declared_world, "command");
+        assert_eq!(targets[1].declared_package, "wasi:http");
+        assert_eq!(targets[1].declared_world, "proxy");
+        assert_eq!(targets[1].declared_version.as_deref(), Some("0.2.0"));
+    }
+
+    // r[verify component-target.insert-idempotent]
+    #[test]
+    fn test_component_target_insert_idempotent() {
+        let conn = setup_test_db();
+        let mid = insert_test_manifest(&conn);
+        let comp_id = WasmComponent::insert(&conn, mid, None, Some("comp"), None).unwrap();
+
+        let id1 =
+            ComponentTarget::insert(&conn, comp_id, "wasi:http", "proxy", Some("0.2.0"), None)
+                .unwrap();
+        let id2 =
+            ComponentTarget::insert(&conn, comp_id, "wasi:http", "proxy", Some("0.2.0"), None)
+                .unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    // r[verify component-target.list-empty]
+    #[test]
+    fn test_component_target_list_empty() {
+        let conn = setup_test_db();
+        let targets = ComponentTarget::list_by_component(&conn, 9999).unwrap();
+        assert!(targets.is_empty());
+    }
+}

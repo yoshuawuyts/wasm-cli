@@ -19,7 +19,7 @@ jobs:
       - name: Install sqlite3def
         run: cargo xtask sql install
       - name: Collect coverage data
-        run: cargo llvm-cov --workspace --all-features --no-report
+        run: cargo llvm-cov --workspace --all-features --exclude xtask --no-report
       - name: Generate text summary
         run: cargo llvm-cov report --text 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Generate HTML report
@@ -39,7 +39,7 @@ jobs:
         if: hashFiles('code-coverage-results.md') != ''
         run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
       - name: Check coverage threshold
-        run: cargo llvm-cov report --fail-under-lines 50
+        run: cargo llvm-cov report --fail-under-lines 60
       - name: Upload HTML coverage report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:

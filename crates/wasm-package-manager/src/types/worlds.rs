@@ -315,3 +315,233 @@ impl WitPackageDependency {
         Ok(id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::Migrations;
+    use crate::types::RawWitPackage;
+
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        Migrations::run_all(&conn).unwrap();
+        conn
+    }
+
+    // r[verify wit-world.insert]
+    #[test]
+    fn test_wit_world_insert_and_find() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+
+        let world_id =
+            WitWorld::insert(&conn, pkg_id, "proxy", Some("An HTTP proxy world")).unwrap();
+        assert!(world_id > 0);
+
+        let found = WitWorld::find_by_name(&conn, pkg_id, "proxy")
+            .unwrap()
+            .unwrap();
+        assert_eq!(found.id(), world_id);
+        assert_eq!(found.name, "proxy");
+        assert_eq!(found.description.as_deref(), Some("An HTTP proxy world"));
+    }
+
+    // r[verify wit-world.insert-idempotent]
+    #[test]
+    fn test_wit_world_insert_idempotent() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+
+        let id1 = WitWorld::insert(&conn, pkg_id, "proxy", None).unwrap();
+        let id2 = WitWorld::insert(&conn, pkg_id, "proxy", None).unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    // r[verify wit-world.find-not-found]
+    #[test]
+    fn test_wit_world_find_not_found() {
+        let conn = setup_test_db();
+        let result = WitWorld::find_by_name(&conn, 9999, "nonexistent").unwrap();
+        assert!(result.is_none());
+    }
+
+    // r[verify wit-world.list-by-type]
+    #[test]
+    fn test_wit_world_list_by_type() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+
+        WitWorld::insert(&conn, pkg_id, "proxy", None).unwrap();
+        WitWorld::insert(&conn, pkg_id, "handler", None).unwrap();
+
+        let worlds = WitWorld::list_by_type(&conn, pkg_id).unwrap();
+        assert_eq!(worlds.len(), 2);
+        assert_eq!(worlds[0].name, "handler");
+        assert_eq!(worlds[1].name, "proxy");
+    }
+
+    // r[verify wit-world.list-by-type-empty]
+    #[test]
+    fn test_wit_world_list_by_type_empty() {
+        let conn = setup_test_db();
+        let worlds = WitWorld::list_by_type(&conn, 9999).unwrap();
+        assert!(worlds.is_empty());
+    }
+
+    // r[verify wit-world-import.insert]
+    #[test]
+    fn test_wit_world_import_insert() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+        let world_id = WitWorld::insert(&conn, pkg_id, "proxy", None).unwrap();
+
+        let import_id = WitWorldImport::insert(
+            &conn,
+            world_id,
+            "wasi:io",
+            Some("streams"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        assert!(import_id > 0);
+
+        // Without optional fields
+        let import_id2 =
+            WitWorldImport::insert(&conn, world_id, "wasi:clocks", None, None, None).unwrap();
+        assert!(import_id2 > 0);
+        assert_ne!(import_id, import_id2);
+    }
+
+    // r[verify wit-world-import.insert-idempotent]
+    #[test]
+    fn test_wit_world_import_insert_idempotent() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+        let world_id = WitWorld::insert(&conn, pkg_id, "proxy", None).unwrap();
+
+        let id1 = WitWorldImport::insert(
+            &conn,
+            world_id,
+            "wasi:io",
+            Some("streams"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        let id2 = WitWorldImport::insert(
+            &conn,
+            world_id,
+            "wasi:io",
+            Some("streams"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    // r[verify wit-world-export.insert]
+    #[test]
+    fn test_wit_world_export_insert() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+        let world_id = WitWorld::insert(&conn, pkg_id, "proxy", None).unwrap();
+
+        let export_id = WitWorldExport::insert(
+            &conn,
+            world_id,
+            "wasi:http",
+            Some("handler"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        assert!(export_id > 0);
+
+        // Without optional fields
+        let export_id2 =
+            WitWorldExport::insert(&conn, world_id, "wasi:cli", None, None, None).unwrap();
+        assert!(export_id2 > 0);
+        assert_ne!(export_id, export_id2);
+    }
+
+    // r[verify wit-world-export.insert-idempotent]
+    #[test]
+    fn test_wit_world_export_insert_idempotent() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+        let world_id = WitWorld::insert(&conn, pkg_id, "proxy", None).unwrap();
+
+        let id1 = WitWorldExport::insert(
+            &conn,
+            world_id,
+            "wasi:http",
+            Some("handler"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        let id2 = WitWorldExport::insert(
+            &conn,
+            world_id,
+            "wasi:http",
+            Some("handler"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    // r[verify wit-package-dependency.insert]
+    #[test]
+    fn test_wit_package_dependency_insert() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+        let dep_pkg_id =
+            RawWitPackage::insert(&conn, "wasi:io", Some("0.2.0"), None, None, None, None).unwrap();
+
+        let dep_id =
+            WitPackageDependency::insert(&conn, pkg_id, "wasi:io", Some("0.2.0"), Some(dep_pkg_id))
+                .unwrap();
+        assert!(dep_id > 0);
+
+        // Without version
+        let dep_id2 =
+            WitPackageDependency::insert(&conn, pkg_id, "wasi:clocks", None, None).unwrap();
+        assert!(dep_id2 > 0);
+        assert_ne!(dep_id, dep_id2);
+    }
+
+    // r[verify wit-package-dependency.insert-idempotent]
+    #[test]
+    fn test_wit_package_dependency_insert_idempotent() {
+        let conn = setup_test_db();
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+
+        let id1 =
+            WitPackageDependency::insert(&conn, pkg_id, "wasi:io", Some("0.2.0"), None).unwrap();
+        let id2 =
+            WitPackageDependency::insert(&conn, pkg_id, "wasi:io", Some("0.2.0"), None).unwrap();
+        assert_eq!(id1, id2);
+    }
+}

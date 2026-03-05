@@ -572,6 +572,183 @@ mod tests {
         );
     }
 
+    // r[verify oci.repository.get-by-id]
+    #[test]
+    fn test_oci_repository_get_by_id() {
+        let conn = setup_test_db();
+        let id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        let repo = OciRepository::get_by_id(&conn, id).unwrap().unwrap();
+        assert_eq!(repo.id(), id);
+        assert_eq!(repo.registry, "ghcr.io");
+        assert_eq!(repo.repository, "user/repo");
+
+        let none = OciRepository::get_by_id(&conn, 9999).unwrap();
+        assert!(none.is_none());
+    }
+
+    // r[verify oci.repository.list-all]
+    #[test]
+    fn test_oci_repository_list_all() {
+        let conn = setup_test_db();
+        let empty = OciRepository::list_all(&conn).unwrap();
+        assert!(empty.is_empty());
+
+        OciRepository::upsert(&conn, "ghcr.io", "b/repo").unwrap();
+        OciRepository::upsert(&conn, "ghcr.io", "a/repo").unwrap();
+
+        let repos = OciRepository::list_all(&conn).unwrap();
+        assert_eq!(repos.len(), 2);
+        assert_eq!(repos[0].repository, "a/repo");
+        assert_eq!(repos[1].repository, "b/repo");
+    }
+
+    // r[verify oci.repository.find-not-found]
+    #[test]
+    fn test_oci_repository_find_not_found() {
+        let conn = setup_test_db();
+        let result = OciRepository::find(&conn, "ghcr.io", "nonexistent").unwrap();
+        assert!(result.is_none());
+    }
+
+    // r[verify oci.tag.list-by-repository]
+    #[test]
+    fn test_oci_tag_list_by_repository() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:aaa",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+        OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:bbb",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        OciTag::upsert(&conn, repo_id, "v2.0", "sha256:bbb").unwrap();
+        OciTag::upsert(&conn, repo_id, "v1.0", "sha256:aaa").unwrap();
+
+        let tags = OciTag::list_by_repository(&conn, repo_id).unwrap();
+        assert_eq!(tags.len(), 2);
+        assert_eq!(tags[0].tag, "v1.0");
+        assert_eq!(tags[1].tag, "v2.0");
+    }
+
+    // r[verify oci.tag.find-not-found]
+    #[test]
+    fn test_oci_tag_find_not_found() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+        let result = OciTag::find_by_tag(&conn, repo_id, "nonexistent").unwrap();
+        assert!(result.is_none());
+    }
+
+    // r[verify oci.layer.get-by-digest]
+    #[test]
+    fn test_oci_layer_get_by_digest() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+        let (mid, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:abc",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        OciLayer::insert(
+            &conn,
+            mid,
+            "sha256:layer1",
+            Some("application/wasm"),
+            Some(512),
+            0,
+        )
+        .unwrap();
+
+        let found = OciLayer::get_by_digest(&conn, mid, "sha256:layer1")
+            .unwrap()
+            .unwrap();
+        assert_eq!(found.digest, "sha256:layer1");
+        assert_eq!(found.media_type.as_deref(), Some("application/wasm"));
+        assert_eq!(found.size_bytes, Some(512));
+        assert_eq!(found.position, 0);
+
+        let not_found = OciLayer::get_by_digest(&conn, mid, "sha256:nonexistent").unwrap();
+        assert!(not_found.is_none());
+    }
+
+    // r[verify oci.manifest.list-by-repository]
+    #[test]
+    fn test_oci_manifest_list_by_repository() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:first",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+        OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:second",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        let manifests = OciManifest::list_by_repository(&conn, repo_id).unwrap();
+        assert_eq!(manifests.len(), 2);
+    }
+
+    // r[verify oci.manifest.find-not-found]
+    #[test]
+    fn test_oci_manifest_find_not_found() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+        let result = OciManifest::find(&conn, repo_id, "sha256:nonexistent").unwrap();
+        assert!(result.is_none());
+    }
+
     // r[verify oci.manifest.placeholder-upgrade]
     #[test]
     fn test_oci_manifest_upsert_upgrades_placeholder() {
