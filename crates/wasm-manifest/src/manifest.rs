@@ -96,9 +96,20 @@ impl Manifest {
 ///
 /// Dependencies can be specified in two formats:
 ///
-/// 1. **Compact format** (string): `"ghcr.io/webassembly/wasi-logging:1.0.0"`
-/// 2. **Explicit format** (table): individual `registry`, `namespace`, `package`,
-///    `version` fields with optional `permissions`.
+/// 1. Compact format (string):
+///    ```toml
+///    [dependencies]
+///    "wasi:logging" = "ghcr.io/webassembly/wasi-logging:1.0.0"
+///    ```
+///
+/// 2. Explicit format (table):
+///    ```toml
+///    [dependencies."wasi:logging"]
+///    registry = "ghcr.io"
+///    namespace = "webassembly"
+///    package = "wasi-logging"
+///    version = "1.0.0"
+///    ```
 ///
 /// # Example
 ///

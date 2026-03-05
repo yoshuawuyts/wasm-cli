@@ -9,18 +9,6 @@ use crate::config::{PackageKind, PackageSource};
 /// Each file defines a single namespace with its OCI registry base path,
 /// plus zero or more `[[component]]` and `[[interface]]` entries.
 ///
-/// # TOML format
-///
-/// ```toml
-/// [namespace]
-/// name = "wasi"
-/// registry = "ghcr.io/webassembly"
-///
-/// [[interface]]
-/// name = "io"
-/// repository = "wasi/io"
-/// ```
-///
 /// # Example
 ///
 /// ```
