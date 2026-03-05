@@ -7,8 +7,11 @@ use anyhow::Result;
 use crate::{readme, run_command, sql, workspace_root};
 
 pub(crate) fn run_tests() -> Result<()> {
-    println!("Running cargo test...");
-    run_command("cargo", &["test", "--all"])?;
+    println!("Running cargo nextest...");
+    run_command("cargo", &["nextest", "run", "--all"])?;
+
+    println!("\nRunning doc tests...");
+    run_command("cargo", &["test", "--doc", "--all"])?;
 
     println!("\nRunning cargo clippy...");
     run_command("cargo", &["clippy", "--all", "--", "-D", "warnings"])?;
