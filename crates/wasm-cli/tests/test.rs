@@ -39,6 +39,44 @@ fn run_cli(args: &[&str]) -> String {
     result.replace("wasm.exe", "wasm")
 }
 
+/// Run the CLI expecting a failure and capture stderr for snapshot testing.
+///
+/// Used to verify miette's rich error rendering (cause chains, context, hints).
+/// The working directory can be overridden for tests that need isolation.
+fn run_cli_error(args: &[&str], working_dir: Option<&std::path::Path>) -> String {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_wasm"));
+    cmd.args(args);
+    if let Some(dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+    // Force non-fancy graphical output for consistent snapshots across terminals
+    cmd.env("NO_COLOR", "1");
+    let output = cmd.output().expect("Failed to execute command");
+
+    assert!(
+        !output.status.success(),
+        "Expected command to fail, but it succeeded. stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Filter out tracing warnings (e.g. from tracing-subscriber) that appear on stderr
+    let filtered: String = stderr
+        .lines()
+        .filter(|line| !line.starts_with("WARN ") && !line.starts_with("  at "))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Normalize platform differences for consistent cross-platform snapshots:
+    // - Windows path separators: `deps\wasm.toml` → `deps/wasm.toml`
+    // - Windows OS error: "The system cannot find the path specified. (os error 3)"
+    //   → Unix: "No such file or directory (os error 2)"
+    filtered.replace('\\', "/").replace(
+        "The system cannot find the path specified. (os error 3)",
+        "No such file or directory (os error 2)",
+    )
+}
+
 // =============================================================================
 // Main CLI Help Tests
 // =============================================================================
@@ -545,6 +583,13 @@ fn test_install_help_snapshot() {
     assert_snapshot!(output);
 }
 
+#[test]
+fn test_install_without_init() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    let stderr = run_cli_error(&["install"], Some(dir.path()));
+    assert_snapshot!(stderr);
+}
+
 // =============================================================================
 // Run Command Tests
 // =============================================================================
@@ -563,33 +608,15 @@ fn test_run_core_module_rejected() {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/core_module.wasm"
     );
-    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
-        .args(&["run", fixture])
-        .output()
-        .expect("Failed to execute command");
-
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("core module"),
-        "Expected 'core module' error message, got: {stderr}"
-    );
+    let stderr = run_cli_error(&["run", fixture], None);
+    assert_snapshot!(stderr);
 }
 
 // r[verify run.missing-file]
 #[test]
 fn test_run_missing_file() {
-    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
-        .args(&["run", "/nonexistent/path/to/component.wasm"])
-        .output()
-        .expect("Failed to execute command");
-
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("failed to read"),
-        "Expected file-not-found error, got: {stderr}"
-    );
+    let stderr = run_cli_error(&["run", "/nonexistent/path/to/component.wasm"], None);
+    assert_snapshot!(stderr);
 }
 
 // =============================================================================

@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
+use miette::{Context, IntoDiagnostic, bail};
 use wasmparser::{Encoding, Parser, Payload};
 use wasmtime::component::Component;
 use wasmtime::{Engine, Store};
@@ -63,7 +63,7 @@ impl WasiView for WasiState {
 
 impl Opts {
     /// Execute the `run` command.
-    pub(crate) async fn run(self, offline: bool) -> Result<()> {
+    pub(crate) async fn run(self, offline: bool) -> miette::Result<()> {
         // 1. Resolve input — local files take priority over OCI references.
         let local_path = PathBuf::from(&self.input);
         let is_local = local_path.exists();
@@ -79,28 +79,34 @@ impl Opts {
         let bytes = match reference {
             Some(ref oci_ref) => {
                 let manager = if offline {
-                    Manager::open_offline().await?
+                    Manager::open_offline().await
                 } else {
-                    Manager::open().await?
-                };
-                let pull_result = manager.pull(oci_ref.clone()).await?;
+                    Manager::open().await
+                }
+                .map_err(crate::util::into_miette)?;
+                let pull_result = manager
+                    .pull(oci_ref.clone())
+                    .await
+                    .map_err(crate::util::into_miette)?;
                 let manifest = pull_result
                     .manifest
                     .as_ref()
-                    .context("pulled image has no manifest")?;
+                    .ok_or_else(|| miette::miette!("pulled image has no manifest"))?;
                 let wasm_layers = wasm_package_manager::oci::filter_wasm_layers(&manifest.layers);
-                let layer = wasm_layers
-                    .first()
-                    .context("manifest contains no application/wasm layer")?;
+                let layer = wasm_layers.first().ok_or_else(|| {
+                    miette::miette!("manifest contains no application/wasm layer")
+                })?;
                 let key = &layer.digest;
                 manager
                     .get(key)
                     .await
-                    .with_context(|| format!("failed to read cached component for {key}"))?
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("failed to read cached component for {key}"))?
             }
             None => tokio::fs::read(&local_path)
                 .await
-                .with_context(|| format!("failed to read {}", local_path.display()))?,
+                .into_diagnostic()
+                .wrap_err_with(|| format!("failed to read {}", local_path.display()))?,
         };
 
         // 3. Validate — must be a Wasm Component.
@@ -113,7 +119,8 @@ impl Opts {
         //    This is CPU-bound work so we use spawn_blocking.
         let result = tokio::task::spawn_blocking(move || execute_component(&bytes, &permissions))
             .await
-            .context("runtime task panicked")??;
+            .into_diagnostic()
+            .wrap_err("runtime task panicked")??;
 
         // 6. Map exit.
         if let Err(()) = result {
@@ -219,7 +226,7 @@ fn find_matching_permissions(
 }
 
 /// Confirm the bytes are a Wasm Component (not a core module or WIT-only package).
-fn validate_component(bytes: &[u8]) -> Result<()> {
+fn validate_component(bytes: &[u8]) -> miette::Result<()> {
     let parser = Parser::new(0);
     for payload in parser.parse_all(bytes) {
         match payload {
@@ -245,9 +252,11 @@ fn validate_component(bytes: &[u8]) -> Result<()> {
 fn execute_component(
     bytes: &[u8],
     permissions: &wasm_manifest::ResolvedPermissions,
-) -> Result<Result<(), ()>> {
+) -> miette::Result<Result<(), ()>> {
     let engine = Engine::default();
-    let component = Component::new(&engine, bytes).context("failed to compile Wasm Component")?;
+    let component = Component::new(&engine, bytes)
+        .map_err(crate::util::into_miette)
+        .wrap_err("failed to compile Wasm Component")?;
 
     // Build WASI context from resolved permissions.
     let mut builder = WasiCtxBuilder::new();
@@ -277,7 +286,8 @@ fn execute_component(
                 DirPerms::all(),
                 FilePerms::all(),
             )
-            .with_context(|| format!("failed to pre-open directory: {}", dir.display()))?;
+            .map_err(crate::util::into_miette)
+            .wrap_err_with(|| format!("failed to pre-open directory: {}", dir.display()))?;
     }
     if permissions.inherit_network {
         builder.inherit_network();
@@ -291,10 +301,11 @@ fn execute_component(
     let mut store = Store::new(&engine, state);
 
     let mut linker = wasmtime::component::Linker::new(&engine);
-    wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+    wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(crate::util::into_miette)?;
 
     let command = Command::instantiate(&mut store, &component, &linker)
-        .context("failed to instantiate Wasm Component")?;
+        .map_err(crate::util::into_miette)
+        .wrap_err("failed to instantiate Wasm Component")?;
 
     let result = command.wasi_cli_run().call_run(&mut store);
     match result {

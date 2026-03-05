@@ -1,8 +1,8 @@
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
-use anyhow::{Context, Result};
 use futures_concurrency::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use miette::{IntoDiagnostic, WrapErr};
 use wasm_package_manager::manager::{InstallResult, Manager, derive_component_name};
 use wasm_package_manager::types::DependencyItem;
 use wasm_package_manager::{ProgressEvent, Reference};
@@ -19,7 +19,7 @@ pub(crate) struct Opts {
 }
 
 impl Opts {
-    pub(crate) async fn run(self, offline: bool) -> Result<()> {
+    pub(crate) async fn run(self, offline: bool) -> miette::Result<()> {
         let deps = std::path::Path::new("deps");
         let manifest_path = deps.join("wasm.toml");
         let lockfile_path = deps.join("wasm.lock.toml");
@@ -29,30 +29,28 @@ impl Opts {
         // Read existing manifest — error if not found, recommend `wasm init`
         let manifest_str = tokio::fs::read_to_string(&manifest_path)
             .await
-            .with_context(|| {
-                format!(
-                    "could not read '{}'. Run `wasm init` first to create the project files",
-                    manifest_path.display()
-                )
-            })?;
-        let mut manifest: wasm_manifest::Manifest = toml::from_str(&manifest_str)?;
+            .into_diagnostic()
+            .wrap_err_with(|| format!("could not read '{}'", manifest_path.display()))
+            .wrap_err("Run `wasm init` first to create the project files")?;
+        let mut manifest: wasm_manifest::Manifest =
+            toml::from_str(&manifest_str).into_diagnostic()?;
 
         // Read existing lockfile — error if not found, recommend `wasm init`
         let lockfile_str = tokio::fs::read_to_string(&lockfile_path)
             .await
-            .with_context(|| {
-                format!(
-                    "could not read '{}'. Run `wasm init` first to create the project files",
-                    lockfile_path.display()
-                )
-            })?;
-        let mut lockfile: wasm_manifest::Lockfile = toml::from_str(&lockfile_str)?;
+            .into_diagnostic()
+            .wrap_err_with(|| format!("could not read '{}'", lockfile_path.display()))
+            .wrap_err("Run `wasm init` first to create the project files")?;
+        let mut lockfile: wasm_manifest::Lockfile =
+            toml::from_str(&lockfile_str).into_diagnostic()?;
 
         // Open manager
         let manager = if offline {
-            Manager::open_offline().await?
+            Manager::open_offline()
+                .await
+                .map_err(crate::util::into_miette)?
         } else {
-            Manager::open().await?
+            Manager::open().await.map_err(crate::util::into_miette)?
         };
 
         let start_time = std::time::Instant::now();
@@ -65,7 +63,8 @@ impl Opts {
             manifest
                 .all_dependencies()
                 .map(|(_, dep, _)| reference_from_dependency(dep).map(|r| (r, false)))
-                .collect::<Result<Vec<_>>>()?
+                .collect::<anyhow::Result<Vec<_>>>()
+                .map_err(crate::util::into_miette)?
         } else {
             self.references.into_iter().map(|r| (r, true)).collect()
         };
@@ -78,7 +77,7 @@ impl Opts {
         let manager_ref: &Manager = &manager;
 
         // Run all installs concurrently.
-        let results: Result<Vec<_>> = to_install
+        let results: anyhow::Result<Vec<_>> = to_install
             .into_co_stream()
             .map(|(reference, update_manifest)| {
                 let multi = multi.clone();
@@ -94,7 +93,7 @@ impl Opts {
             .collect()
             .await;
 
-        for (result, reference, update_manifest) in results? {
+        for (result, reference, update_manifest) in results.map_err(crate::util::into_miette)? {
             // Derive the dependency name.
             // For components, use `derive_component_name` which tries WIT metadata,
             // OCI title annotation, last repository segment, then full path.
@@ -176,16 +175,21 @@ impl Opts {
                     &wit_vendor_dir,
                     &mut lockfile,
                 )
-                .await?;
+                .await
+                .map_err(crate::util::into_miette)?;
             }
         }
 
         // Write updated manifest
-        let manifest_str = toml::to_string_pretty(&manifest)?;
-        tokio::fs::write(&manifest_path, manifest_str.as_bytes()).await?;
+        let manifest_str = toml::to_string_pretty(&manifest).into_diagnostic()?;
+        tokio::fs::write(&manifest_path, manifest_str.as_bytes())
+            .await
+            .into_diagnostic()?;
 
         // Write updated lockfile
-        write_lock_file(&lockfile_path, &lockfile).await?;
+        write_lock_file(&lockfile_path, &lockfile)
+            .await
+            .into_diagnostic()?;
 
         // Print completion message with elapsed time
         let elapsed = start_time.elapsed();
@@ -210,7 +214,7 @@ async fn install_one(
     offline: bool,
     reference: &Reference,
     vendor_dir: &std::path::Path,
-) -> Result<InstallResult> {
+) -> anyhow::Result<InstallResult> {
     let reference_display = reference.whole().clone();
 
     if offline {
@@ -267,7 +271,7 @@ async fn install_one(
 async fn re_vendor_wit_files(
     result: &InstallResult,
     wit_vendor_dir: &std::path::Path,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     if result.is_component {
         return Ok(());
     }
@@ -294,7 +298,7 @@ async fn install_transitive_deps(
     wasm_vendor_dir: &std::path::Path,
     wit_vendor_dir: &std::path::Path,
     lockfile: &mut wasm_manifest::Lockfile,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let mut work_queue = std::collections::VecDeque::from(initial_deps);
     let mut visited: std::collections::HashSet<(String, Option<String>)> =
         std::collections::HashSet::new();
@@ -433,7 +437,7 @@ fn upsert_lockfile_package(
 /// the explicit table format (`registry`/`namespace`/`package`:`version`) are
 /// supported. Returns an error if the resulting reference string cannot be parsed
 /// as a valid OCI reference.
-fn reference_from_dependency(dep: &wasm_manifest::Dependency) -> Result<Reference> {
+fn reference_from_dependency(dep: &wasm_manifest::Dependency) -> anyhow::Result<Reference> {
     let s = match dep {
         wasm_manifest::Dependency::Compact(s) => s.clone(),
         wasm_manifest::Dependency::Explicit {

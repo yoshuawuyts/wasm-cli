@@ -1,0 +1,5 @@
+---
+source: crates/wasm-cli/tests/test.rs
+expression: stderr
+---
+Error:   × only Wasm Components can be executed; this appears to be a core module

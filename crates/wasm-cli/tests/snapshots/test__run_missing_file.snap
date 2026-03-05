@@ -1,0 +1,6 @@
+---
+source: crates/wasm-cli/tests/test.rs
+expression: stderr
+---
+Error:   × failed to read /nonexistent/path/to/component.wasm
+  ╰─▶ No such file or directory (os error 2)

@@ -14,6 +14,8 @@ mod util;
 use std::io::IsTerminal;
 
 use clap::{ColorChoice, CommandFactory, Parser};
+use miette::{Context, IntoDiagnostic};
+use util::into_miette;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None, term_width = 80)]
@@ -38,19 +40,26 @@ pub(crate) struct Cli {
 }
 
 impl Cli {
-    async fn run(self) -> Result<(), anyhow::Error> {
+    async fn run(self) -> miette::Result<()> {
         match self.command {
             Some(Command::Run(opts)) => opts.run(self.offline).await?,
-            Some(Command::Local(opts)) => opts.run(),
-            Some(Command::Registry(opts)) => opts.run(self.offline).await?,
-            Some(Command::Compose(opts)) => opts.run()?,
+            Some(Command::Local(opts)) => {
+                opts.run();
+            }
+            Some(Command::Registry(opts)) => opts.run(self.offline).await.map_err(into_miette)?,
+            Some(Command::Compose(opts)) => opts.run().map_err(into_miette)?,
             Some(Command::Init(opts)) => opts.run().await?,
             Some(Command::Install(opts)) => opts.run(self.offline).await?,
-            Some(Command::Self_(opts)) => opts.run().await?,
-            None if std::io::stdin().is_terminal() => tui::run(self.offline).await?,
+            Some(Command::Self_(opts)) => opts.run().await.map_err(into_miette)?,
+            None if std::io::stdin().is_terminal() => {
+                tui::run(self.offline).await.map_err(into_miette)?;
+            }
             None => {
                 // Apply the parsed color choice when printing help
-                Cli::command().color(self.color).print_help()?;
+                Cli::command()
+                    .color(self.color)
+                    .print_help()
+                    .into_diagnostic()?;
             }
         }
         Ok(())
@@ -92,13 +101,15 @@ pub(crate) fn log_dir() -> std::path::PathBuf {
 ///
 /// The returned `WorkerGuard` must be kept alive for the duration of the
 /// program to ensure all buffered log records are flushed.
-fn init_tracing() -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard> {
+fn init_tracing() -> miette::Result<tracing_appender::non_blocking::WorkerGuard> {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, Layer};
 
     let log_dir = log_dir();
-    std::fs::create_dir_all(&log_dir)?;
+    std::fs::create_dir_all(&log_dir)
+        .into_diagnostic()
+        .wrap_err("failed to create log directory")?;
 
     let file_appender = tracing_appender::rolling::never(&log_dir, "wasm.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
@@ -121,7 +132,7 @@ fn init_tracing() -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard>
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> miette::Result<()> {
     // Load .env file if present; variables already set in the environment
     // take precedence (system environment is not overridden).
     dotenvy::dotenv().ok();

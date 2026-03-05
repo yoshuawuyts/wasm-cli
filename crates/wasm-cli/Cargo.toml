@@ -30,6 +30,7 @@ clap_mangen = { workspace = true }
 comfy-table = { workspace = true }
 console = { workspace = true }
 indicatif = { workspace = true }
+miette = { workspace = true }
 ratatui = { workspace = true }
 serde_json = { workspace = true }
 termcolor = { workspace = true }
