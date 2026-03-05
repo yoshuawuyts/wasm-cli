@@ -16,6 +16,37 @@ pub fn filter_wasm_layers(layers: &[OciDescriptor]) -> Vec<&OciDescriptor> {
         .collect()
 }
 
+/// Validate that an OCI bundle contains exactly one layer with the
+/// `application/wasm` media type.
+///
+/// Per the [WASM OCI artifact spec](https://tag-runtime.cncf.io/wgs/wasm/deliverables/wasm-oci-artifact/#faq),
+/// bundles with more than one layer must be rejected, and the single layer
+/// must carry the correct WASM content type.
+///
+/// # Errors
+///
+/// Returns an error if the bundle has zero or more than one layer, or if
+/// the single layer does not have the `application/wasm` media type.
+// r[impl oci.layers.reject-multi]
+// r[impl oci.layers.require-wasm-content-type]
+pub fn validate_single_wasm_layer(layers: &[OciDescriptor]) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        layers.len() == 1,
+        "expected exactly 1 layer in OCI bundle, found {}; \
+         see https://tag-runtime.cncf.io/wgs/wasm/deliverables/wasm-oci-artifact/#faq",
+        layers.len()
+    );
+    let layer = layers
+        .first()
+        .expect("length checked to be 1 on the line above");
+    anyhow::ensure!(
+        layer.media_type == "application/wasm",
+        "expected layer media type `application/wasm`, found `{}`",
+        layer.media_type
+    );
+    Ok(())
+}
+
 /// Compute which layer digests are orphaned after removing a set of manifests.
 ///
 /// Given the digests belonging to the manifests being deleted and the digests
@@ -141,6 +172,63 @@ mod tests {
     #[test]
     fn filter_wasm_layers_empty() {
         assert!(filter_wasm_layers(&[]).is_empty());
+    }
+
+    // ── validate_single_wasm_layer ──────────────────────────────────────
+
+    // r[verify oci.layers.reject-multi]
+    // r[verify oci.layers.require-wasm-content-type]
+    #[test]
+    fn validate_single_layer_accepts_one_wasm() {
+        let layers = vec![OciDescriptor {
+            media_type: "application/wasm".to_string(),
+            digest: "sha256:aaa".to_string(),
+            size: 100,
+            urls: None,
+            annotations: None,
+        }];
+        assert!(validate_single_wasm_layer(&layers).is_ok());
+    }
+
+    #[test]
+    fn validate_single_layer_rejects_multi() {
+        let layers = vec![
+            OciDescriptor {
+                media_type: "application/wasm".to_string(),
+                digest: "sha256:aaa".to_string(),
+                size: 100,
+                urls: None,
+                annotations: None,
+            },
+            OciDescriptor {
+                media_type: "application/wasm".to_string(),
+                digest: "sha256:bbb".to_string(),
+                size: 200,
+                urls: None,
+                annotations: None,
+            },
+        ];
+        let err = validate_single_wasm_layer(&layers).unwrap_err();
+        assert!(err.to_string().contains("expected exactly 1 layer"));
+    }
+
+    #[test]
+    fn validate_single_layer_rejects_empty() {
+        let err = validate_single_wasm_layer(&[]).unwrap_err();
+        assert!(err.to_string().contains("expected exactly 1 layer"));
+    }
+
+    #[test]
+    fn validate_single_layer_rejects_wrong_media_type() {
+        let layers = vec![OciDescriptor {
+            media_type: "application/octet-stream".to_string(),
+            digest: "sha256:aaa".to_string(),
+            size: 100,
+            urls: None,
+            annotations: None,
+        }];
+        let err = validate_single_wasm_layer(&layers).unwrap_err();
+        assert!(err.to_string().contains("application/wasm"));
     }
 
     // ── compute_orphaned_layers ─────────────────────────────────────────

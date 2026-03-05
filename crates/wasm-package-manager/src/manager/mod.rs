@@ -91,6 +91,12 @@ impl Manager {
         }
 
         let image = self.client.pull(&reference).await?;
+
+        // Validate the OCI bundle has exactly one WASM layer.
+        if let Some(ref manifest) = image.manifest {
+            crate::oci::validate_single_wasm_layer(&manifest.layers)?;
+        }
+
         let (result, digest, manifest, manifest_id) = self.store.insert(&reference, image).await?;
 
         // Add to known packages when pulling (with tag if present)
@@ -135,6 +141,9 @@ impl Manager {
 
         // Fetch manifest and config
         let (manifest, digest) = self.client.pull_manifest(&reference).await?;
+
+        // Validate the OCI bundle has exactly one WASM layer.
+        crate::oci::validate_single_wasm_layer(&manifest.layers)?;
 
         let layer_count = manifest.layers.len();
         let _ = progress_tx
