@@ -12,13 +12,13 @@ pub(crate) fn parse_reference(s: &str) -> Result<Reference, String> {
     s.parse::<Reference>().map_err(|e| e.to_string())
 }
 
-/// Convert an [`anyhow::Error`] into a [`miette::Report`], preserving the
-/// cause chain.
+/// Convert an error into a [`miette::Report`], preserving the cause chain.
 ///
-/// This bridges subsystems that still return [`anyhow::Error`] with the
-/// top-level CLI that uses [`miette`] for rich error display.
+/// This bridges subsystems that return [`anyhow::Error`], [`wasmtime::Error`],
+/// or other `Display` errors with the top-level CLI that uses [`miette`] for
+/// rich error display.
 #[allow(dead_code, clippy::needless_pass_by_value)]
-pub(crate) fn into_miette(err: anyhow::Error) -> miette::Report {
+pub(crate) fn into_miette(err: impl std::fmt::Display) -> miette::Report {
     // Use the alternate Display format which renders the full cause chain
     // as "outer: inner: root cause".
     miette::miette!("{err:#}")

@@ -254,7 +254,7 @@ fn generate_wit_text(decoded: &DecodedWasm) -> String {
                 // Print functions
                 for (func_name, func) in &interface.functions {
                     let params: Vec<String> =
-                        func.params.iter().map(|(name, _ty)| name.clone()).collect();
+                        func.params.iter().map(|param| param.name.clone()).collect();
                     let has_result = func.result.is_some();
                     writeln!(
                         output,
@@ -371,6 +371,8 @@ mod tests {
             functions: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
+            clone_of: None,
         };
         let id = resolve.interfaces.alloc(interface);
 
@@ -394,6 +396,8 @@ mod tests {
             functions: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
+            clone_of: None,
         };
         let interface_id = resolve.interfaces.alloc(interface);
 
@@ -404,9 +408,9 @@ mod tests {
             imports: Default::default(),
             exports: Default::default(),
             includes: Default::default(),
-            include_names: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
         };
         let world_id = resolve.worlds.alloc(world);
 
@@ -464,9 +468,9 @@ mod tests {
             imports: Default::default(),
             exports: Default::default(),
             includes: Default::default(),
-            include_names: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
         };
         let world_id = resolve.worlds.alloc(world);
 
@@ -498,9 +502,9 @@ mod tests {
             imports: Default::default(),
             exports: Default::default(),
             includes: Default::default(),
-            include_names: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
         };
 
         // Add named imports and exports using functions (which don't need TypeIds)
@@ -513,6 +517,7 @@ mod tests {
                 result: None,
                 docs: Default::default(),
                 stability: Default::default(),
+                span: Default::default(),
             }),
         );
         world.exports.insert(
@@ -524,6 +529,7 @@ mod tests {
                 result: None,
                 docs: Default::default(),
                 stability: Default::default(),
+                span: Default::default(),
             }),
         );
 
@@ -558,6 +564,8 @@ mod tests {
             functions: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
+            clone_of: None,
         };
         let interface_id = resolve.interfaces.alloc(interface);
 
@@ -567,9 +575,9 @@ mod tests {
             imports: Default::default(),
             exports: Default::default(),
             includes: Default::default(),
-            include_names: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
         };
         let world_a_id = resolve.worlds.alloc(world_a);
 
@@ -579,9 +587,9 @@ mod tests {
             imports: Default::default(),
             exports: Default::default(),
             includes: Default::default(),
-            include_names: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
         };
         let world_b_id = resolve.worlds.alloc(world_b);
 
@@ -629,9 +637,9 @@ mod tests {
             imports: Default::default(),
             exports: Default::default(),
             includes: Default::default(),
-            include_names: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
         };
         let world_id = resolve.worlds.alloc(world);
 
@@ -660,6 +668,8 @@ mod tests {
             functions: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
+            clone_of: None,
         };
         let dep_iface_id = resolve.interfaces.alloc(dep_iface);
 
@@ -684,9 +694,9 @@ mod tests {
             imports: Default::default(),
             exports: Default::default(),
             includes: Default::default(),
-            include_names: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
         };
 
         // Named import (bare function)
@@ -699,6 +709,7 @@ mod tests {
                 result: None,
                 docs: Default::default(),
                 stability: Default::default(),
+                span: Default::default(),
             }),
         );
 
@@ -708,6 +719,7 @@ mod tests {
             WorldItem::Interface {
                 id: dep_iface_id,
                 stability: Default::default(),
+                span: Default::default(),
             },
         );
 
@@ -778,9 +790,9 @@ mod tests {
             imports: Default::default(),
             exports: Default::default(),
             includes: Default::default(),
-            include_names: Default::default(),
             package: None,
             stability: Default::default(),
+            span: Default::default(),
         };
         let world_id = resolve.worlds.alloc(world);
 
