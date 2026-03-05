@@ -233,11 +233,14 @@ exposes a search API. It consists of:
 Internal build automation in `crates/xtask`. The command `cargo xtask test` runs
 the full CI suite:
 
-1. `cargo fmt` — formatting check
-2. `cargo clippy` — lint check (with `-D warnings`)
-3. `cargo test` — test suite
-4. `cargo xtask sql check` — verify migrations are in sync with `schema.sql`
-5. README freshness check — ensures `README.md` matches `wasm --help` output
+1. `cargo nextest run` — test suite ([cargo-nextest] for parallel execution)
+2. `cargo test --doc` — doc tests (not supported by nextest)
+3. `cargo clippy` — lint check (with `-D warnings`)
+4. `cargo fmt --check` — formatting check
+5. `cargo xtask sql check` — verify migrations are in sync with `schema.sql`
+6. README freshness check — ensures `README.md` matches `wasm --help` output
+
+[cargo-nextest]: https://nexte.st
 
 SQL migrations are managed through `cargo xtask sql migrate` and
 `cargo xtask sql install` (installs `sqlite3def`).

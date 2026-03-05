@@ -40,6 +40,9 @@ jobs:
         components: rustfmt, clippy
         override: true
 
+    - name: Install cargo-nextest
+      uses: taiki-e/install-action@cargo-nextest
+
     - name: Install sqlite3def
       run: cargo xtask sql install
 
