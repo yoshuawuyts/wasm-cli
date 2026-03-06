@@ -177,10 +177,24 @@ pub fn derive_component_name<S: std::hash::BuildHasher>(
         .unwrap_or_else(|| repository.to_string())
 }
 
+/// Try to parse a tag as a semantic version, accepting an optional leading
+/// `v` prefix (e.g. `v1.2.3`) while leaving the original tag string untouched.
+fn parse_tag_as_semver(tag: &str) -> Option<semver::Version> {
+    if let Ok(version) = semver::Version::parse(tag) {
+        return Some(version);
+    }
+    // Accept a leading `v` when followed by a digit.
+    let stripped = tag.strip_prefix('v')?;
+    if !stripped.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    semver::Version::parse(stripped).ok()
+}
+
 /// Pick the latest stable semver tag from a list of tags.
 ///
 /// Filters out:
-/// - Tags that are not valid semver versions
+/// - Tags that are not valid semver versions (accepts optional `v` prefix)
 /// - Pre-release tags (e.g. `0.3.0-preview-2026-02-20`)
 /// - The literal `latest` tag
 /// - Hash-based tags (e.g. `sha256-abc123.sig`)
@@ -206,7 +220,7 @@ pub fn derive_component_name<S: std::hash::BuildHasher>(
 pub fn pick_latest_stable_tag(tags: &[String]) -> Option<String> {
     tags.iter()
         .filter(|t| *t != "latest" && !t.starts_with("sha256-"))
-        .filter_map(|t| semver::Version::parse(t).ok().map(|v| (t, v)))
+        .filter_map(|t| parse_tag_as_semver(t).map(|v| (t, v)))
         .filter(|(_, v)| v.pre.is_empty())
         .max_by(|(_, a), (_, b)| a.cmp(b))
         .map(|(t, _)| t.clone())
@@ -220,7 +234,7 @@ pub fn pick_latest_stable_tag(tags: &[String]) -> Option<String> {
 /// `0.3.0-preview-2026-02-20`) are included.
 ///
 /// In all cases, `latest`, hash-based tags, and non-semver tags are
-/// excluded.
+/// excluded. Tags with a leading `v` prefix (e.g. `v0.2.0`) are accepted.
 ///
 /// # Example
 ///
@@ -244,10 +258,13 @@ pub fn pick_latest_stable_tag(tags: &[String]) -> Option<String> {
 /// ```
 #[must_use]
 pub fn filter_tag_suggestions(tags: &[String], requested_version: Option<&str>) -> Vec<String> {
+    // Normalize the requested version by stripping an optional leading `v`.
+    let normalized_req = requested_version.map(|v| v.strip_prefix('v').unwrap_or(v));
+
     tags.iter()
         .filter(|t| *t != "latest" && !t.starts_with("sha256-"))
         .filter(|t| {
-            let Ok(v) = semver::Version::parse(t) else {
+            let Some(v) = parse_tag_as_semver(t) else {
                 return false;
             };
             if v.pre.is_empty() {
@@ -256,7 +273,7 @@ pub fn filter_tag_suggestions(tags: &[String], requested_version: Option<&str>) 
             // Include pre-release tags only when the user's request shares
             // the same major.minor version. Parse the prefix to extract
             // numeric components for exact comparison.
-            if let Some(prefix) = requested_version {
+            if let Some(prefix) = normalized_req {
                 return prefix_matches_version(prefix, v.major, v.minor);
             }
             false
@@ -546,6 +563,23 @@ mod tests {
         assert_eq!(pick_latest_stable_tag(&tags), Some("1.0.0".to_string()));
     }
 
+    #[test]
+    fn pick_latest_stable_tag_v_prefixed() {
+        let tags = vec![
+            "v0.2.0".into(),
+            "v0.2.10".into(),
+            "v0.3.0-preview-2026-02-20".into(),
+            "latest".into(),
+        ];
+        assert_eq!(pick_latest_stable_tag(&tags), Some("v0.2.10".to_string()));
+    }
+
+    #[test]
+    fn pick_latest_stable_tag_mixed_v_and_bare() {
+        let tags = vec!["v1.0.0".into(), "2.0.0".into(), "v0.9.0".into()];
+        assert_eq!(pick_latest_stable_tag(&tags), Some("2.0.0".to_string()));
+    }
+
     // ── filter_tag_suggestions ──────────────────────────────────────────
 
     #[test]
@@ -620,5 +654,25 @@ mod tests {
         ];
         let suggestions = filter_tag_suggestions(&tags, Some("1"));
         assert_eq!(suggestions, vec!["1.0.0-rc1", "1.5.0-beta"]);
+    }
+
+    #[test]
+    fn filter_tag_suggestions_v_prefixed_tags() {
+        let tags = vec![
+            "v0.2.0".into(),
+            "v0.2.10".into(),
+            "v0.3.0-preview".into(),
+            "latest".into(),
+        ];
+        let suggestions = filter_tag_suggestions(&tags, None);
+        assert_eq!(suggestions, vec!["v0.2.0", "v0.2.10"]);
+    }
+
+    #[test]
+    fn filter_tag_suggestions_v_prefixed_request() {
+        let tags = vec!["0.2.0".into(), "0.3.0-preview".into(), "1.0.0-rc1".into()];
+        // "v0.3" request should match 0.3.* pre-release tags
+        let suggestions = filter_tag_suggestions(&tags, Some("v0.3"));
+        assert_eq!(suggestions, vec!["0.2.0", "0.3.0-preview"]);
     }
 }
