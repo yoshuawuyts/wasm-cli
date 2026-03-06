@@ -14,7 +14,10 @@ use crate::storage::{KnownPackage, StateInfo, Store};
 use crate::types::WitPackage;
 
 pub use errors::ManagerError;
-pub use logic::{derive_component_name, sanitize_to_wit_identifier, should_sync, vendor_filename};
+pub use logic::{
+    derive_component_name, filter_tag_suggestions, pick_latest_stable_tag,
+    sanitize_to_wit_identifier, should_sync, vendor_filename,
+};
 pub use models::{InstallResult, PullResult, SyncPolicy, SyncResult};
 
 /// A cache on disk
@@ -510,6 +513,10 @@ impl Manager {
     /// 1. Exact match via `RawWitPackage::find_oci_reference()` (DB JOIN lookup).
     /// 2. Fuzzy match via `RawKnownPackage::search_by_wit_name()` (repository pattern).
     /// 3. Error with an actionable message.
+    ///
+    /// When no version is specified, the latest stable semver tag is
+    /// selected instead of `"latest"`. Pre-release, hash-based, and
+    /// non-semver tags are skipped.
     pub fn resolve_wit_dependency(
         &self,
         dep: &crate::types::DependencyItem,
@@ -519,24 +526,46 @@ impl Manager {
             .store
             .find_oci_reference_by_wit_name(&dep.package, dep.version.as_deref())?
         {
-            let tag = dep.version.as_deref().unwrap_or("latest");
+            let tag = self.resolve_tag_for_dep(dep, &registry, &repository);
             let ref_str = format!("{registry}/{repository}:{tag}");
             return Ok(Some(ref_str.parse()?));
         }
 
         // 2. Fallback: search known packages by WIT name
         if let Some(known) = self.store.search_known_package_by_wit_name(&dep.package)? {
-            let tag = dep
-                .version
-                .as_deref()
-                .or(known.tags.first().map(String::as_str))
-                .unwrap_or("latest");
+            let tag = if let Some(v) = dep.version.as_deref() {
+                v.to_string()
+            } else {
+                pick_latest_stable_tag(&known.tags).unwrap_or_else(|| "latest".to_string())
+            };
             let ref_str = format!("{}/{}:{}", known.registry, known.repository, tag);
             return Ok(Some(ref_str.parse()?));
         }
 
         // 3. Not resolvable
         Ok(None)
+    }
+
+    /// Pick the tag to use for an exact-DB-lookup dependency.
+    ///
+    /// When the dependency carries an explicit version, use it directly.
+    /// Otherwise, try to find the latest stable semver tag from the
+    /// known-package cache for the same registry/repository.
+    fn resolve_tag_for_dep(
+        &self,
+        dep: &crate::types::DependencyItem,
+        registry: &str,
+        repository: &str,
+    ) -> String {
+        if let Some(v) = dep.version.as_deref() {
+            return v.to_string();
+        }
+        if let Ok(Some(known)) = self.store.get_known_package(registry, repository)
+            && let Some(tag) = pick_latest_stable_tag(&known.tags)
+        {
+            return tag;
+        }
+        "latest".to_string()
     }
 
     /// Get data from the store
@@ -933,7 +962,7 @@ impl Manager {
             Ok(tags) if tags.is_empty() => {
                 format!("no tags exist for {registry}/{repository}")
             }
-            Ok(tags) => format_available_tags_hint(&tags),
+            Ok(tags) => format_available_tags_hint(&tags, Some(&tag)),
             Err(_) => "could not fetch available tags from the registry".to_string(),
         };
 
@@ -963,24 +992,29 @@ fn is_manifest_unknown(err: &anyhow::Error) -> bool {
 
 /// Format a human-readable hint listing available tags.
 ///
-/// Filters out OCI signature/attestation tags (sha256-… digests) to keep
-/// the output focused on human-meaningful version tags. When there are many
-/// tags, only a subset is shown.
-fn format_available_tags_hint(tags: &[String]) -> String {
+/// Uses [`filter_tag_suggestions`] for context-aware pre-release filtering:
+/// pre-release tags are only shown when the requested tag shares the same
+/// major.minor prefix. Non-semver tags, `latest`, and hash tags are always
+/// excluded.
+fn format_available_tags_hint(tags: &[String], requested_tag: Option<&str>) -> String {
     const MAX_SHOWN: usize = 10;
 
-    // Filter out sha256-digest tags (OCI signatures, SBOMs, attestations)
-    let meaningful: Vec<&str> = tags
-        .iter()
-        .map(String::as_str)
-        .filter(|t| !t.starts_with("sha256-"))
-        .collect();
+    let filtered = filter_tag_suggestions(tags, requested_tag);
 
-    let tags_to_show = if meaningful.is_empty() {
-        tags.iter().map(String::as_str).collect()
+    // Fallback: if the semver filter removed everything, show raw
+    // human-meaningful tags (skip sha256-digest tags).
+    let tags_to_show: Vec<&str> = if filtered.is_empty() {
+        tags.iter()
+            .map(String::as_str)
+            .filter(|t| !t.starts_with("sha256-"))
+            .collect()
     } else {
-        meaningful
+        filtered.iter().map(String::as_str).collect()
     };
+
+    if tags_to_show.is_empty() {
+        return "no installable tags found".to_string();
+    }
 
     if tags_to_show.len() <= MAX_SHOWN {
         format!("available tags: {}", tags_to_show.join(", "))
