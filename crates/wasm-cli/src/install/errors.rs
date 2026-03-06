@@ -42,6 +42,21 @@ pub(crate) enum InstallError {
         /// The reason the reference is invalid.
         reason: String,
     },
+
+    /// A WIT-style package name could not be resolved via the known-package index.
+    #[diagnostic(
+        code(wasm::install::unknown_package),
+        help(
+            "'{input}' looks like a WIT package name but was not found in the \n\
+             registry index. Try running `wasm registry fetch` first to update \n\
+             the index, or use a full OCI reference instead \n\
+             (e.g. ghcr.io/webassembly/wasi/http:latest)"
+        )
+    )]
+    UnknownPackage {
+        /// The input string that could not be resolved.
+        input: String,
+    },
 }
 
 impl std::fmt::Display for InstallError {
@@ -55,6 +70,9 @@ impl std::fmt::Display for InstallError {
             }
             InstallError::InvalidReference { reason } => {
                 write!(f, "invalid OCI reference in manifest: {reason}")
+            }
+            InstallError::UnknownPackage { input } => {
+                write!(f, "package '{input}' not found in the registry index")
             }
         }
     }
@@ -111,6 +129,21 @@ mod tests {
         assert!(
             invalid_ref.help().is_some(),
             "InvalidReference must have a help message"
+        );
+
+        let unknown_pkg = InstallError::UnknownPackage {
+            input: "wasi:http".to_string(),
+        };
+        assert_eq!(
+            unknown_pkg
+                .code()
+                .expect("UnknownPackage must have a diagnostic code")
+                .to_string(),
+            "wasm::install::unknown_package",
+        );
+        assert!(
+            unknown_pkg.help().is_some(),
+            "UnknownPackage must have a help message"
         );
     }
 }

@@ -11,6 +11,10 @@ name = "clocks"
 repository = "wasi/clocks"
 
 [[interface]]
+name = "http"
+repository = "wasi/http"
+
+[[interface]]
 name = "random"
 repository = "wasi/random"
 

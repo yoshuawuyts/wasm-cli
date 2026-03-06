@@ -73,6 +73,22 @@ pub enum ManagerError {
         /// The repository path (e.g. `webassembly/wasi-logging`).
         repository: String,
     },
+
+    /// The requested tag does not exist in the registry.
+    #[diagnostic(
+        code(wasm::manager::manifest_not_found),
+        help("tag '{tag}' not found for {registry}/{repository}; {hint}")
+    )]
+    ManifestNotFound {
+        /// The tag that was requested (e.g. `latest`, `1.0.0`).
+        tag: String,
+        /// The registry host (e.g. `ghcr.io`).
+        registry: String,
+        /// The repository path (e.g. `webassembly/wasi-logging`).
+        repository: String,
+        /// Human-readable hint about available tags.
+        hint: String,
+    },
 }
 
 impl std::fmt::Display for ManagerError {
@@ -95,6 +111,17 @@ impl std::fmt::Display for ManagerError {
                 repository,
             } => {
                 write!(f, "no tags found for {registry}/{repository}")
+            }
+            ManagerError::ManifestNotFound {
+                tag,
+                registry,
+                repository,
+                hint,
+            } => {
+                write!(
+                    f,
+                    "tag '{tag}' not found for {registry}/{repository}\n  help: {hint}"
+                )
             }
         }
     }
@@ -178,6 +205,28 @@ mod tests {
         assert!(
             no_tags.help().is_some(),
             "NoTagsFound must have a help message"
+        );
+
+        let manifest_not_found = ManagerError::ManifestNotFound {
+            tag: "latest".to_string(),
+            registry: "ghcr.io".to_string(),
+            repository: "example/component".to_string(),
+            hint: "available tags: 1.0.0, 2.0.0".to_string(),
+        };
+        assert_eq!(
+            manifest_not_found
+                .code()
+                .expect("ManifestNotFound must have a diagnostic code")
+                .to_string(),
+            "wasm::manager::manifest_not_found",
+        );
+        assert!(
+            manifest_not_found.help().is_some(),
+            "ManifestNotFound must have a help message"
+        );
+        assert_eq!(
+            manifest_not_found.to_string(),
+            "tag 'latest' not found for ghcr.io/example/component\n  help: available tags: 1.0.0, 2.0.0",
         );
     }
 }

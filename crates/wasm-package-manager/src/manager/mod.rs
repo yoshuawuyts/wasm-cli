@@ -1,4 +1,5 @@
 use oci_client::Reference;
+use oci_client::errors::{OciDistributionError, OciErrorCode};
 use std::path::Path;
 use tokio_stream::StreamExt;
 
@@ -128,7 +129,10 @@ impl Manager {
             return Err(ManagerError::OfflinePull.into());
         }
 
-        let image = self.client.pull(&reference).await?;
+        let image = match self.client.pull(&reference).await {
+            Ok(image) => image,
+            Err(err) => return Err(self.enrich_manifest_error(err, &reference).await),
+        };
 
         // Validate the OCI bundle has exactly one WASM layer.
         if let Some(ref manifest) = image.manifest {
@@ -178,7 +182,10 @@ impl Manager {
         }
 
         // Fetch manifest and config
-        let (manifest, digest) = self.client.pull_manifest(&reference).await?;
+        let (manifest, digest) = match self.client.pull_manifest(&reference).await {
+            Ok(result) => result,
+            Err(err) => return Err(self.enrich_manifest_error(err, &reference).await),
+        };
 
         // Validate the OCI bundle has exactly one WASM layer.
         crate::oci::validate_single_wasm_layer(&manifest.layers)?;
@@ -902,5 +909,87 @@ impl Manager {
                 tracing::warn!("Failed to store referrer {}: {}", entry.digest, e);
             }
         }
+    }
+
+    /// Enrich a pull error with available tag information when the registry
+    /// reports "manifest unknown" (i.e. the requested tag does not exist).
+    ///
+    /// If the error is not a manifest-unknown error, it is returned as-is.
+    async fn enrich_manifest_error(
+        &self,
+        err: anyhow::Error,
+        reference: &Reference,
+    ) -> anyhow::Error {
+        if !is_manifest_unknown(&err) {
+            return err;
+        }
+
+        let tag = reference.tag().unwrap_or("latest").to_string();
+        let registry = reference.registry().to_string();
+        let repository = reference.repository().to_string();
+
+        // Best-effort: fetch available tags to include in the hint.
+        let hint = match self.client.list_tags(reference).await {
+            Ok(tags) if tags.is_empty() => {
+                format!("no tags exist for {registry}/{repository}")
+            }
+            Ok(tags) => format_available_tags_hint(&tags),
+            Err(_) => "could not fetch available tags from the registry".to_string(),
+        };
+
+        ManagerError::ManifestNotFound {
+            tag,
+            registry,
+            repository,
+            hint,
+        }
+        .into()
+    }
+}
+
+/// Check whether an `anyhow::Error` wraps an OCI "manifest unknown" error.
+///
+/// The OCI distribution spec returns this error code when a requested tag
+/// (or digest) does not exist in the repository.
+fn is_manifest_unknown(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        matches!(
+            cause.downcast_ref::<OciDistributionError>(),
+            Some(OciDistributionError::RegistryError { envelope, .. })
+                if envelope.errors.iter().any(|e| e.code == OciErrorCode::ManifestUnknown)
+        )
+    })
+}
+
+/// Format a human-readable hint listing available tags.
+///
+/// Filters out OCI signature/attestation tags (sha256-… digests) to keep
+/// the output focused on human-meaningful version tags. When there are many
+/// tags, only a subset is shown.
+fn format_available_tags_hint(tags: &[String]) -> String {
+    const MAX_SHOWN: usize = 10;
+
+    // Filter out sha256-digest tags (OCI signatures, SBOMs, attestations)
+    let meaningful: Vec<&str> = tags
+        .iter()
+        .map(String::as_str)
+        .filter(|t| !t.starts_with("sha256-"))
+        .collect();
+
+    let tags_to_show = if meaningful.is_empty() {
+        tags.iter().map(String::as_str).collect()
+    } else {
+        meaningful
+    };
+
+    if tags_to_show.len() <= MAX_SHOWN {
+        format!("available tags: {}", tags_to_show.join(", "))
+    } else {
+        let shown: Vec<&str> = tags_to_show.iter().take(MAX_SHOWN).copied().collect();
+        format!(
+            "available tags (showing {MAX_SHOWN} of {}): {}",
+            tags_to_show.len(),
+            shown.join(", ")
+        )
     }
 }
