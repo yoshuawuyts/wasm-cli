@@ -4,10 +4,10 @@ expression: output
 ---
 Search for packages across configured registries
 
-Usage: wasm registry search [OPTIONS] <QUERY>
+Usage: wasm registry search [OPTIONS] [QUERY]
 
 Arguments:
-  <QUERY>  Search query (matches package name and description)
+  [QUERY]  Search query (matches package name and description)
 
 Options:
       --exports <EXPORTS>  Filter to packages that export a given interface (e.g. wasi:http)

@@ -282,14 +282,13 @@ impl RawKnownPackage {
     /// Search for known packages that import a given interface.
     ///
     /// Joins through `oci_manifest` → `wit_package` → `wit_world` → `wit_world_import`
-    /// and matches on `declared_package` using a LIKE pattern.
+    /// and matches on `declared_package` using exact equality.
     pub(crate) fn search_by_import(
         conn: &Connection,
         interface: &str,
         offset: u32,
         limit: u32,
     ) -> anyhow::Result<Vec<RawKnownPackage>> {
-        let pattern = format!("%{interface}%");
         let mut stmt = conn.prepare(
             "SELECT DISTINCT r.id, r.registry, r.repository, r.updated_at, r.created_at
              FROM oci_repository r
@@ -297,25 +296,24 @@ impl RawKnownPackage {
              JOIN wit_package wp ON wp.oci_manifest_id = m.id
              JOIN wit_world ww ON ww.wit_package_id = wp.id
              JOIN wit_world_import wi ON wi.wit_world_id = ww.id
-             WHERE wi.declared_package LIKE ?1
+             WHERE wi.declared_package = ?1
              ORDER BY r.repository ASC, r.registry ASC
              LIMIT ?2 OFFSET ?3",
         )?;
 
-        Self::collect_repo_rows(conn, &mut stmt, (&pattern, limit, offset))
+        Self::collect_repo_rows(conn, &mut stmt, (interface, limit, offset))
     }
 
     /// Search for known packages that export a given interface.
     ///
     /// Joins through `oci_manifest` → `wit_package` → `wit_world` → `wit_world_export`
-    /// and matches on `declared_package` using a LIKE pattern.
+    /// and matches on `declared_package` using exact equality.
     pub(crate) fn search_by_export(
         conn: &Connection,
         interface: &str,
         offset: u32,
         limit: u32,
     ) -> anyhow::Result<Vec<RawKnownPackage>> {
-        let pattern = format!("%{interface}%");
         let mut stmt = conn.prepare(
             "SELECT DISTINCT r.id, r.registry, r.repository, r.updated_at, r.created_at
              FROM oci_repository r
@@ -323,12 +321,12 @@ impl RawKnownPackage {
              JOIN wit_package wp ON wp.oci_manifest_id = m.id
              JOIN wit_world ww ON ww.wit_package_id = wp.id
              JOIN wit_world_export we ON we.wit_world_id = ww.id
-             WHERE we.declared_package LIKE ?1
+             WHERE we.declared_package = ?1
              ORDER BY r.repository ASC, r.registry ASC
              LIMIT ?2 OFFSET ?3",
         )?;
 
-        Self::collect_repo_rows(conn, &mut stmt, (&pattern, limit, offset))
+        Self::collect_repo_rows(conn, &mut stmt, (interface, limit, offset))
     }
 
     /// Execute a prepared statement that returns `(id, registry, repository,

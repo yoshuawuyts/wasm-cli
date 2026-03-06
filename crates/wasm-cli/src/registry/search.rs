@@ -14,7 +14,8 @@ const SYNC_INTERVAL: u64 = 3600;
 #[derive(clap::Args)]
 pub(crate) struct SearchOpts {
     /// Search query (matches package name and description).
-    query: String,
+    #[arg(required_unless_present_any = ["exports", "imports"])]
+    query: Option<String>,
 
     /// Filter to packages that export a given interface (e.g. wasi:http).
     #[arg(long, conflicts_with = "imports")]
@@ -59,14 +60,20 @@ impl SearchOpts {
         let packages = match (&self.exports, &self.imports) {
             (Some(iface), _) => manager.search_packages_by_export(iface, 0, self.limit)?,
             (_, Some(iface)) => manager.search_packages_by_import(iface, 0, self.limit)?,
-            _ => manager.search_packages(&self.query, 0, self.limit)?,
+            _ => {
+                let query = self.query.as_deref().unwrap_or_default();
+                manager.search_packages(query, 0, self.limit)?
+            }
         };
 
         if packages.is_empty() {
             let message = match (&self.exports, &self.imports) {
                 (Some(iface), _) => format!("No packages found exporting '{iface}'"),
                 (_, Some(iface)) => format!("No packages found importing '{iface}'"),
-                _ => format!("No packages found matching '{}'", self.query),
+                _ => format!(
+                    "No packages found matching '{}'",
+                    self.query.as_deref().unwrap_or_default()
+                ),
             };
             println!("{message}");
             return Ok(());
