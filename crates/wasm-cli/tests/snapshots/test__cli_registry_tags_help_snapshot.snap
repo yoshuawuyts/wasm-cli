@@ -12,6 +12,8 @@ Arguments:
 Options:
       --signatures    Include signature tags (ending in .sig)
       --attestations  Include attestation tags (ending in .att)
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity
   -h, --help          Print help
   -V, --version       Print version
 

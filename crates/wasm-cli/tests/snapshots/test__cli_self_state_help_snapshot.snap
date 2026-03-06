@@ -7,8 +7,10 @@ Print diagnostics about the local state
 Usage: wasm self state [OPTIONS]
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
+  -h, --help        Print help
+  -V, --version     Print version
 
 Global Options:
       --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]

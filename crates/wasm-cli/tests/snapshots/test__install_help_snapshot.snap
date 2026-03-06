@@ -10,8 +10,10 @@ Arguments:
   [COMPONENT]...  Components to install. Accepts OCI references (e.g., ghcr.io/webassembly/wasi-logging:1.0.0) or manifest keys using scope:component syntax (e.g., wasi:logging). If no arguments are provided, installs all packages listed in the manifest
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
+  -h, --help        Print help
+  -V, --version     Print version
 
 Global Options:
       --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]

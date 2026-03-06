@@ -14,6 +14,7 @@ mod util;
 use std::io::IsTerminal;
 
 use clap::{ColorChoice, CommandFactory, Parser};
+use clap_verbosity_flag::Verbosity;
 use miette::{Context, IntoDiagnostic};
 use util::into_miette;
 
@@ -34,6 +35,9 @@ pub(crate) struct Cli {
     /// Run in offline mode.
     #[arg(long, global = true, help_heading = "Global Options")]
     offline: bool,
+
+    #[command(flatten)]
+    verbosity: Verbosity,
 
     #[command(subcommand)]
     command: Option<Command>,
@@ -96,15 +100,20 @@ pub(crate) fn log_dir() -> std::path::PathBuf {
     wasm_package_manager::storage::StateInfo::default_log_dir()
 }
 
-/// Initialize the tracing subscriber with a file appender and a stderr layer
-/// for warnings and above. Logs are stored in an XDG-compliant directory.
+/// Initialize the tracing subscriber with a file appender and a stderr layer.
+/// Logs are stored in an XDG-compliant directory.
+///
+/// The `level` parameter controls the verbosity of both the file and stderr
+/// log layers, and is typically derived from `--verbose` / `--quiet` CLI flags.
 ///
 /// The returned `WorkerGuard` must be kept alive for the duration of the
 /// program to ensure all buffered log records are flushed.
-fn init_tracing() -> miette::Result<tracing_appender::non_blocking::WorkerGuard> {
+fn init_tracing(
+    level: tracing::level_filters::LevelFilter,
+) -> miette::Result<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::Layer;
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::{EnvFilter, Layer};
 
     let log_dir = log_dir();
     std::fs::create_dir_all(&log_dir)
@@ -117,11 +126,11 @@ fn init_tracing() -> miette::Result<tracing_appender::non_blocking::WorkerGuard>
     let file_layer = tracing_subscriber::fmt::layer()
         .with_writer(non_blocking)
         .with_ansi(false)
-        .with_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")));
+        .with_filter(level);
 
     let stderr_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
-        .with_filter(tracing_subscriber::filter::LevelFilter::WARN);
+        .with_filter(level);
 
     tracing_subscriber::registry()
         .with(file_layer)
@@ -136,7 +145,8 @@ async fn main() -> miette::Result<()> {
     // Load .env file if present; variables already set in the environment
     // take precedence (system environment is not overridden).
     dotenvy::dotenv().ok();
-    let _tracing_guard = init_tracing()?;
-    Cli::parse().run().await?;
+    let cli = Cli::parse();
+    let _tracing_guard = init_tracing(cli.verbosity.tracing_level_filter())?;
+    cli.run().await?;
     Ok(())
 }

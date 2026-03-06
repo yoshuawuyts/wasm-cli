@@ -13,7 +13,9 @@ Options:
       --env <KEY=VAL>    Pass an environment variable to the guest (repeatable)
       --dir <HOST_PATH>  Pre-open a host directory for the guest (repeatable)
       --inherit-env      Inherit all host environment variables
+  -v, --verbose...       Increase logging verbosity
       --inherit-network  Allow the guest to access the network
+  -q, --quiet...         Decrease logging verbosity
       --no-stdio         Suppress stdin/stdout/stderr inheritance
   -h, --help             Print help
   -V, --version          Print version

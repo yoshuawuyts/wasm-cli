@@ -9,6 +9,8 @@ Usage: wasm self log [OPTIONS]
 Options:
   -f, --follow         Continuously stream new log lines (like `tail -f`)
   -n, --lines <LINES>  Number of lines to show from the end of the log
+  -v, --verbose...     Increase logging verbosity
+  -q, --quiet...       Decrease logging verbosity
   -h, --help           Print help
   -V, --version        Print version
 

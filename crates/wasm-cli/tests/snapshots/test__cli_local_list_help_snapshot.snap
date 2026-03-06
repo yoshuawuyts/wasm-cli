@@ -12,6 +12,8 @@ Arguments:
 Options:
       --hidden        Include hidden files and directories
       --follow-links  Follow symbolic links
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity
   -h, --help          Print help
   -V, --version       Print version
 

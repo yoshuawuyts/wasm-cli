@@ -7,8 +7,10 @@ Clean up storage (remove all data, images, and metadata)
 Usage: wasm self clean [OPTIONS]
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
+  -h, --help        Print help
+  -V, --version     Print version
 
 Global Options:
       --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]

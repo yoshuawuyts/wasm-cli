@@ -10,9 +10,11 @@ Arguments:
   <REFERENCE>  The reference to inspect (e.g., ghcr.io/example/component:tag)
 
 Options:
-      --json     Output in JSON encoding
-  -h, --help     Print help
-  -V, --version  Print version
+      --json        Output in JSON encoding
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
+  -h, --help        Print help
+  -V, --version     Print version
 
 Global Options:
       --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
