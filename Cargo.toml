@@ -114,6 +114,8 @@ termcolor = "1.4.1"
 wasm-metadata = "0.245.1"
 wasmtime = "42.0.1"
 wasmtime-wasi = "42.0.1"
+wasmtime-wasi-http = "42.0.1"
+hyper = { version = "1", features = ["http1", "server"] }
 ratatui = "0.30.0"
 crossterm = "0.29.0"
 

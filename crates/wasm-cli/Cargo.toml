@@ -34,7 +34,7 @@ miette = { workspace = true, features = ["fancy"] }
 ratatui = { workspace = true }
 serde_json = { workspace = true }
 termcolor = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["net"] }
 toml = { workspace = true }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
@@ -49,12 +49,15 @@ wac-graph = { workspace = true }
 wac-resolver = { workspace = true }
 wasmtime = { workspace = true }
 wasmtime-wasi = { workspace = true }
+wasmtime-wasi-http = { workspace = true }
+hyper = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 oci-client = { workspace = true }
 tempfile = { workspace = true }
 wasm-detector = { workspace = true }
+wasm-encoder = "0.245"
 wasm-package-manager = { workspace = true }
 
 [lints]

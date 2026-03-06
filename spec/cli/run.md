@@ -28,3 +28,21 @@ r[run.oci-layer-lookup]
 When running an OCI reference, the run command MUST retrieve the component
 bytes using the `application/wasm` layer digest from the pulled manifest, not
 the OCI reference string.
+
+## HTTP world support
+
+r[run.http-world-detection]
+The run command MUST auto-detect whether a component targets the
+`wasi:http/proxy` world by checking for a `wasi:http/incoming-handler` export.
+
+r[run.http-server]
+When a component targets the `wasi:http/proxy` world, the run command MUST
+start a local HTTP server that proxies incoming requests to the component.
+
+r[run.http-listen-flag]
+The `--listen` flag MUST allow the user to configure the HTTP server bind
+address. The default bind address MUST be `127.0.0.1:8080`.
+
+r[run.http-listen-message]
+When the HTTP server starts, the run command MUST print the listening address
+to stderr.

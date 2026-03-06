@@ -15,6 +15,7 @@ Options:
       --inherit-env      Inherit all host environment variables
       --inherit-network  Allow the guest to access the network
       --no-stdio         Suppress stdin/stdout/stderr inheritance
+      --listen <ADDR>    Address to bind the HTTP server to when running an `wasi:http/proxy` component (default: `127.0.0.1:8080`) [default: 127.0.0.1:8080]
   -h, --help             Print help
   -V, --version          Print version
 

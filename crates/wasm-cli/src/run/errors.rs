@@ -80,6 +80,28 @@ pub(crate) enum RunError {
         /// The component key.
         name: String,
     },
+
+    /// The HTTP server could not bind to the requested address.
+    #[diagnostic(
+        code(wasm::run::http_bind_failed),
+        help("{reason}; ensure the address '{addr}' is available and not in use by another process")
+    )]
+    HttpBindFailed {
+        /// The requested bind address.
+        addr: String,
+        /// The underlying OS error message.
+        reason: String,
+    },
+
+    /// The HTTP server failed to accept an incoming connection.
+    #[diagnostic(
+        code(wasm::run::http_accept_failed),
+        help("the HTTP listener encountered an error: {reason}")
+    )]
+    HttpAcceptFailed {
+        /// The underlying OS error message.
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for RunError {
@@ -115,6 +137,12 @@ impl std::fmt::Display for RunError {
             RunError::VendoredFileMissing { path, name } => {
                 write!(f, "vendored file '{path}' not found for component '{name}'",)
             }
+            RunError::HttpBindFailed { addr, reason } => {
+                write!(f, "failed to bind HTTP server to {addr}: {reason}")
+            }
+            RunError::HttpAcceptFailed { reason } => {
+                write!(f, "failed to accept incoming HTTP connection: {reason}")
+            }
         }
     }
 }
@@ -148,6 +176,13 @@ mod tests {
                 path: "test".to_string(),
                 name: "test".to_string(),
             }),
+            Box::new(RunError::HttpBindFailed {
+                addr: "127.0.0.1:8080".to_string(),
+                reason: "test".to_string(),
+            }),
+            Box::new(RunError::HttpAcceptFailed {
+                reason: "test".to_string(),
+            }),
         ];
 
         let expected_codes = [
@@ -159,6 +194,8 @@ mod tests {
             "wasm::run::not_in_lockfile",
             "wasm::run::invalid_registry_path",
             "wasm::run::vendored_file_missing",
+            "wasm::run::http_bind_failed",
+            "wasm::run::http_accept_failed",
         ];
 
         for (variant, expected_code) in variants.iter().zip(expected_codes.iter()) {

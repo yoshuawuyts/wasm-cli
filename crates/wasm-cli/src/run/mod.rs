@@ -5,9 +5,15 @@
 //! Runs a Wasm Component from a local file or OCI reference. The component is
 //! sandboxed by default — WASI capabilities (env, filesystem, network, stdio)
 //! are only granted through CLI flags or layered config.
+//!
+//! Both `wasi:cli/command` and `wasi:http/proxy` worlds are supported.
+//! Components that export `wasi:http/incoming-handler` are served as HTTP
+//! servers; all others are executed as CLI commands.
 
 mod errors;
+mod http;
 
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use errors::RunError;
@@ -48,6 +54,11 @@ pub(crate) struct Opts {
     /// Suppress stdin/stdout/stderr inheritance.
     #[arg(long)]
     no_stdio: bool,
+
+    /// Address to bind the HTTP server to when running an `wasi:http/proxy`
+    /// component (default: `127.0.0.1:8080`).
+    #[arg(long, value_name = "ADDR", default_value = "127.0.0.1:8080")]
+    listen: SocketAddr,
 }
 
 /// Host state wired into `Store<WasiState>`.
@@ -115,16 +126,22 @@ impl Opts {
         // 4. Resolve permissions (4-layer merge).
         let permissions = self.resolve_permissions(reference.as_ref());
 
-        // 5. Build Wasmtime runtime and execute.
-        //    This is CPU-bound work so we use spawn_blocking.
-        let result = tokio::task::spawn_blocking(move || execute_component(&bytes, &permissions))
-            .await
-            .into_diagnostic()
-            .wrap_err("runtime task panicked")??;
+        // 5. Detect world and execute.
+        if exports_http_incoming_handler(&bytes) {
+            // wasi:http/proxy — start an HTTP server.
+            http::serve(&bytes, &permissions, self.listen).await?;
+        } else {
+            // wasi:cli/command — run as a CLI program.
+            let result =
+                tokio::task::spawn_blocking(move || execute_cli_component(&bytes, &permissions))
+                    .await
+                    .into_diagnostic()
+                    .wrap_err("runtime task panicked")??;
 
-        // 6. Map exit.
-        if let Err(()) = result {
-            std::process::exit(1);
+            // 6. Map exit.
+            if let Err(()) = result {
+                std::process::exit(1);
+            }
         }
         Ok(())
     }
@@ -253,9 +270,40 @@ fn validate_component(bytes: &[u8]) -> miette::Result<()> {
     Err(RunError::NoVersionHeader.into())
 }
 
+/// Check whether a component exports `wasi:http/incoming-handler`, indicating
+/// it targets the `wasi:http/proxy` world rather than `wasi:cli/command`.
+///
+/// Only top-level component exports are considered; nested component exports
+/// are ignored by tracking nesting depth through `Version` / `End` payloads.
+fn exports_http_incoming_handler(bytes: &[u8]) -> bool {
+    let parser = Parser::new(0);
+    let mut depth: u32 = 0;
+
+    for payload in parser.parse_all(bytes) {
+        let Ok(payload) = payload else { continue };
+        match payload {
+            Payload::Version { .. } => {
+                depth += 1;
+            }
+            Payload::End(_) => {
+                depth = depth.saturating_sub(1);
+            }
+            Payload::ComponentExportSection(reader) if depth == 1 => {
+                for export in reader.into_iter().flatten() {
+                    if export.name.0.starts_with("wasi:http/incoming-handler") {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// Build the Wasmtime runtime, instantiate the component, and invoke
 /// `wasi:cli/run@0.2.0#run`.
-fn execute_component(
+fn execute_cli_component(
     bytes: &[u8],
     permissions: &wasm_manifest::ResolvedPermissions,
 ) -> miette::Result<Result<(), ()>> {
@@ -498,4 +546,53 @@ fn is_in_registry(manager: &Manager, pattern: &str) -> bool {
 /// Fallback hint when neither cache nor registry has the component.
 fn default_install_hint(input: &str) -> String {
     format!("run `wasm install {input}` to add it to the project before running it.")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a minimal component that exports `wasi:http/incoming-handler@0.2.0`.
+    fn build_http_component() -> Vec<u8> {
+        use wasm_encoder::{ComponentExportKind, ComponentExportSection};
+        let mut component = wasm_encoder::Component::new();
+
+        let mut exports = ComponentExportSection::new();
+        exports.export(
+            "wasi:http/incoming-handler@0.2.0",
+            ComponentExportKind::Instance,
+            0,
+            None,
+        );
+        component.section(&exports);
+
+        component.finish()
+    }
+
+    #[test]
+    fn detect_http_world_in_http_component() {
+        let bytes = build_http_component();
+        assert!(
+            exports_http_incoming_handler(&bytes),
+            "should detect wasi:http/incoming-handler export"
+        );
+    }
+
+    #[test]
+    fn detect_cli_world_in_minimal_component() {
+        let bytes = include_bytes!("../../tests/fixtures/minimal_component.wasm");
+        assert!(
+            !exports_http_incoming_handler(bytes),
+            "minimal component should not be detected as HTTP"
+        );
+    }
+
+    #[test]
+    fn detect_cli_world_in_core_module() {
+        let bytes = include_bytes!("../../tests/fixtures/core_module.wasm");
+        assert!(
+            !exports_http_incoming_handler(bytes),
+            "core module should not be detected as HTTP"
+        );
+    }
 }
