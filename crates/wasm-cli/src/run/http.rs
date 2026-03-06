@@ -306,7 +306,7 @@ mod tests {
     // r[verify run.http-listen-message]
     #[test]
     fn listen_message_format() {
-        // The serve function prints "Serving HTTP on http://{bound}" to stderr.
+        // The serve function prints "Serving HTTP on http://<addr>" to stderr.
         // Verify the message format matches the spec requirement.
         let addr: SocketAddr = "127.0.0.1:8080".parse().expect("valid addr");
         let msg = format!("Serving HTTP on http://{addr}");
