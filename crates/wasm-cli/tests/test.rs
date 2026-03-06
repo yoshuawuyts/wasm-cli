@@ -596,6 +596,7 @@ fn test_install_without_init() {
 // =============================================================================
 
 // r[verify cli.run.help]
+// r[verify run.http-listen-flag]
 #[test]
 fn test_cli_run_help_snapshot() {
     let output = run_cli(&["run", "--help"]);

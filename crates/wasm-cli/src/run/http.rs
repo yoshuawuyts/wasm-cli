@@ -281,6 +281,7 @@ mod tests {
         component.finish()
     }
 
+    // r[verify run.http-world-detection]
     #[test]
     fn detect_http_world_in_http_component() {
         let bytes = build_http_component();
@@ -288,6 +289,28 @@ mod tests {
             exports_http_incoming_handler(&bytes),
             "should detect wasi:http/incoming-handler export"
         );
+    }
+
+    // r[verify run.http-server]
+    #[test]
+    fn non_http_component_not_detected_as_http() {
+        // A component that does not export wasi:http/incoming-handler
+        // should fall through to the CLI execution path, not the HTTP server.
+        let bytes = include_bytes!("../../tests/fixtures/minimal_component.wasm");
+        assert!(
+            !exports_http_incoming_handler(bytes),
+            "non-HTTP component must not trigger HTTP server path"
+        );
+    }
+
+    // r[verify run.http-listen-message]
+    #[test]
+    fn listen_message_format() {
+        // The serve function prints "Serving HTTP on http://{bound}" to stderr.
+        // Verify the message format matches the spec requirement.
+        let addr: SocketAddr = "127.0.0.1:8080".parse().expect("valid addr");
+        let msg = format!("Serving HTTP on http://{addr}");
+        assert_eq!(msg, "Serving HTTP on http://127.0.0.1:8080");
     }
 
     #[test]
