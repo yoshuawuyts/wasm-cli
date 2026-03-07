@@ -121,14 +121,14 @@ impl Store {
     /// not exercise the content-addressable layer cache.
     #[cfg(test)]
     pub(crate) fn from_conn(conn: Connection) -> Self {
-        use std::path::PathBuf;
-        let migration_info = super::models::Migrations {
+        let tmp = std::env::temp_dir();
+        let migration_info = Migrations {
             current: 0,
             total: 0,
         };
         let state_info = StateInfo::new_at(
-            PathBuf::from("/tmp/test-wasm-store"),
-            PathBuf::from("/tmp/test-wasm-config.toml"),
+            tmp.join("test-wasm-store"),
+            tmp.join("test-wasm-config.toml"),
             &migration_info,
             0,
             0,
@@ -779,13 +779,17 @@ impl Store {
     /// Return all declared dependencies for the package at the given OCI
     /// registry and repository.
     ///
-    /// The query covers two cases:
+    /// The query resolves dependencies for the **latest** indexed manifest
+    /// (highest manifest `id`) so that it always reflects the most recent
+    /// version. Two cases are covered:
     ///
     /// 1. **Pulled packages** — dependencies stored via the
     ///    `oci_manifest` → `oci_repository` chain after a full layer pull.
-    /// 2. **Synced packages** — dependencies stored directly in `wit_package`
-    ///    (without an OCI manifest link) by associating the WIT package name
-    ///    derived from `oci_repository.wit_namespace` / `oci_repository.wit_name`.
+    ///    Only the latest manifest is considered to avoid mixing deps across
+    ///    versions.
+    /// 2. **Synced stubs** — `wit_package` rows with `oci_manifest_id IS NULL`
+    ///    whose `package_name` matches the WIT namespace+name derived from
+    ///    the OCI repository metadata.
     // r[impl db.wit-package-dependency.get-for-package]
     pub(crate) fn get_package_dependencies(
         &self,
@@ -797,19 +801,24 @@ impl Store {
              FROM wit_package_dependency wpd
              JOIN wit_package wp ON wpd.dependent_id = wp.id
              WHERE
-               wp.oci_manifest_id IN (
+               wp.oci_manifest_id = (
                  SELECT om.id
                  FROM oci_manifest om
                  JOIN oci_repository repo ON om.oci_repository_id = repo.id
                  WHERE repo.registry = ?1 AND repo.repository = ?2
-               )
-               OR wp.package_name = (
-                 SELECT repo.wit_namespace || ':' || repo.wit_name
-                 FROM oci_repository repo
-                 WHERE repo.registry = ?1 AND repo.repository = ?2
-                   AND repo.wit_namespace IS NOT NULL
-                   AND repo.wit_name IS NOT NULL
+                 ORDER BY om.id DESC
                  LIMIT 1
+               )
+               OR (
+                 wp.oci_manifest_id IS NULL
+                 AND wp.package_name = (
+                   SELECT repo.wit_namespace || ':' || repo.wit_name
+                   FROM oci_repository repo
+                   WHERE repo.registry = ?1 AND repo.repository = ?2
+                     AND repo.wit_namespace IS NOT NULL
+                     AND repo.wit_name IS NOT NULL
+                   LIMIT 1
+                 )
                )
              ORDER BY wpd.declared_package",
         )?;
@@ -899,6 +908,7 @@ impl Store {
     /// This allows the dependency graph to be queried for pre-planned
     /// installation without performing a full layer pull first.
     // r[impl db.wit-package-dependency.populate-on-sync]
+    // r[impl db.wit-package-dependency.upsert-idempotent]
     #[cfg(feature = "http-sync")]
     pub(crate) fn upsert_package_dependencies_from_sync(
         &self,
@@ -1621,6 +1631,7 @@ mod tests {
     }
 
     // r[verify db.wit-package-dependency.get-for-package]
+    // r[verify server.index.dependencies]
     #[test]
     fn get_package_dependencies_returns_deps_for_pulled_package() {
         let conn = setup_test_db();
@@ -1701,6 +1712,7 @@ mod tests {
     }
 
     // r[verify db.wit-package-dependency.upsert-idempotent]
+    // r[verify db.wit-package-dependency.populate-on-sync]
     #[cfg(feature = "http-sync")]
     #[test]
     fn upsert_package_dependencies_from_sync_is_idempotent() {

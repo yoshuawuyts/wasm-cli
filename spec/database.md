@@ -71,9 +71,10 @@ installation without additional network requests.
 
 r[db.wit-package-dependency.get-for-package]
 Given a registry and repository, the store MUST return all declared dependencies
-of that package by querying both pulled packages (via `oci_manifest` →
-`oci_repository`) and synced packages (via `oci_repository.wit_namespace` /
-`oci_repository.wit_name`).
+of that package. For pulled packages the dependencies are sourced from the
+**latest** indexed manifest (by insertion order). For sync stubs (packages
+stored without an OCI manifest link) the dependencies are sourced by matching
+`oci_repository.wit_namespace` / `oci_repository.wit_name`.
 
 r[db.wit-package-dependency.upsert-idempotent]
 Upserting the same package dependency MUST be idempotent (inserting duplicate

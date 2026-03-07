@@ -17,10 +17,11 @@ r[client.known-package.reference-default-tag]
 are present.
 
 r[client.known-package.dependencies]
-`KnownPackage` MUST include a `dependencies` field listing the declared WIT
-package dependencies for the package's latest indexed version. The field MUST
-be an empty list when no dependency information is available. Each entry MUST
-carry the declared package name and an optional version string.
+`KnownPackage` MUST represent the declared WIT package dependencies for the
+package's latest indexed version in a `dependencies` field. The field MAY be
+omitted when no dependency information is available; omission MUST be treated
+as equivalent to an empty list. Each entry MUST carry the declared package
+name and an optional version string.
 
 ## Registry Client
 

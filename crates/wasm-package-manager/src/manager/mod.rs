@@ -643,6 +643,12 @@ impl Manager {
     ///
     /// Each returned [`KnownPackage`] has its `dependencies` field populated
     /// from the local `wit_package_dependency` table.
+    ///
+    /// **Note:** the current implementation performs one dependency query per
+    /// package (N+1). This is acceptable for the typical page sizes used by
+    /// the TUI search (~50 items) and keeps the code simple. A future
+    /// optimisation could batch-load all dependencies in a single query keyed
+    /// by `(registry, repository)` pairs.
     pub fn list_known_packages(
         &self,
         offset: u32,
@@ -975,11 +981,10 @@ impl Manager {
                 && let (Some(ns), Some(name)) = (&pkg.wit_namespace, &pkg.wit_name)
             {
                 let package_name = format!("{ns}:{name}");
-                // Use the latest tag as the canonical version; strip
-                // any leading "v" so it matches the WIT version string.
-                let version = pkg
-                    .tags
-                    .first()
+                // Use the latest stable semver tag as the canonical version;
+                // strip any leading "v" so it matches the WIT version string.
+                // Falls back to None when no stable semver tag is available.
+                let version = pick_latest_stable_tag(&pkg.tags)
                     .map(|t| t.trim_start_matches('v').to_string());
                 if let Err(e) = self.store.upsert_package_dependencies_from_sync(
                     &package_name,

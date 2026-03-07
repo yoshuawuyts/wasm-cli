@@ -115,7 +115,9 @@ pub struct KnownPackage {
     pub wit_name: Option<String>,
     /// Declared WIT dependencies of this package's latest indexed version.
     ///
-    /// Empty when no WIT metadata has been extracted for this package.
+    /// The field MAY be omitted when no WIT metadata has been extracted for
+    /// this package; omission MUST be treated as equivalent to an empty list.
+    // r[impl client.known-package.dependencies]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dependencies: Vec<PackageDependencyRef>,
 }
