@@ -655,8 +655,7 @@ impl Manager {
                 let mut pkg = KnownPackage::from(raw);
                 pkg.dependencies = self
                     .store
-                    .get_package_dependencies(&pkg.registry, &pkg.repository)
-                    .unwrap_or_default();
+                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
                 Ok(pkg)
             })
             .collect()
@@ -744,10 +743,7 @@ impl Manager {
             None => Ok(None),
             Some(raw) => {
                 let mut pkg = KnownPackage::from(raw);
-                pkg.dependencies = self
-                    .store
-                    .get_package_dependencies(registry, repository)
-                    .unwrap_or_default();
+                pkg.dependencies = self.store.get_package_dependencies(registry, repository)?;
                 Ok(Some(pkg))
             }
         }
@@ -847,8 +843,7 @@ impl Manager {
         let mut pkg = KnownPackage::from(raw);
         pkg.dependencies = self
             .store
-            .get_package_dependencies(reference.registry(), reference.repository())
-            .unwrap_or_default();
+            .get_package_dependencies(reference.registry(), reference.repository())?;
         Ok(pkg)
     }
 
@@ -976,26 +971,26 @@ impl Manager {
             // Store dependency information from the sync response so the
             // local database can answer dependency queries without network
             // access.
-            if !pkg.dependencies.is_empty() {
-                if let (Some(ns), Some(name)) = (&pkg.wit_namespace, &pkg.wit_name) {
-                    let package_name = format!("{ns}:{name}");
-                    // Use the latest tag as the canonical version; strip
-                    // any leading "v" so it matches the WIT version string.
-                    let version = pkg
-                        .tags
-                        .first()
-                        .map(|t| t.trim_start_matches('v').to_string());
-                    if let Err(e) = self.store.upsert_package_dependencies_from_sync(
-                        &package_name,
-                        version.as_deref(),
-                        &pkg.dependencies,
-                    ) {
-                        tracing::warn!(
-                            package = %package_name,
-                            error = %e,
-                            "Failed to store synced dependencies"
-                        );
-                    }
+            if !pkg.dependencies.is_empty()
+                && let (Some(ns), Some(name)) = (&pkg.wit_namespace, &pkg.wit_name)
+            {
+                let package_name = format!("{ns}:{name}");
+                // Use the latest tag as the canonical version; strip
+                // any leading "v" so it matches the WIT version string.
+                let version = pkg
+                    .tags
+                    .first()
+                    .map(|t| t.trim_start_matches('v').to_string());
+                if let Err(e) = self.store.upsert_package_dependencies_from_sync(
+                    &package_name,
+                    version.as_deref(),
+                    &pkg.dependencies,
+                ) {
+                    tracing::warn!(
+                        package = %package_name,
+                        error = %e,
+                        "Failed to store synced dependencies"
+                    );
                 }
             }
         }

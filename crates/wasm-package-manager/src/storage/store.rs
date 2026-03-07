@@ -122,7 +122,10 @@ impl Store {
     #[cfg(test)]
     pub(crate) fn from_conn(conn: Connection) -> Self {
         use std::path::PathBuf;
-        let migration_info = super::models::Migrations { current: 0, total: 0 };
+        let migration_info = super::models::Migrations {
+            current: 0,
+            total: 0,
+        };
         let state_info = StateInfo::new_at(
             PathBuf::from("/tmp/test-wasm-store"),
             PathBuf::from("/tmp/test-wasm-config.toml"),
@@ -812,19 +815,13 @@ impl Store {
         )?;
 
         let rows = stmt.query_map(rusqlite::params![registry, repository], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<String>>(1)?,
-            ))
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
         })?;
 
         let mut result = Vec::new();
         for row in rows {
             let (package, version) = row?;
-            result.push(wasm_meta_registry_client::PackageDependencyRef {
-                package,
-                version,
-            });
+            result.push(wasm_meta_registry_client::PackageDependencyRef { package, version });
         }
         Ok(result)
     }
@@ -852,19 +849,13 @@ impl Store {
         )?;
 
         let rows = stmt.query_map(rusqlite::params![package_name, version], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<String>>(1)?,
-            ))
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
         })?;
 
         let mut result = Vec::new();
         for row in rows {
             let (package, version) = row?;
-            result.push(wasm_meta_registry_client::PackageDependencyRef {
-                package,
-                version,
-            });
+            result.push(wasm_meta_registry_client::PackageDependencyRef { package, version });
         }
         Ok(result)
     }
