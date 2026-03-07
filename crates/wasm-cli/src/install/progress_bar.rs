@@ -114,23 +114,22 @@ impl ProgressTree {
         // Find this bar's index in the entries list by unique ID.
         let idx = self.entries.iter().position(|e| e.id == bar_id);
 
-        // Determine glyph and name/version from the stored entry.
-        let (glyph, name, version) = match idx.and_then(|i| self.entries.get(i)) {
-            Some(entry) => {
-                let is_last = idx == Some(self.entries.len() - 1);
-                (
-                    tree_glyph(is_last),
-                    entry.name.clone(),
-                    entry.version.clone(),
-                )
-            }
-            None => {
-                // Fallback: treat as last entry for glyph purposes.
-                (tree_glyph(true), String::new(), None)
-            }
+        // Build the prefix from the stored entry (immutable borrow), then
+        // apply it to the progress bar before we take a mutable borrow to
+        // mark the entry complete.
+        let prefix = if let Some(entry) = idx.and_then(|i| self.entries.get(i)) {
+            let is_last = idx == Some(self.entries.len() - 1);
+            build_prefix(
+                tree_glyph(is_last),
+                &entry.name,
+                entry.version.as_deref(),
+                true,
+            )
+        } else {
+            tracing::debug!("finish_bar called with unknown BarId({bar_id:?})");
+            build_prefix(tree_glyph(true), "", None, true)
         };
 
-        let prefix = build_prefix(glyph, &name, version.as_deref(), true);
         pb.set_style(done_style());
         pb.set_prefix(prefix);
         pb.finish();
