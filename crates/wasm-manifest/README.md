@@ -41,4 +41,6 @@ digest = "sha256:a1b2c3d4..."
 [[package.dependencies]]
 name = "wasi:logging"
 version = "1.0.0"
+registry = "ghcr.io/webassembly/wasi-logging"
+digest = "sha256:a1b2c3d4..."
 ```

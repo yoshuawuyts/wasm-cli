@@ -324,6 +324,8 @@ mod tests {
                     dependencies: vec![PackageDependency {
                         name: "wasi:logging".to_string(),
                         version: "1.0.0".to_string(),
+                        registry: "ghcr.io/webassembly/wasi-logging".to_string(),
+                        digest: "sha256:abc123".to_string(),
                     }],
                 },
             ],
@@ -423,10 +425,14 @@ mod tests {
                         PackageDependency {
                             name: "wasi:logging".to_string(),
                             version: "1.0.0".to_string(),
+                            registry: "ghcr.io/webassembly/wasi-logging".to_string(),
+                            digest: "sha256:abc123".to_string(),
                         },
                         PackageDependency {
                             name: "wasi:http".to_string(), // This package doesn't exist
                             version: "1.0.0".to_string(),
+                            registry: "ghcr.io/webassembly/wasi-http".to_string(),
+                            digest: "sha256:missing".to_string(),
                         },
                     ],
                 },

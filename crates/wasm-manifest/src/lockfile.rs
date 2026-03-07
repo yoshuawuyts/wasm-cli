@@ -1,5 +1,7 @@
 //! Types for the WASM lockfile (`wasm.lock`).
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::PackageType;
@@ -100,6 +102,31 @@ impl Lockfile {
             .map(|p| (p, PackageType::Component))
             .chain(self.interfaces.iter().map(|p| (p, PackageType::Interface)))
     }
+
+    /// Backfill `registry` and `digest` on every [`PackageDependency`] by
+    /// looking up the matching top-level [`Package`] entry (matched by name).
+    ///
+    /// Call this after all packages have been inserted into the lockfile so
+    /// that every dependency reference carries the resolved registry path and
+    /// content digest.
+    pub fn resolve_dependency_details(&mut self) {
+        // Build a lookup from package name → (registry, digest).
+        let lookup: HashMap<String, (String, String)> = self
+            .components
+            .iter()
+            .chain(self.interfaces.iter())
+            .map(|p| (p.name.clone(), (p.registry.clone(), p.digest.clone())))
+            .collect();
+
+        for pkg in self.components.iter_mut().chain(self.interfaces.iter_mut()) {
+            for dep in &mut pkg.dependencies {
+                if let Some((registry, digest)) = lookup.get(&dep.name) {
+                    dep.registry.clone_from(registry);
+                    dep.digest.clone_from(digest);
+                }
+            }
+        }
+    }
 }
 
 /// A resolved package entry in the lockfile.
@@ -124,6 +151,8 @@ impl Lockfile {
 /// [[interfaces.dependencies]]
 /// name = "wasi:logging"
 /// version = "1.0.0"
+/// registry = "ghcr.io/webassembly/wasi-logging"
+/// digest = "sha256:abc123"
 /// "#;
 ///
 /// let lockfile: Lockfile = toml::from_str(toml).unwrap();
@@ -155,7 +184,8 @@ pub struct Package {
 
 /// A dependency reference within a package.
 ///
-/// This represents a dependency that a package has on another package.
+/// This represents a dependency that a package has on another package,
+/// fully resolved with registry path and content digest.
 ///
 /// # Example
 ///
@@ -165,8 +195,11 @@ pub struct Package {
 /// let dep = PackageDependency {
 ///     name: "wasi:logging".to_string(),
 ///     version: "1.0.0".to_string(),
+///     registry: "ghcr.io/webassembly/wasi-logging".to_string(),
+///     digest: "sha256:abc123".to_string(),
 /// };
 /// assert_eq!(dep.name, "wasi:logging");
+/// assert_eq!(dep.registry, "ghcr.io/webassembly/wasi-logging");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[must_use]
@@ -176,6 +209,12 @@ pub struct PackageDependency {
 
     /// The version of the dependency package.
     pub version: String,
+
+    /// The full registry path (e.g., "ghcr.io/webassembly/wasi-logging").
+    pub registry: String,
+
+    /// The content digest for integrity verification (e.g., "sha256:abc123...").
+    pub digest: String,
 }
 
 #[cfg(test)]
@@ -203,6 +242,8 @@ mod tests {
             [[interfaces.dependencies]]
             name = "wasi:logging"
             version = "1.0.0"
+            registry = "ghcr.io/webassembly/wasi-logging"
+            digest = "sha256:a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
         "#;
 
         let lockfile: Lockfile = toml::from_str(toml).expect("Failed to parse lockfile");
@@ -222,6 +263,11 @@ mod tests {
         assert_eq!(key_value.dependencies.len(), 1);
         assert_eq!(key_value.dependencies[0].name, "wasi:logging");
         assert_eq!(key_value.dependencies[0].version, "1.0.0");
+        assert_eq!(
+            key_value.dependencies[0].registry,
+            "ghcr.io/webassembly/wasi-logging"
+        );
+        assert!(key_value.dependencies[0].digest.starts_with("sha256:"));
     }
 
     // r[verify lockfile.serialize]
@@ -246,6 +292,8 @@ mod tests {
                     dependencies: vec![PackageDependency {
                         name: "wasi:logging".to_string(),
                         version: "1.0.0".to_string(),
+                        registry: "ghcr.io/webassembly/wasi-logging".to_string(),
+                        digest: "sha256:abc123".to_string(),
                     }],
                 },
             ],
@@ -350,5 +398,84 @@ mod tests {
         let has_interface = all.iter().any(|(_, pt)| *pt == PackageType::Interface);
         assert!(has_component);
         assert!(has_interface);
+    }
+
+    // r[verify lockfile.required-fields]
+    #[test]
+    fn test_dependency_requires_registry_and_digest() {
+        // A dependency entry missing `registry` must fail to parse.
+        let toml_missing_registry = r#"
+            lockfile_version = 3
+
+            [[interfaces]]
+            name = "wasi:key-value"
+            version = "2.0.0"
+            registry = "ghcr.io/webassembly/wasi-key-value"
+            digest = "sha256:def456"
+
+            [[interfaces.dependencies]]
+            name = "wasi:logging"
+            version = "1.0.0"
+            digest = "sha256:abc123"
+        "#;
+        assert!(
+            toml::from_str::<Lockfile>(toml_missing_registry).is_err(),
+            "parsing should fail when dependency is missing 'registry'"
+        );
+
+        // A dependency entry missing `digest` must fail to parse.
+        let toml_missing_digest = r#"
+            lockfile_version = 3
+
+            [[interfaces]]
+            name = "wasi:key-value"
+            version = "2.0.0"
+            registry = "ghcr.io/webassembly/wasi-key-value"
+            digest = "sha256:def456"
+
+            [[interfaces.dependencies]]
+            name = "wasi:logging"
+            version = "1.0.0"
+            registry = "ghcr.io/webassembly/wasi-logging"
+        "#;
+        assert!(
+            toml::from_str::<Lockfile>(toml_missing_digest).is_err(),
+            "parsing should fail when dependency is missing 'digest'"
+        );
+    }
+
+    #[test]
+    fn test_resolve_dependency_details() {
+        let mut lockfile = Lockfile {
+            lockfile_version: 3,
+            components: vec![],
+            interfaces: vec![
+                Package {
+                    name: "wasi:logging".to_string(),
+                    version: "1.0.0".to_string(),
+                    registry: "ghcr.io/webassembly/wasi-logging".to_string(),
+                    digest: "sha256:abc123".to_string(),
+                    dependencies: vec![],
+                },
+                Package {
+                    name: "wasi:key-value".to_string(),
+                    version: "2.0.0".to_string(),
+                    registry: "ghcr.io/webassembly/wasi-key-value".to_string(),
+                    digest: "sha256:def456".to_string(),
+                    dependencies: vec![PackageDependency {
+                        name: "wasi:logging".to_string(),
+                        version: "1.0.0".to_string(),
+                        registry: String::new(),
+                        digest: String::new(),
+                    }],
+                },
+            ],
+        };
+
+        lockfile.resolve_dependency_details();
+
+        let dep = &lockfile.interfaces[1].dependencies[0];
+        assert_eq!(dep.registry, "ghcr.io/webassembly/wasi-logging");
+        assert_eq!(dep.digest, "sha256:abc123");
     }
 }

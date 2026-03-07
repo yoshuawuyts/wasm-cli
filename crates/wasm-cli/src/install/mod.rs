@@ -198,6 +198,8 @@ impl Opts {
                 .map(|d| wasm_manifest::PackageDependency {
                     name: d.package.clone(),
                     version: d.version.clone().unwrap_or_default(),
+                    registry: String::new(),
+                    digest: String::new(),
                 })
                 .collect();
 
@@ -242,6 +244,10 @@ impl Opts {
         tokio::fs::write(&manifest_path, manifest_str.as_bytes())
             .await
             .into_diagnostic()?;
+
+        // Resolve registry and digest for all dependency entries from their
+        // matching top-level package entries.
+        lockfile.resolve_dependency_details();
 
         // Write updated lockfile
         write_lock_file(&lockfile_path, &lockfile)
@@ -448,6 +454,8 @@ fn upsert_lockfile_type(lockfile: &mut wasm_manifest::Lockfile, result: &Install
             .map(|d| wasm_manifest::PackageDependency {
                 name: d.package.clone(),
                 version: d.version.clone().unwrap_or_default(),
+                registry: String::new(),
+                digest: String::new(),
             })
             .collect(),
     };

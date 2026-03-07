@@ -17,3 +17,6 @@ The lockfile MUST support both component and interface package types.
 
 r[lockfile.mixed-types.all-packages]
 Iterating all packages MUST yield both component and interface entries.
+
+r[lockfile.required-fields]
+All package entries and dependency entries in the lockfile MUST include name, version, registry, and digest fields.
