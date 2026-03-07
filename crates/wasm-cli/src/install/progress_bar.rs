@@ -95,7 +95,7 @@ impl ProgressTree {
         let idx = self
             .entries
             .iter()
-            .position(|e| e.name == name && !e.is_complete);
+            .position(|e| e.name == name && e.version.as_deref() == version && !e.is_complete);
         let is_last = idx == Some(self.entries.len() - 1);
 
         let glyph = tree_glyph(is_last);
@@ -364,19 +364,19 @@ mod tests {
         let pb1 = tree.add_bar("wasi:http", Some("0.2.0"));
         // First bar should be └── (it's the last)
         assert!(
-            console::strip_ansi_codes(&format!("{}", pb1.prefix())).starts_with(TREE_GLYPH_END),
+            console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_END),
             "first bar should start as └──"
         );
 
         let pb2 = tree.add_bar("wasi:io", Some("0.2.0"));
         // pb1 should now be ├── (demoted)
         assert!(
-            console::strip_ansi_codes(&format!("{}", pb1.prefix())).starts_with(TREE_GLYPH_MID),
+            console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),
             "first bar should be demoted to ├──"
         );
         // pb2 should be └── (new last)
         assert!(
-            console::strip_ansi_codes(&format!("{}", pb2.prefix())).starts_with(TREE_GLYPH_END),
+            console::strip_ansi_codes(&pb2.prefix()).starts_with(TREE_GLYPH_END),
             "second bar should be └──"
         );
     }
@@ -395,14 +395,14 @@ mod tests {
         // Finish pb1 — it should remain ├── since pb2 is last
         tree.finish_bar(&pb1, "wasi:http", Some("0.2.0"));
         assert!(
-            console::strip_ansi_codes(&format!("{}", pb1.prefix())).starts_with(TREE_GLYPH_MID),
+            console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),
             "finished non-last bar should be ├──"
         );
 
         // Finish pb2 — it's the last, should stay └──
         tree.finish_bar(&pb2, "wasi:io", Some("0.2.0"));
         assert!(
-            console::strip_ansi_codes(&format!("{}", pb2.prefix())).starts_with(TREE_GLYPH_END),
+            console::strip_ansi_codes(&pb2.prefix()).starts_with(TREE_GLYPH_END),
             "finished last bar should be └──"
         );
     }
@@ -422,11 +422,11 @@ mod tests {
         let pb2 = tree.add_bar("wasi:io", Some("0.2.0"));
 
         assert!(
-            console::strip_ansi_codes(&format!("{}", pb1.prefix())).starts_with(TREE_GLYPH_MID),
+            console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),
             "finished bar should be demoted to ├── when new bar is added"
         );
         assert!(
-            console::strip_ansi_codes(&format!("{}", pb2.prefix())).starts_with(TREE_GLYPH_END),
+            console::strip_ansi_codes(&pb2.prefix()).starts_with(TREE_GLYPH_END),
             "new bar should be └──"
         );
     }

@@ -296,10 +296,11 @@ async fn install_one(
     display_version: Option<&str>,
 ) -> anyhow::Result<InstallResult> {
     if offline {
-        // No progress bars in offline mode — just print the line
+        // No progress bars in offline mode — print a simple status line.
+        // Use ├── since we cannot rewrite previous lines to fix up └──.
         let version_str = display_version.map(|v| format!("@{v}")).unwrap_or_default();
         println!(
-            "└── {}{}",
+            "├── {}{}",
             console::style(display_name).green(),
             console::style(version_str).white(),
         );
