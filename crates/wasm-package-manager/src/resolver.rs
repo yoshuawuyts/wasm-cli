@@ -99,16 +99,40 @@ impl DependencyProvider for DbDependencyProvider<'_> {
             .get_package_dependencies_by_name(package, Some(&ver_str))
             .map_err(|e| ResolveError::Db(e.to_string()))?;
 
-        let mut constraints = DependencyConstraints::default();
+        let mut constraints: DependencyConstraints<String, WitVersionRange> =
+            DependencyConstraints::default();
         for dep in raw_deps {
             let range = match dep.version.as_deref() {
-                Some(v) => match v.parse::<WitVersion>() {
-                    Ok(sv) => Ranges::singleton(sv),
-                    Err(_) => Ranges::full(),
-                },
+                Some(v) => {
+                    // Strip a leading 'v' that some registries include (e.g. "v0.2.0").
+                    let normalized = v.strip_prefix('v').unwrap_or(v);
+                    match normalized.parse::<WitVersion>() {
+                        Ok(sv) => Ranges::singleton(sv),
+                        Err(e) => {
+                            return Err(ResolveError::Db(format!(
+                                "unparseable version {v:?} for dependency `{}` of `{package}@{version}`: {e}",
+                                dep.package
+                            )));
+                        }
+                    }
+                }
                 None => Ranges::full(),
             };
-            constraints.insert(dep.package, range);
+            // Merge duplicate constraints for the same dependency by intersection.
+            // This handles the (rare) case of multiple declared edges to the same
+            // package; the resolver must satisfy *all* of them, not just the last one.
+            if let Some(existing) = constraints.get_mut(&dep.package) {
+                let merged = existing.intersection(&range);
+                if merged.is_empty() {
+                    return Err(ResolveError::NoSolution(format!(
+                        "conflicting version constraints for dependency `{}` of `{package}@{version}`",
+                        dep.package
+                    )));
+                }
+                *existing = merged;
+            } else {
+                constraints.insert(dep.package, range);
+            }
         }
         Ok(Dependencies::Available(constraints))
     }

@@ -45,7 +45,18 @@ async fn dir_size(path: &Path) -> u64 {
 #[derive(Debug)]
 pub(crate) struct Store {
     pub(crate) state_info: StateInfo,
-    pub(crate) conn: Connection,
+    conn: Connection,
+}
+
+impl Store {
+    /// Returns the underlying database connection.
+    ///
+    /// Only available in tests to allow low-level data setup without going
+    /// through the full public API.
+    #[cfg(test)]
+    pub(crate) fn conn(&self) -> &Connection {
+        &self.conn
+    }
 }
 
 impl Store {
@@ -121,14 +132,18 @@ impl Store {
     /// not exercise the content-addressable layer cache.
     #[cfg(test)]
     pub(crate) fn from_conn(conn: Connection) -> Self {
-        let tmp = std::env::temp_dir();
+        // Use a per-call unique temp directory so concurrent tests cannot
+        // interfere with each other if any code path writes to state_info paths.
+        let tmp = tempfile::tempdir()
+            .expect("failed to create temp dir for test Store")
+            .into_path();
         let migration_info = Migrations {
             current: 0,
             total: 0,
         };
         let state_info = StateInfo::new_at(
-            tmp.join("test-wasm-store"),
-            tmp.join("test-wasm-config.toml"),
+            tmp.join("store"),
+            tmp.join("config.toml"),
             &migration_info,
             0,
             0,
@@ -842,17 +857,28 @@ impl Store {
     /// `wit_package.package_name` (and optional version), bypassing the OCI
     /// registry/repository path. Useful for tests and for the dependency
     /// resolver which works with WIT names, not OCI coordinates.
+    ///
+    /// When multiple `wit_package` rows exist for the same `(name, version)`
+    /// (e.g. a sync stub and a pulled manifest row), the query selects the
+    /// single *canonical* row — preferring a pulled row (`oci_manifest_id IS NOT NULL`)
+    /// over a stub, then the newest `id` as a tiebreaker — before fetching
+    /// its dependency edges.  This guarantees deterministic results for the
+    /// pubgrub resolver.
     pub(crate) fn get_package_dependencies_by_name(
         &self,
         package_name: &str,
         version: Option<&str>,
     ) -> anyhow::Result<Vec<wasm_meta_registry_client::PackageDependencyRef>> {
         let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT wpd.declared_package, wpd.declared_version
+            "SELECT wpd.declared_package, wpd.declared_version
              FROM wit_package_dependency wpd
-             JOIN wit_package wp ON wpd.dependent_id = wp.id
-             WHERE wp.package_name = ?1
-               AND COALESCE(wp.version, '') = COALESCE(?2, '')
+             WHERE wpd.dependent_id = (
+                 SELECT id FROM wit_package
+                 WHERE package_name = ?1
+                   AND COALESCE(version, '') = COALESCE(?2, '')
+                 ORDER BY (oci_manifest_id IS NOT NULL) DESC, id DESC
+                 LIMIT 1
+             )
              ORDER BY wpd.declared_package",
         )?;
 
@@ -911,6 +937,7 @@ impl Store {
             "SELECT id FROM wit_package
              WHERE package_name = ?1
                AND COALESCE(version, '') = COALESCE(?2, '')
+             ORDER BY (oci_manifest_id IS NOT NULL) DESC, id DESC
              LIMIT 1",
             rusqlite::params![package_name, version],
             |row| row.get::<_, i64>(0),
@@ -1734,6 +1761,69 @@ mod tests {
             .get_package_dependencies("ghcr.io", "webassembly/wasi-http")
             .unwrap();
         assert_eq!(deps.len(), 1);
+        assert_eq!(deps[0].package, "wasi:io");
+        assert_eq!(deps[0].version.as_deref(), Some("0.2.0"));
+    }
+
+    // r[verify db.wit-package-dependency.get-for-package]
+    /// Regression: when both a synced stub (`oci_manifest_id IS NULL`) and a
+    /// pulled manifest-linked `wit_package` row exist for the same WIT package
+    /// name/version, `get_package_dependencies_by_name` MUST return the deps
+    /// from the pulled row and MUST NOT mix in stub deps.
+    #[test]
+    fn get_package_dependencies_by_name_prefers_pulled_over_stub() {
+        let conn = setup_test_db();
+
+        // Insert a synced stub wit_package (no manifest linkage, no layer linkage).
+        let stub_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+        WitPackageDependency::insert(&conn, stub_id, "wasi:stub-only-dep", Some("0.2.0"), None)
+            .unwrap();
+
+        // Set up a real OCI repository + manifest + layer so FK constraints are satisfied.
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "webassembly/wasi-http").unwrap();
+        let annotations = HashMap::new();
+        let (manifest_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:http-pulled",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some("{}"),
+            Some(1024),
+            None,
+            None,
+            None,
+            &annotations,
+        )
+        .unwrap();
+        let layer_id =
+            OciLayer::insert(&conn, manifest_id, "sha256:http-layer", None, None, 0).unwrap();
+
+        // Insert a pulled manifest-linked wit_package with a non-NULL oci_layer_id
+        // so it gets a distinct unique key and coexists with the stub row.
+        let pulled_id = RawWitPackage::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            Some(layer_id),
+        )
+        .unwrap();
+        WitPackageDependency::insert(&conn, pulled_id, "wasi:io", Some("0.2.0"), None).unwrap();
+
+        // Confirm both rows are distinct.
+        assert_ne!(stub_id, pulled_id, "stub and pulled must be distinct rows");
+
+        let store = Store::from_conn(conn);
+        let deps = store
+            .get_package_dependencies_by_name("wasi:http", Some("0.2.0"))
+            .unwrap();
+
+        // Must only return the pulled dep, not the stub dep.
+        assert_eq!(deps.len(), 1, "expected only pulled deps, got: {deps:?}");
         assert_eq!(deps[0].package, "wasi:io");
         assert_eq!(deps[0].version.as_deref(), Some("0.2.0"));
     }

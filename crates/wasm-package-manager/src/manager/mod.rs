@@ -828,14 +828,24 @@ impl Manager {
             )?;
         }
 
-        // Best-effort: pull the wasm layer for the meta_tag so that WIT
-        // dependency metadata is extracted and stored in the database.
+        // Best-effort: pull the wasm layer for the latest stable tag so that
+        // WIT dependency metadata is extracted and stored in the database.
+        // Using the latest stable tag ensures `KnownPackage.dependencies` always
+        // reflects the most recent stable version rather than an arbitrary tag.
         // r[impl server.index.dependencies]
-        if let Err(e) = self.pull(meta_ref.clone()).await {
+        let dep_tag = pick_latest_stable_tag(&tags).unwrap_or_else(|| meta_tag.to_string());
+        let dep_ref: Reference = format!(
+            "{}/{}:{}",
+            reference.registry(),
+            reference.repository(),
+            dep_tag
+        )
+        .parse()?;
+        if let Err(e) = self.pull(dep_ref).await {
             tracing::debug!(
                 registry = %reference.registry(),
                 repository = %reference.repository(),
-                tag = %meta_tag,
+                tag = %dep_tag,
                 error = %e,
                 "Could not pull wasm layer during index; dependency metadata unavailable"
             );
