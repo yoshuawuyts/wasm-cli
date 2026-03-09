@@ -9,6 +9,7 @@ use miette::{IntoDiagnostic, WrapErr};
 use wasm_package_manager::manager::{
     InstallResult, Manager, SyncPolicy, SyncResult, derive_component_name,
 };
+use wasm_package_manager::resolver::ResolveError;
 use wasm_package_manager::types::DependencyItem;
 use wasm_package_manager::{ProgressEvent, Reference};
 
@@ -53,13 +54,19 @@ impl Opts {
         let mut manifest: wasm_manifest::Manifest =
             toml::from_str(&manifest_str).into_diagnostic()?;
 
-        // Read existing lockfile
-        let lockfile_str = tokio::fs::read_to_string(&lockfile_path)
-            .await
-            .into_diagnostic()
-            .wrap_err_with(|| format!("could not read '{}'", lockfile_path.display()))?;
-        let mut lockfile: wasm_manifest::Lockfile =
-            toml::from_str(&lockfile_str).into_diagnostic()?;
+        // Read existing lockfile — create a fresh one when none exists yet.
+        let mut lockfile = match tokio::fs::read_to_string(&lockfile_path).await {
+            Ok(s) => toml::from_str::<wasm_manifest::Lockfile>(&s).into_diagnostic()?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                wasm_manifest::Lockfile::default()
+            }
+            Err(e) => {
+                return Err(miette::miette!(
+                    "could not read '{}': {e}",
+                    lockfile_path.display()
+                ));
+            }
+        };
 
         // Open manager
         let manager = if offline {
@@ -91,6 +98,47 @@ impl Opts {
         }
 
         let start_time = std::time::Instant::now();
+
+        // Pre-install conflict detection: attempt to resolve dependencies for
+        // each WIT-style manifest entry.  This catches version conflicts and
+        // missing packages *before* any network I/O, so the user gets a clear
+        // error without a partial download.
+        //
+        // We only run the resolver for packages that:
+        //   (a) use a WIT-style name as their manifest key, and
+        //   (b) declare a parseable semver version.
+        // Other entries (bare OCI references, etc.) are not checked here —
+        // the sequential install step will surface errors for those.
+        //
+        // A `Db` error from the resolver means dep-graph data is not yet
+        // available for this package (e.g. the meta-registry hasn't indexed
+        // its deps, or the sync was skipped in offline mode). In that case we
+        // skip silently and let the existing sequential installer handle it.
+        if !offline {
+            for (key, dep, _) in manifest.all_dependencies() {
+                let version_str = match dep {
+                    wasm_manifest::Dependency::Compact(s)
+                        if looks_like_wit_name(key) && !s.contains('/') =>
+                    {
+                        s.as_str()
+                    }
+                    _ => continue,
+                };
+                let Ok(version) = version_str
+                    .trim_start_matches('v')
+                    .parse::<wasm_package_manager::resolver::WitVersion>()
+                else {
+                    continue;
+                };
+                match manager.resolve_dependencies(key, version) {
+                    Ok(_) => {}
+                    Err(ResolveError::NoSolution(msg)) => {
+                        return Err(InstallError::DependencyConflict { message: msg }.into());
+                    }
+                    Err(ResolveError::Db(_)) => {} // dep data not yet available; skip
+                }
+            }
+        }
 
         // Determine the list of (reference, update_manifest) pairs to install.
         // When no inputs are provided, install everything from the manifest.

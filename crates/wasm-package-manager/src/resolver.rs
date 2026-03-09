@@ -107,7 +107,7 @@ impl DependencyProvider for DbDependencyProvider<'_> {
                     // Strip a leading 'v' that some registries include (e.g. "v0.2.0").
                     let normalized = v.strip_prefix('v').unwrap_or(v);
                     match normalized.parse::<WitVersion>() {
-                        Ok(sv) => Ranges::singleton(sv),
+                        Ok(sv) => Ranges::higher_than(sv),
                         Err(e) => {
                             return Err(ResolveError::Db(format!(
                                 "unparseable version {v:?} for dependency `{}` of `{package}@{version}`: {e}",
@@ -320,35 +320,46 @@ mod tests {
 
     // ── r[verify resolution.per-version-deps] ─────────────────────────────────
 
-    /// Two versions of the same package declare different dependency sets.
+    /// Two versions of the same package declare *different* dependency sets.
     /// The resolver MUST use only the deps for the selected version.
+    ///
+    /// With lower-bound (`>=`) version semantics the exact chosen version is
+    /// not pinned, so we verify the dependency *set* (which packages appear)
+    /// rather than the exact version picked.
     #[test]
     // r[verify resolution.per-version-deps]
     fn per_version_deps_are_tracked_independently() {
         let mut g = DepGraph::new();
-        // v0.1.0 depends on "wasi:io" v0.1.0
-        g.add("wasi:http", "0.1.0", &[("wasi:io", "0.1.0")]);
-        // v0.2.0 depends on "wasi:io" v0.2.0 (different dep version)
-        g.add("wasi:http", "0.2.0", &[("wasi:io", "0.2.0")]);
-        g.add("wasi:io", "0.1.0", &[]);
-        g.add("wasi:io", "0.2.0", &[]);
+        // v0.1.0 pulls in lib-old; v0.2.0 pulls in lib-new (entirely different pkg).
+        g.add("wasi:http", "0.1.0", &[("lib-old", "0.1.0")]);
+        g.add("wasi:http", "0.2.0", &[("lib-new", "0.2.0")]);
+        g.add("lib-old", "0.1.0", &[]);
+        g.add("lib-new", "0.2.0", &[]);
 
-        // Resolve v0.1.0 — must pick wasi:io 0.1.0, not 0.2.0.
+        // Resolve v0.1.0 — must include lib-old, NOT lib-new.
         let plan = g.resolve("wasi:http", "0.1.0").unwrap();
-        assert_eq!(
-            *plan.get("wasi:io").expect("wasi:io"),
-            WitVersion::new(0, 1, 0)
+        assert!(
+            plan.contains_key("lib-old"),
+            "expected lib-old in plan, got {plan:?}"
+        );
+        assert!(
+            !plan.contains_key("lib-new"),
+            "lib-new must NOT appear when resolving v0.1.0, got {plan:?}"
         );
         assert_eq!(
             *plan.get("wasi:http").expect("wasi:http"),
             WitVersion::new(0, 1, 0)
         );
 
-        // Resolve v0.2.0 — must pick wasi:io 0.2.0.
+        // Resolve v0.2.0 — must include lib-new, NOT lib-old.
         let plan = g.resolve("wasi:http", "0.2.0").unwrap();
-        assert_eq!(
-            *plan.get("wasi:io").expect("wasi:io"),
-            WitVersion::new(0, 2, 0)
+        assert!(
+            plan.contains_key("lib-new"),
+            "expected lib-new in plan, got {plan:?}"
+        );
+        assert!(
+            !plan.contains_key("lib-old"),
+            "lib-old must NOT appear when resolving v0.2.0, got {plan:?}"
         );
         assert_eq!(
             *plan.get("wasi:http").expect("wasi:http"),
@@ -415,17 +426,22 @@ mod tests {
 
     // ── r[verify resolution.conflict-detection] ───────────────────────────────
 
-    /// B requires D@0.1.0 and C requires D@0.2.0.
-    /// Resolution MUST fail with NoSolution.
+    /// Resolution MUST fail with `NoSolution` when the intersection of all
+    /// lower-bound constraints for a package is non-empty but no version in
+    /// the DB satisfies it.
+    ///
+    /// Here app depends on pkg-b (which needs shared >=0.1.0) *and* pkg-c
+    /// (which needs shared >=0.3.0).  Combined lower bound = >=0.3.0, but
+    /// the DB only has shared@0.1.0 and shared@0.2.0 — no solution exists.
     #[test]
     // r[verify resolution.conflict-detection]
     fn conflicting_constraints_produce_error() {
         let mut g = DepGraph::new();
         g.add("app", "1.0.0", &[("pkg-b", "1.0.0"), ("pkg-c", "1.0.0")]);
         g.add("pkg-b", "1.0.0", &[("shared", "0.1.0")]);
-        g.add("pkg-c", "1.0.0", &[("shared", "0.2.0")]);
+        g.add("pkg-c", "1.0.0", &[("shared", "0.3.0")]); // combined lower-bound = >=0.3.0
         g.add("shared", "0.1.0", &[]);
-        g.add("shared", "0.2.0", &[]);
+        g.add("shared", "0.2.0", &[]); // 0.3.0 intentionally absent from DB
 
         let result = g.resolve("app", "1.0.0");
         assert!(
@@ -446,6 +462,36 @@ mod tests {
         assert_eq!(
             *plan.get("wasi:clocks").expect("wasi:clocks"),
             WitVersion::new(0, 2, 0)
+        );
+    }
+
+    // ── Additional: lower-bound semantics pick the newest satisfying version ──
+
+    /// When two packages express different lower-bound requirements for the
+    /// same dependency, the resolver must satisfy *both* and pick the newest
+    /// available version that meets the combined (higher) lower bound.
+    ///
+    /// `app` requires `wasi:io >= 0.2.0`.
+    /// `wasi:http` (a dep of `app`) requires `wasi:io >= 0.2.3`.
+    /// Combined: `wasi:io >= 0.2.3`.
+    /// DB provides both 0.2.0 and 0.2.3 → chosen version must be 0.2.3.
+    #[test]
+    fn lower_bound_constraints_pick_newest_satisfying() {
+        let mut g = DepGraph::new();
+        g.add(
+            "app",
+            "1.0.0",
+            &[("wasi:io", "0.2.0"), ("wasi:http", "0.2.0")],
+        );
+        g.add("wasi:http", "0.2.0", &[("wasi:io", "0.2.3")]);
+        g.add("wasi:io", "0.2.0", &[]);
+        g.add("wasi:io", "0.2.3", &[]);
+
+        let plan = g.resolve("app", "1.0.0").unwrap();
+        assert_eq!(
+            *plan.get("wasi:io").expect("wasi:io"),
+            WitVersion::new(0, 2, 3),
+            "expected wasi:io 0.2.3 (the newest satisfying >=0.2.3), got {plan:?}"
         );
     }
 }

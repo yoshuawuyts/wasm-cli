@@ -197,8 +197,10 @@ pub struct Package {
 
 /// A dependency reference within a package.
 ///
-/// This represents a dependency that a package has on another package,
-/// fully resolved with registry path and content digest.
+/// This represents a dependency that a package has on another package.
+/// `registry` and `digest` are populated by
+/// [`Lockfile::resolve_dependency_details`] after all packages are installed;
+/// until then they may be absent or empty.
 ///
 /// # Example
 ///
@@ -224,9 +226,17 @@ pub struct PackageDependency {
     pub version: String,
 
     /// The full registry path (e.g., "ghcr.io/webassembly/wasi-logging").
+    ///
+    /// Absent or empty until backfilled by
+    /// [`Lockfile::resolve_dependency_details`].
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub registry: String,
 
     /// The content digest for integrity verification (e.g., "sha256:abc123...").
+    ///
+    /// Absent or empty until backfilled by
+    /// [`Lockfile::resolve_dependency_details`].
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub digest: String,
 }
 
@@ -415,9 +425,12 @@ mod tests {
 
     // r[verify lockfile.required-fields]
     #[test]
-    fn test_dependency_requires_registry_and_digest() {
-        // A dependency entry missing `registry` must fail to parse.
-        let toml_missing_registry = r#"
+    fn test_dependency_registry_and_digest_are_optional() {
+        // A dependency entry missing both `registry` and `digest` must parse
+        // successfully, defaulting both fields to empty string.  This matches
+        // the on-disk format written between installation and
+        // `resolve_dependency_details()`.
+        let toml_no_registry_digest = r#"
             lockfile_version = 3
 
             [[interfaces]]
@@ -429,31 +442,45 @@ mod tests {
             [[interfaces.dependencies]]
             name = "wasi:logging"
             version = "1.0.0"
-            digest = "sha256:abc123"
         "#;
-        assert!(
-            toml::from_str::<Lockfile>(toml_missing_registry).is_err(),
-            "parsing should fail when dependency is missing 'registry'"
-        );
+        let lockfile: Lockfile = toml::from_str(toml_no_registry_digest)
+            .expect("parsing must succeed when dependency registry/digest are absent");
+        let dep = &lockfile.interfaces[0].dependencies[0];
+        assert_eq!(dep.name, "wasi:logging");
+        assert_eq!(dep.version, "1.0.0");
+        assert_eq!(dep.registry, "");
+        assert_eq!(dep.digest, "");
+    }
 
-        // A dependency entry missing `digest` must fail to parse.
-        let toml_missing_digest = r#"
-            lockfile_version = 3
-
-            [[interfaces]]
-            name = "wasi:key-value"
-            version = "2.0.0"
-            registry = "ghcr.io/webassembly/wasi-key-value"
-            digest = "sha256:def456"
-
-            [[interfaces.dependencies]]
-            name = "wasi:logging"
-            version = "1.0.0"
-            registry = "ghcr.io/webassembly/wasi-logging"
-        "#;
-        assert!(
-            toml::from_str::<Lockfile>(toml_missing_digest).is_err(),
-            "parsing should fail when dependency is missing 'digest'"
+    // r[verify lockfile.dep-fields-omitted-when-empty]
+    #[test]
+    fn test_dependency_registry_and_digest_omitted_when_empty() {
+        // Empty registry/digest must be omitted from the serialized TOML so
+        // that the file stays clean until `resolve_dependency_details()` fills
+        // them in.
+        let package = Package {
+            name: "wasi:key-value".to_string(),
+            version: "2.0.0".to_string(),
+            registry: "ghcr.io/webassembly/wasi-key-value".to_string(),
+            digest: "sha256:def456".to_string(),
+            dependencies: vec![PackageDependency {
+                name: "wasi:logging".to_string(),
+                version: "1.0.0".to_string(),
+                registry: String::new(),
+                digest: String::new(),
+            }],
+        };
+        let toml = toml::to_string(&package).expect("serialize");
+        // Empty registry/digest should NOT appear in the TOML output.
+        let lines: Vec<&str> = toml
+            .lines()
+            .filter(|l| l.starts_with("registry") || l.starts_with("digest"))
+            .collect();
+        // Only the top-level package's registry/digest should appear, not the dep's.
+        assert_eq!(
+            lines.len(),
+            2,
+            "only top-level registry+digest expected, got: {toml}"
         );
     }
 
