@@ -101,7 +101,7 @@ jobs:
           Compress-Archive -Path target/release/wasm.exe -DestinationPath wasm-${{ matrix.target }}.zip
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wasm-${{ matrix.target }}
           path: wasm-${{ matrix.target }}.${{ matrix.archive }}
@@ -186,7 +186,7 @@ jobs:
           git push origin "v${{ needs.prepare.outputs.version }}"
 
       - name: Download all binary artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
