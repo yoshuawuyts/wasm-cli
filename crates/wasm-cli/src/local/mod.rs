@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use comfy_table::{Table, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
-use wasm_detector::WasmDetector;
+use wasm_package_manager::manager::Manager;
 
 /// Detect and manage local WASM files
 #[derive(clap::Parser)]
@@ -37,11 +37,7 @@ impl Opts {
 
 impl ListOpts {
     fn run(&self) {
-        let detector = WasmDetector::new(&self.path)
-            .include_hidden(self.hidden)
-            .follow_symlinks(self.follow_links);
-
-        let mut wasm_files: Vec<_> = detector.into_iter().filter_map(Result::ok).collect();
+        let mut wasm_files = Manager::detect_local_wasm(&self.path, self.hidden, self.follow_links);
 
         if wasm_files.is_empty() {
             println!("No WASM files found in {}", self.path.display());

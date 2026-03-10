@@ -3,6 +3,7 @@
 resolver = "2"
 members = [
     "crates/wasm-cli",
+    "crates/wasm-cli-internal-run",
     "crates/wasm-manifest",
     "crates/wasm-meta-registry",
     "crates/wasm-meta-registry-client",
@@ -78,6 +79,7 @@ wasm-manifest = { path = "crates/wasm-manifest", version = "0.3.0" }
 wasm-meta-registry = { path = "crates/wasm-meta-registry", version = "0.3.0" }
 wasm-meta-registry-client = { path = "crates/wasm-meta-registry-client", version = "0.3.0", default-features = false }
 wasm-package-manager = { path = "crates/wasm-package-manager", version = "0.3.0" }
+wasm-cli-internal-run = { path = "crates/wasm-cli-internal-run", version = "0.3.0" }
 wasm-detector = { path = "crates/wasm-detector", version = "0.3.0" }
 wasm-tui = { path = "crates/wasm-tui", version = "0.3.0" }
 

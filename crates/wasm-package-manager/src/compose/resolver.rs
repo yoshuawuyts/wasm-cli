@@ -1,3 +1,5 @@
+//! File-system package resolver for WAC composition.
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 

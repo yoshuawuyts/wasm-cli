@@ -17,6 +17,8 @@ default = []
 serde = []
 # Enable HTTP sync from meta-registry
 http-sync = ["wasm-meta-registry-client/client", "serde"]
+# Enable WAC-based component composition
+compose = ["wac-parser", "wac-graph", "wac-resolver"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -36,8 +38,12 @@ tracing = { workspace = true }
 rusqlite = { workspace = true }
 semver = { workspace = true }
 toml = { workspace = true }
+wasm-detector = { workspace = true }
 wasm-manifest = { workspace = true }
 wasm-meta-registry-client = { workspace = true }
+wac-parser = { workspace = true, optional = true }
+wac-graph = { workspace = true, optional = true }
+wac-resolver = { workspace = true, optional = true }
 wasmparser = { workspace = true }
 wit-component = { workspace = true }
 wit-parser = { workspace = true }

@@ -1,0 +1,21 @@
+[package]
+name = "wasm-cli-internal-run"
+description = "Internal WebAssembly component execution for wasm-cli"
+repository = { workspace = true }
+documentation = { workspace = true }
+version = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+categories = { workspace = true }
+keywords = { workspace = true }
+
+[dependencies]
+miette = { workspace = true }
+wasm-manifest = { workspace = true }
+wasmparser = { workspace = true }
+wasmtime = { workspace = true }
+wasmtime-wasi = { workspace = true }
+
+[lints]
+workspace = true

@@ -4,10 +4,10 @@ use anyhow::Result;
 use wasm_package_manager::manager::{Manager, SyncPolicy, SyncResult};
 
 /// Default meta-registry URL.
-const REGISTRY_URL: &str = "http://localhost:8080";
+const REGISTRY_URL: &str = Manager::DEFAULT_REGISTRY_URL;
 
 /// Default sync interval in seconds (1 hour).
-const SYNC_INTERVAL: u64 = 3600;
+const SYNC_INTERVAL: u64 = Manager::DEFAULT_SYNC_INTERVAL;
 
 /// Force-sync the package index from the configured meta-registry.
 #[derive(clap::Args)]

@@ -4,6 +4,9 @@ use std::path::Path;
 use tokio_stream::StreamExt;
 
 mod errors;
+/// Install helpers — core logic for resolving inputs, managing lockfiles,
+/// and unpacking WIT files.
+pub mod install;
 mod logic;
 mod models;
 
@@ -43,6 +46,17 @@ pub struct Manager {
     store: Store,
     config: Config,
     offline: bool,
+}
+
+impl Manager {
+    /// Default meta-registry URL used for syncing the known-package index.
+    pub const DEFAULT_REGISTRY_URL: &str = "http://localhost:8080";
+
+    /// Default sync interval in seconds (1 hour).
+    ///
+    /// Controls how often the local package index is refreshed from the
+    /// meta-registry.
+    pub const DEFAULT_SYNC_INTERVAL: u64 = 3600;
 }
 
 impl Manager {
@@ -1156,6 +1170,22 @@ impl Manager {
             hint,
         }
         .into()
+    }
+
+    /// Detect local WebAssembly files under a directory.
+    ///
+    /// Wraps [`wasm_detector::WasmDetector`] so callers do not need a direct
+    /// dependency on the detector crate.
+    #[must_use]
+    pub fn detect_local_wasm(
+        root: &Path,
+        include_hidden: bool,
+        follow_symlinks: bool,
+    ) -> Vec<wasm_detector::WasmEntry> {
+        let detector = wasm_detector::WasmDetector::new(root)
+            .include_hidden(include_hidden)
+            .follow_symlinks(follow_symlinks);
+        detector.into_iter().filter_map(Result::ok).collect()
     }
 }
 

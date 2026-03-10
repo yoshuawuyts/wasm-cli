@@ -42,7 +42,8 @@ tracing-subscriber = { workspace = true }
 wasm-detector = { workspace = true }
 wasm-manifest = { workspace = true }
 wasm-metadata = { workspace = true }
-wasm-package-manager = { workspace = true, features = ["http-sync"] }
+wasm-package-manager = { workspace = true, features = ["http-sync", "compose"] }
+wasm-cli-internal-run = { workspace = true }
 wasm-tui = { workspace = true }
 wasmparser = { workspace = true }
 wac-parser = { workspace = true }

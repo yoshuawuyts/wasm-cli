@@ -18,11 +18,6 @@ use std::path::PathBuf;
 
 use errors::RunError;
 use miette::{Context, IntoDiagnostic};
-use wasmparser::{Encoding, Parser, Payload};
-use wasmtime::component::Component;
-use wasmtime::{Engine, Store};
-use wasmtime_wasi::p2::bindings::sync::Command;
-use wasmtime_wasi::{DirPerms, FilePerms, ResourceTable, WasiCtxBuilder, WasiCtxView, WasiView};
 
 use wasm_manifest::RunPermissions;
 use wasm_package_manager::manager::Manager;
@@ -59,21 +54,6 @@ pub(crate) struct Opts {
     /// component.
     #[arg(long, value_name = "ADDR", default_value = "127.0.0.1:8080")]
     listen: SocketAddr,
-}
-
-/// Host state wired into `Store<WasiState>`.
-struct WasiState {
-    ctx: wasmtime_wasi::WasiCtx,
-    table: ResourceTable,
-}
-
-impl WasiView for WasiState {
-    fn ctx(&mut self) -> WasiCtxView<'_> {
-        WasiCtxView {
-            ctx: &mut self.ctx,
-            table: &mut self.table,
-        }
-    }
 }
 
 impl Opts {
@@ -121,7 +101,7 @@ impl Opts {
         };
 
         // 3. Validate — must be a Wasm Component.
-        validate_component(&bytes)?;
+        wasm_cli_internal_run::validate_component(&bytes)?;
 
         // 4. Resolve permissions (4-layer merge).
         let permissions = self.resolve_permissions(reference.as_ref());
@@ -132,11 +112,12 @@ impl Opts {
             http::serve(&bytes, &permissions, self.listen).await?;
         } else {
             // wasi:cli/command — run as a CLI program.
-            let result =
-                tokio::task::spawn_blocking(move || execute_cli_component(&bytes, &permissions))
-                    .await
-                    .into_diagnostic()
-                    .wrap_err("runtime task panicked")??;
+            let result = tokio::task::spawn_blocking(move || {
+                wasm_cli_internal_run::execute_cli_component(&bytes, &permissions)
+            })
+            .await
+            .into_diagnostic()
+            .wrap_err("runtime task panicked")??;
 
             // 6. Map exit.
             if let Err(()) = result {
@@ -180,167 +161,8 @@ impl Opts {
         &self,
         reference: Option<&wasm_package_manager::Reference>,
     ) -> wasm_manifest::ResolvedPermissions {
-        // Layer 1: global config defaults
-        let config = wasm_package_manager::Config::load().unwrap_or_default();
-        let base = config.run.map(|r| r.permissions).unwrap_or_default();
-
-        // Layer 2: global components.toml per-component override
-        let global_component = wasm_package_manager::Config::load_components()
-            .ok()
-            .flatten()
-            .and_then(|manifest| find_matching_permissions(&manifest, reference))
-            .unwrap_or_default();
-        let merged = base.merge(global_component);
-
-        // Layer 3: local wasm.toml per-component override
-        let local_manifest = std::fs::read_to_string("wasm.toml")
-            .ok()
-            .and_then(|s| toml::from_str::<wasm_manifest::Manifest>(&s).ok());
-        let local_component = local_manifest
-            .and_then(|m| find_matching_permissions(&m, reference))
-            .unwrap_or_default();
-        let merged = merged.merge(local_component);
-
-        // Layer 4: CLI flags
         let cli = self.cli_permissions();
-        let merged = merged.merge(cli);
-
-        merged.resolve()
-    }
-}
-
-/// Look through a manifest for a dependency whose OCI reference matches
-/// the given reference and return its permissions (if any).
-///
-/// Matching is performed by comparing `registry/namespace/package` (without
-/// the tag) against each explicit dependency in the manifest.
-fn find_matching_permissions(
-    manifest: &wasm_manifest::Manifest,
-    reference: Option<&wasm_package_manager::Reference>,
-) -> Option<RunPermissions> {
-    let reference = reference?;
-    let ref_registry = reference.registry();
-    let ref_repository = reference.repository();
-
-    for (_, dep) in manifest
-        .dependencies
-        .components
-        .iter()
-        .chain(manifest.dependencies.interfaces.iter())
-    {
-        match dep {
-            wasm_manifest::Dependency::Explicit {
-                registry,
-                namespace,
-                package,
-                permissions,
-                ..
-            } => {
-                let dep_repository = format!("{namespace}/{package}");
-                if registry == ref_registry && dep_repository == ref_repository {
-                    return permissions.clone();
-                }
-            }
-            wasm_manifest::Dependency::Compact(_) => {}
-        }
-    }
-    None
-}
-
-/// Confirm the bytes are a Wasm Component (not a core module or WIT-only package).
-fn validate_component(bytes: &[u8]) -> miette::Result<()> {
-    let parser = Parser::new(0);
-    for payload in parser.parse_all(bytes) {
-        match payload {
-            Ok(Payload::Version { encoding, .. }) => {
-                return match encoding {
-                    Encoding::Component => Ok(()),
-                    Encoding::Module => Err(RunError::CoreModule.into()),
-                };
-            }
-            Err(e) => {
-                return Err(RunError::InvalidBinary {
-                    reason: e.to_string(),
-                }
-                .into());
-            }
-            _ => {}
-        }
-    }
-    Err(RunError::NoVersionHeader.into())
-}
-
-/// Build the Wasmtime runtime, instantiate the component, and invoke
-/// `wasi:cli/run@0.2.0#run`.
-fn execute_cli_component(
-    bytes: &[u8],
-    permissions: &wasm_manifest::ResolvedPermissions,
-) -> miette::Result<Result<(), ()>> {
-    let engine = Engine::default();
-    let component = Component::new(&engine, bytes)
-        .map_err(crate::util::into_miette)
-        .wrap_err("failed to compile Wasm Component")?;
-
-    // Build WASI context from resolved permissions.
-    let mut builder = WasiCtxBuilder::new();
-
-    if permissions.inherit_stdio {
-        builder.inherit_stdio();
-    }
-    if permissions.inherit_env {
-        builder.inherit_env();
-    }
-    // Forward explicitly allowed env vars.
-    // Entries containing '=' are treated as KEY=VAL pairs (from --env flags);
-    // entries without '=' are treated as variable names to look up from the host.
-    for entry in &permissions.allow_env {
-        if let Some((k, v)) = entry.split_once('=') {
-            builder.env(k, v);
-        } else if let Ok(v) = std::env::var(entry) {
-            builder.env(entry, &v);
-        }
-    }
-    // Pre-open directories with full read/write permissions.
-    for dir in &permissions.allow_dirs {
-        builder
-            .preopened_dir(
-                dir,
-                dir.to_string_lossy(),
-                DirPerms::all(),
-                FilePerms::all(),
-            )
-            .map_err(crate::util::into_miette)
-            .wrap_err_with(|| format!("failed to pre-open directory: {}", dir.display()))?;
-    }
-    if permissions.inherit_network {
-        builder.inherit_network();
-    }
-
-    let wasi_ctx = builder.build();
-    let state = WasiState {
-        ctx: wasi_ctx,
-        table: ResourceTable::new(),
-    };
-    let mut store = Store::new(&engine, state);
-
-    let mut linker = wasmtime::component::Linker::new(&engine);
-    wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(crate::util::into_miette)?;
-
-    let command = Command::instantiate(&mut store, &component, &linker)
-        .map_err(crate::util::into_miette)
-        .wrap_err("failed to instantiate Wasm Component")?;
-
-    let result = command.wasi_cli_run().call_run(&mut store);
-    match result {
-        Ok(Ok(())) => Ok(Ok(())),
-        Ok(Err(())) => {
-            eprintln!("Error: guest returned a non-zero exit code");
-            Ok(Err(()))
-        }
-        Err(e) => {
-            eprintln!("Error: {e:#}");
-            Ok(Err(()))
-        }
+        wasm_package_manager::permissions::resolve_permissions(reference, cli)
     }
 }
 

@@ -1,14 +1,14 @@
-//! Error types for the `wasm compose` command.
+//! Error types for component composition.
 
 use miette::Diagnostic;
 
-/// Error type for `wasm compose` command failures.
+/// Error type for component composition failures.
 ///
 /// Each variant carries a stable [diagnostic error code][miette::Diagnostic::code]
 /// that uniquely identifies the failure.
 #[derive(Debug, Clone, PartialEq, Eq, Diagnostic)]
 #[must_use]
-pub(crate) enum ComposeError {
+pub enum ComposeError {
     /// No `.wac` files were found in the `seams/` directory.
     #[diagnostic(
         code(wasm::compose::no_wac_files),
