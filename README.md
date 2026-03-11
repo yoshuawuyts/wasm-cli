@@ -1,80 +1,40 @@
-<h1 align="center">wasm(1)</h1>
+<h1 align="center">wasm-cli</h1>
 <div align="center">
   <strong>
     Unified developer tools for WebAssembly
   </strong>
 </div>
 
-<br />
+## Introduction
 
-<div align="center">
-  <!-- Crates version -->
-  <a href="https://crates.io/crates/wasm">
-    <img src="https://img.shields.io/crates/v/wasm.svg?style=flat-square"
-    alt="Crates.io version" />
-  </a>
-  <!-- Downloads -->
-  <a href="https://crates.io/crates/wasm">
-    <img src="https://img.shields.io/crates/d/wasm.svg?style=flat-square"
-      alt="Download" />
-  </a>
-  <!-- docs.rs docs -->
-  <a href="https://docs.rs/wasm">
-    <img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square"
-      alt="docs.rs docs" />
-  </a>
-</div>
+`wasm-cli` is a _package manager_ for WebAssembly Components and WebAssembly
+Interface Types (WIT). It can search, fetch, and publish WebAssembly to registries
+like GitHub Packages and Docker Hub. It also automatically resolves dependencies, tracks releases, and generates lockfiles to ensure deterministic builds.
 
-<div align="center">
-  <h3>
-    <a href="https://docs.rs/wasm">
-      API Docs
-    </a>
-    <span> | </span>
-    <a href="https://github.com/yoshuawuyts/wasm/releases">
-      Releases
-    </a>
-    <span> | </span>
-    <a href="CONTRIBUTING.md">
-      Contributing
-    </a>
-  </h3>
-</div>
+`wasm-cli` is intended to be used together with language-specific wasm
+toolchains. The idea is that you can use a language-specific compiler to compile
+source code to `.wasm` binaries. And then use `wasm-cli` to handle everything
+else, including: executing, publishing, linking, and debugging.
+
+`wasm-cli` can either be used directly from the command line, or embedded into
+other applications via the `wasm-package-manager` Rust crate. This makes it
+possible for other Wasm tools to search and install Wasm Components without ever
+leaving the application. Coupled with the "search-by-interface" functionality, this makes it possible to filter the search down only compatible components.
 
 > [!CAUTION]
 > This repository is under active development and therefore unstable. Breaking
 > changes are expected. Contributions and ideas however are still welcome!
 
-## Installation
+## Quick start
 
-### Shell (Linux / macOS)
-
-```sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/yoshuawuyts/wasm-cli/releases/latest/download/install.sh | sh
+```bash
+$ wasm init                              # Create a `wasm.toml` and `wasm.toml.lock` locally
+$ wasm install ba:sample-wasi-http-rust  # Install a `wasi:http` server as a dependency
+$ wasm run ba:sample-wasi-http-rust      # Run the `wasi:http` server
+$ curl localhost:8080                    # Send a request to the `wasi:http` server
 ```
 
-### PowerShell (Windows)
-
-```powershell
-irm https://github.com/yoshuawuyts/wasm-cli/releases/latest/download/install.ps1 | iex
-```
-
-### Cargo
-
-Alternatively, install from [crates.io](https://crates.io/crates/wasm) using Cargo:
-
-```sh
-cargo install wasm
-```
-
-To interface with the package manager backend programatically from Rust, you can
-use the `wasm-package-manager` crate:
-
-```rust
-$ cargo add wasm-package-manager
-```
-
-## Using `wasm`
+## Usage
 
 <!-- commands-start -->
 ```
@@ -104,53 +64,26 @@ Global Options:
 ```
 <!-- commands-end -->
 
-## Example
+## Installation
 
-Let's use `wasm(1)` to fetch a Wasm Component locally and then run that. First
-we have to setup a manifest and add a place for the downloaded components and
-types to go. To do that run:
+### Bash (Linux / macOS)
 
-
-```bash
-# Create a new project
-$ wasm init
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/yoshuawuyts/wasm-cli/releases/latest/download/install.sh | sh
 ```
 
-This creates a `wasm.toml` manifest, `wasm.lock.toml` lockfile, and a `vendor/`
-directory in your project for the downloaded artifacts to go. It's recommended to add
-`vendor/` to your `.gitignore` file:
+### PowerShell (Windows)
 
-```bash
-.
-├── vendor/         # A directory containing downloaded .wasm and .wit files
-├── wasm.lock.toml  # A generated lockfile to guarantee reproducible builds
-└── wasm.toml       # A readable manifest to declare dependencies
+```powershell
+irm https://github.com/yoshuawuyts/wasm-cli/releases/latest/download/install.ps1 | iex
 ```
 
-Now that we have our basic project structure setup, let's fetch [a basic HTTP
-Rust sample][ba-sample]. This component implements the `wasi:http` world and
-exposes some basic testing endpoints. To get this we can run `wasm install`:
+### Cargo (Rust)
 
-[ba-sample]: https://github.com/bytecodealliance/sample-wasi-http-rust
-
-```bash
-# Install the Bytecode Alliance WASI HTTP sample component
-$ wasm install ghcr.io/bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust:0.1.6
-   Installing ghcr.io/bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust:0.1.6
-   └── [a1b2c] application/wasm ━━━━━━━━━━━━ 1.2 MiB
-
-    Finished installation in 1.3s
+```sh
+cargo install wasm
 ```
 
-This will have downloaded the `.wasm` component to `vendor/`, and added it
-to our manifest and lockfile. Our `wasm.toml` file should now look like this:
-
-```toml
-[components]
-"root:component" = "ghcr.io/bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust:0.1.6"
-```
-
-TODO: show how to run the component
 
 ## Crates
 
