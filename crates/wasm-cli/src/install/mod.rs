@@ -124,7 +124,7 @@ impl Opts {
         let mut resolved_transitive: HashMap<String, wasm_package_manager::resolver::WitVersion> =
             HashMap::new();
         if !offline {
-            let mut roots: Vec<(String, wasm_package_manager::resolver::WitVersion)> = Vec::new();
+            let mut roots = Vec::new();
             for (key, dep, _) in manifest.all_dependencies() {
                 let version_str = match dep {
                     wasm_manifest::Dependency::Compact(s)
