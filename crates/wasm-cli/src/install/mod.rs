@@ -613,9 +613,13 @@ fn process_top_level_result(
 
 /// Recursively install transitive WIT dependencies of a component.
 ///
-/// Uses a work queue and visited set to avoid cycles and duplicates.
-/// Each resolved dependency is installed, vendored to `wit/`, and added
-/// to `lockfile.interfaces`. The manifest is **not** modified.
+/// Installs each wave of dependencies concurrently and then collects
+/// their transitive deps for the next wave. This is a breadth-first
+/// traversal where each level is installed as a concurrent batch.
+///
+/// A visited set prevents cycles and duplicates, and lockfile-present
+/// entries are skipped.  Failures are logged and skipped — the manifest
+/// is **not** modified.
 async fn install_transitive_deps(
     initial_deps: Vec<DependencyItem>,
     manager: &Manager,
@@ -624,66 +628,92 @@ async fn install_transitive_deps(
     wit_vendor_dir: &std::path::Path,
     lockfile: &mut wasm_manifest::Lockfile,
 ) -> anyhow::Result<()> {
-    let mut work_queue = std::collections::VecDeque::from(initial_deps);
+    let mut current_wave = initial_deps;
     let mut visited: HashSet<(String, Option<String>)> = HashSet::new();
 
-    while let Some(dep) = work_queue.pop_front() {
-        let dep_key = (dep.package.clone(), dep.version.clone());
-        // `insert` returns `false` when the key was already present
-        if !visited.insert(dep_key) {
-            continue;
+    while !current_wave.is_empty() {
+        // Build a set of lockfile interface names for O(1) lookups.
+        let lockfile_names: HashSet<&str> = lockfile
+            .interfaces
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect();
+
+        // Deduplicate and filter the current wave, collecting
+        // installable entries.
+        let wave_entries: Vec<(DependencyItem, Reference, String, Option<String>)> = current_wave
+            .into_iter()
+            .filter(|dep| {
+                let dep_key = (dep.package.clone(), dep.version.clone());
+                visited.insert(dep_key)
+            })
+            .filter(|dep| !lockfile_names.contains(dep.package.as_str()))
+            .filter_map(|dep| {
+                let dep_ref = resolve_dep_reference(manager, &dep)?;
+                let (name, version) = package_display_parts(Some(&dep.package), dep_ref.tag());
+                let display_name = if name.is_empty() {
+                    dep.package.clone()
+                } else {
+                    name
+                };
+                Some((dep, dep_ref, display_name, version))
+            })
+            .collect();
+
+        if wave_entries.is_empty() {
+            break;
         }
 
-        // Skip if already present in the lockfile
-        if lockfile.interfaces.iter().any(|p| p.name == dep.package) {
-            continue;
+        // Install all entries in this wave concurrently.
+        let results: Vec<Option<InstallResult>> = wave_entries
+            .into_co_stream()
+            .map(|(dep, dep_ref, display_name, version)| {
+                let tree = SharedTree::clone(tree);
+                let vendor_dir = wasm_vendor_dir.to_path_buf();
+                let wit_dir = wit_vendor_dir.to_path_buf();
+                async move {
+                    let dep_result = match install_one(
+                        manager,
+                        &tree,
+                        false,
+                        &dep_ref,
+                        &vendor_dir,
+                        &display_name,
+                        version.as_deref(),
+                    )
+                    .await
+                    {
+                        Ok(r) => r,
+                        Err(e) => {
+                            tracing::debug!(
+                                "Failed to install WIT dependency '{}': {e} — skipping",
+                                dep.package,
+                            );
+                            return None;
+                        }
+                    };
+
+                    if let Err(e) = re_vendor_wit_files(&dep_result, &wit_dir).await {
+                        tracing::debug!(
+                            "Failed to vendor WIT files for '{}': {e} — skipping",
+                            dep.package,
+                        );
+                    }
+
+                    Some(dep_result)
+                }
+            })
+            .collect()
+            .await;
+
+        // Process results: update lockfile and collect next-wave deps.
+        let mut next_wave = Vec::new();
+        for result in results.into_iter().flatten() {
+            upsert_lockfile_type(lockfile, &result);
+            next_wave.extend(result.dependencies);
         }
 
-        let Some(dep_ref) = resolve_dep_reference(manager, &dep) else {
-            continue;
-        };
-
-        let (name, version) = package_display_parts(Some(&dep.package), dep_ref.tag());
-        let display_name = if name.is_empty() {
-            dep.package.clone()
-        } else {
-            name
-        };
-
-        let dep_result = match install_one(
-            manager,
-            tree,
-            false,
-            &dep_ref,
-            wasm_vendor_dir,
-            &display_name,
-            version.as_deref(),
-        )
-        .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::debug!(
-                    "Failed to install WIT dependency '{}': {e} — skipping",
-                    dep.package,
-                );
-                continue;
-            }
-        };
-
-        if let Err(e) = re_vendor_wit_files(&dep_result, wit_vendor_dir).await {
-            tracing::debug!(
-                "Failed to vendor WIT files for '{}': {e} — skipping",
-                dep.package,
-            );
-        }
-
-        upsert_lockfile_type(lockfile, &dep_result);
-
-        // Queue transitive dependencies (consuming dep_result.dependencies)
-        for transitive_dep in dep_result.dependencies {
-            work_queue.push_back(transitive_dep);
-        }
+        current_wave = next_wave;
     }
 
     Ok(())
