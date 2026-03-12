@@ -892,7 +892,7 @@ mod tests {
         // This mirrors the derivation in Opts::run: transitive names from
         // the actual install vec, plus only the resolver root names (not
         // all manifest keys).
-        let resolver_root_names: HashSet<String> = ["wasi:http".to_string()].into_iter().collect();
+        let resolver_root_names: HashSet<String> = HashSet::from(["wasi:http".to_string()]);
         let planned: HashSet<String> = {
             let transitive_names = transitive_installs.iter().filter_map(|entry| match entry {
                 PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),

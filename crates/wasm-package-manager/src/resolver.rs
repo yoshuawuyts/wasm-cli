@@ -350,9 +350,8 @@ pub(crate) fn resolve_all_from_db(
                     )));
                 }
                 root_deps.insert(name.clone(), intersection);
-                // For same-version duplicates the value is the same; for
-                // compatible duplicates (shouldn't happen with singletons
-                // but covered for correctness) keep the first version.
+                // For same-version duplicates the value is identical;
+                // `root_versions` retains the first insertion unchanged.
             }
         }
     }
