@@ -117,15 +117,40 @@ impl Opts {
             display.lock().await.start_planning();
         }
 
+        // Determine the list of (reference, update_manifest) pairs to install.
+        // When no inputs are provided, install everything from the manifest.
+        // When inputs are provided, each can be:
+        //   - An OCI reference → install and add to manifest
+        //   - A scope:component manifest key → resolve from manifest and install
+        //   - A WIT-style name (e.g. wasi:http) → resolve via known-package DB
+        // Each entry is (reference, update_manifest, explicit_name).
+        // `explicit_name` is set when the user provided a WIT-style name
+        // (e.g. `ba:sample-wasi-http-rust`) so that we use it as the manifest
+        // key instead of re-deriving from binary metadata.
+        //
+        // Built *before* the resolver so that both manifest entries and CLI
+        // inputs can be fed into the PubGrub planning pass.
+        let to_install: Vec<(Reference, bool, Option<String>)> = if self.inputs.is_empty() {
+            manifest
+                .all_dependencies()
+                .map(|(key, dep, _)| {
+                    resolve_manifest_dependency(key, dep, &manager)
+                        .map(|(r, name)| (r, false, name))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()
+                .map_err(crate::util::into_miette)?
+        } else {
+            resolve_install_inputs(&self.inputs, &manifest, &manager)?
+        };
+
         // Pre-install conflict detection + transitive dependency planning.
         //
-        // Collect all manifest entries that have WIT-style names (both
+        // Collect all packages to install that have WIT-style names (both
         // interfaces and registry components) with parseable semver versions,
         // then resolve them *all* in a single PubGrub pass via
-        // `resolve_all_dependencies`.  This ensures shared transitive
-        // dependencies are resolved consistently across roots instead of
-        // running separate per-root passes that could produce conflicting
-        // version selections.
+        // `resolve_all_dependencies`.  This covers both manifest entries and
+        // CLI inputs so that `wasm install ba:foo` on a fresh project also
+        // gets its transitive deps planned upfront.
         //
         // Entries that don't qualify (bare OCI URL references, unparseable
         // versions, etc.) are skipped here — a fallback step after the
@@ -136,34 +161,31 @@ impl Opts {
         // mode).  We skip silently and let the fallback installer handle it.
         let mut resolved_transitive: HashMap<String, wasm_package_manager::resolver::WitVersion> =
             HashMap::new();
-        // Track which manifest keys were actually fed into the resolver as
+        // Track which package names were actually fed into the resolver as
         // roots.  Used later to build the `planned_packages` set.
         let mut resolver_root_names: HashSet<String> = HashSet::new();
         if !offline {
             let mut roots = Vec::new();
-            for (key, dep, _pkg_type) in manifest.all_dependencies() {
-                // Both WIT interface entries and registry components with
-                // WIT-style names (e.g. `ba:sample-wasi-http-rust`) are
-                // fed to the resolver.  Bare OCI references (containing
-                // `/`) and entries with unparseable versions are skipped —
-                // a fallback step after the concurrent batch handles their
-                // transitive deps.
-                let version_str = match dep {
-                    wasm_manifest::Dependency::Compact(s)
-                        if looks_like_wit_name(key) && !s.contains('/') =>
-                    {
-                        s.as_str()
-                    }
-                    _ => continue,
+
+            // Feed CLI inputs / manifest entries into the resolver via
+            // `to_install`.  Entries with an `explicit_name` (WIT-style)
+            // plus a parseable semver tag qualify as resolver roots.
+            for (reference, _update, explicit_name) in &to_install {
+                let Some(name) = explicit_name.as_deref() else {
+                    continue;
                 };
-                let Ok(version) = version_str
+                if !looks_like_wit_name(name) {
+                    continue;
+                }
+                let tag = reference.tag().unwrap_or_default();
+                let Ok(version) = tag
                     .trim_start_matches('v')
                     .parse::<wasm_package_manager::resolver::WitVersion>()
                 else {
                     continue;
                 };
-                roots.push((key.clone(), version));
-                resolver_root_names.insert(key.clone());
+                roots.push((name.to_string(), version));
+                resolver_root_names.insert(name.to_string());
             }
 
             if !roots.is_empty() {
@@ -178,35 +200,12 @@ impl Opts {
                 }
             }
 
-            // Remove top-level manifest entries — they are installed as part
-            // of the main install batch, not as transitive dependencies.
-            for (key, _, _) in manifest.all_dependencies() {
-                resolved_transitive.remove(key);
+            // Remove top-level entries — they are installed as part of the
+            // main install batch, not as transitive dependencies.
+            for name in &resolver_root_names {
+                resolved_transitive.remove(name);
             }
         }
-
-        // Determine the list of (reference, update_manifest) pairs to install.
-        // When no inputs are provided, install everything from the manifest.
-        // When inputs are provided, each can be:
-        //   - An OCI reference → install and add to manifest
-        //   - A scope:component manifest key → resolve from manifest and install
-        //   - A WIT-style name (e.g. wasi:http) → resolve via known-package DB
-        // Each entry is (reference, update_manifest, explicit_name).
-        // `explicit_name` is set when the user provided a WIT-style name
-        // (e.g. `ba:sample-wasi-http-rust`) so that we use it as the manifest
-        // key instead of re-deriving from binary metadata.
-        let to_install: Vec<(Reference, bool, Option<String>)> = if self.inputs.is_empty() {
-            manifest
-                .all_dependencies()
-                .map(|(key, dep, _)| {
-                    resolve_manifest_dependency(key, dep, &manager)
-                        .map(|(r, name)| (r, false, name))
-                })
-                .collect::<anyhow::Result<Vec<_>>>()
-                .map_err(crate::util::into_miette)?
-        } else {
-            resolve_install_inputs(&self.inputs, &manifest, &manager)?
-        };
 
         // `&Manager` is Copy, so each async-move block captures its own copy of
         // the reference without requiring Arc or any synchronisation primitive.

@@ -306,8 +306,6 @@ impl DependencyProvider for VirtualRootProvider<'_> {
     }
 }
 
-/// Resolve the transitive dependency graph for multiple root packages at once.
-///
 /// All roots are fed into a single PubGrub pass via a virtual root package.
 /// This ensures that shared transitive dependencies are resolved consistently
 /// across all roots—the solver sees every constraint simultaneously rather
@@ -326,10 +324,6 @@ pub(crate) fn resolve_all_from_db(
 ) -> Result<HashMap<String, WitVersion>, ResolveError> {
     if roots.is_empty() {
         return Ok(HashMap::new());
-    }
-    // Single root — fast path through the simpler provider.
-    if let [(name, version)] = roots {
-        return resolve_from_db(store, name, *version);
     }
 
     let mut root_deps: DependencyConstraints<String, WitVersionRange> =

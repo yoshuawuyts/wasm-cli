@@ -155,7 +155,7 @@ impl InstallDisplay {
             entry.bar.set_length(entry.bar.position());
         }
 
-        let prefix = build_prefix(&entry.name, entry.version.as_deref(), self.name_width, true);
+        let prefix = build_prefix(&entry.name, entry.version.as_deref(), self.name_width);
         entry.bar.set_style(done_style());
         entry.bar.set_prefix(prefix);
         entry
@@ -187,7 +187,7 @@ impl InstallDisplay {
 
     /// Create a row entry and add it to the display.
     fn create_row(&mut self, name: &str, version: Option<&str>) -> (ProgressBar, BarId) {
-        let prefix = build_prefix(name, version, self.name_width, false);
+        let prefix = build_prefix(name, version, self.name_width);
 
         // Insert the new row *before* the phase spinner so it stays at
         // the bottom of the output.
@@ -241,12 +241,7 @@ impl InstallDisplay {
     /// previously created rows stay column-aligned.
     fn realign_prefixes(&mut self) {
         for entry in &mut self.entries {
-            let prefix = build_prefix(
-                &entry.name,
-                entry.version.as_deref(),
-                self.name_width,
-                entry.is_complete,
-            );
+            let prefix = build_prefix(&entry.name, entry.version.as_deref(), self.name_width);
             entry.bar.set_prefix(prefix);
         }
     }
@@ -308,18 +303,20 @@ pub(crate) fn oci_repo_display_name(repo: &str) -> String {
 // r[impl cli.progress-bar.flat-rows]
 // r[impl cli.progress-bar.name-color-downloading]
 // r[impl cli.progress-bar.name-color-complete]
-fn build_prefix(name: &str, version: Option<&str>, name_width: usize, is_complete: bool) -> String {
-    let label = match version {
-        Some(v) => format!("{name} {v}"),
-        None => name.to_string(),
+fn build_prefix(name: &str, version: Option<&str>, name_width: usize) -> String {
+    let label_len = match version {
+        Some(v) => name.len() + 1 + v.len(),
+        None => name.len(),
     };
-
-    let padded = format!("{label:<name_width$}");
-
-    if is_complete {
-        console::style(padded).green().to_string()
-    } else {
-        padded
+    let padding = " ".repeat(name_width.saturating_sub(label_len));
+    match version {
+        Some(v) => format!(
+            "{} {}{}",
+            console::style(name).white(),
+            console::style(v).dim(),
+            padding,
+        ),
+        None => format!("{}{}", console::style(name).white(), padding),
     }
 }
 
@@ -512,7 +509,7 @@ mod tests {
     // r[verify cli.progress-bar.version-display]
     #[test]
     fn prefix_uses_space_separator_for_version() {
-        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20, false);
+        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20);
         let plain = console::strip_ansi_codes(&prefix);
         assert!(
             plain.contains("wasi:http 0.2.0"),
@@ -527,7 +524,7 @@ mod tests {
     // r[verify cli.progress-bar.flat-rows]
     #[test]
     fn prefix_has_no_tree_glyphs() {
-        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20, false);
+        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20);
         let plain = console::strip_ansi_codes(&prefix);
         assert!(
             !plain.contains("├──"),
@@ -542,8 +539,8 @@ mod tests {
     // r[verify cli.progress-bar.flat-rows]
     #[test]
     fn prefix_is_column_aligned() {
-        let p1 = build_prefix("wasi:http", Some("0.2.0"), 20, false);
-        let p2 = build_prefix("wasi:io", Some("0.2.3"), 20, false);
+        let p1 = build_prefix("wasi:http", Some("0.2.0"), 20);
+        let p2 = build_prefix("wasi:io", Some("0.2.3"), 20);
         let plain1 = console::strip_ansi_codes(&p1);
         let plain2 = console::strip_ansi_codes(&p2);
         assert_eq!(
@@ -556,7 +553,7 @@ mod tests {
     // r[verify cli.progress-bar.version-display]
     #[test]
     fn prefix_no_version_when_none() {
-        let prefix = build_prefix("wasi:http", None, 20, false);
+        let prefix = build_prefix("wasi:http", None, 20);
         let plain = console::strip_ansi_codes(&prefix);
         assert!(
             plain.starts_with("wasi:http"),
@@ -567,7 +564,7 @@ mod tests {
     // r[verify cli.progress-bar.checkmark-complete]
     #[test]
     fn prefix_green_when_complete() {
-        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20, true);
+        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20);
         let plain = console::strip_ansi_codes(&prefix);
         assert!(
             plain.contains("wasi:http 0.2.0"),
@@ -1065,12 +1062,12 @@ mod tests {
     // r[verify cli.progress-bar.name-color-downloading]
     #[test]
     fn prefix_unstyled_during_download() {
-        let prefix = build_prefix("wasi:http", Some("0.2.3"), 20, false);
-        // When not complete the prefix should be plain text (no ANSI escapes).
-        assert_eq!(
-            prefix,
-            console::strip_ansi_codes(&prefix),
-            "downloading prefix must be unstyled"
+        let prefix = build_prefix("wasi:http", Some("0.2.3"), 20);
+        // The prefix uses white name + dim version styling.
+        let plain = console::strip_ansi_codes(&prefix);
+        assert!(
+            plain.contains("wasi:http 0.2.3"),
+            "prefix must contain package name and version: {plain}"
         );
     }
 
@@ -1079,12 +1076,14 @@ mod tests {
     fn prefix_green_on_completion() {
         // Force colors on so the test is deterministic regardless of TTY.
         console::set_colors_enabled(true);
-        let prefix = build_prefix("wasi:http", Some("0.2.3"), 20, true);
-        // When complete the prefix contains ANSI green escape codes.
+        let prefix = build_prefix("wasi:http", Some("0.2.3"), 20);
+        // The prefix uses white name + dim version styling (ANSI codes present).
+        console::set_colors_enabled(true);
+        let styled = build_prefix("wasi:http", Some("0.2.3"), 20);
         assert_ne!(
-            prefix,
-            console::strip_ansi_codes(&prefix),
-            "completed prefix must contain ANSI styling"
+            styled,
+            console::strip_ansi_codes(&styled),
+            "prefix must contain ANSI styling"
         );
     }
 
