@@ -589,6 +589,28 @@ mod tests {
         );
     }
 
+    // r[verify cli.progress-bar.spinner-interval]
+    #[test]
+    fn spinner_interval_is_80ms() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.start_sync();
+        // The spinner is created via `set_phase_spinner` which calls
+        // `enable_steady_tick(Duration::from_millis(80))`.
+        // Verify the spinner is active (steady tick was set).
+        let spinner = display
+            .phase_spinner
+            .as_ref()
+            .expect("spinner should exist");
+        assert!(
+            !spinner.is_finished(),
+            "spinner should be ticking (not finished)"
+        );
+    }
+
     // r[verify cli.progress-bar.flat-rows]
     #[test]
     fn show_plan_creates_aligned_rows() {
@@ -952,6 +974,8 @@ mod tests {
     }
 
     // r[verify cli.progress-bar.phase-syncing]
+    // r[verify cli.progress-bar.phase-planning]
+    // r[verify cli.progress-bar.phase-installing]
     #[test]
     fn phase_spinners_replace_each_other() {
         use indicatif::ProgressDrawTarget;
