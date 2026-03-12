@@ -119,14 +119,15 @@ impl Opts {
 
         // Pre-install conflict detection + transitive dependency planning.
         //
-        // Collect all WIT-style manifest entries that have parseable semver
-        // versions, then resolve them *all* in a single PubGrub pass via
+        // Collect all manifest entries that have WIT-style names (both
+        // interfaces and registry components) with parseable semver versions,
+        // then resolve them *all* in a single PubGrub pass via
         // `resolve_all_dependencies`.  This ensures shared transitive
         // dependencies are resolved consistently across roots instead of
         // running separate per-root passes that could produce conflicting
         // version selections.
         //
-        // Entries that don't qualify (bare OCI references, unparseable
+        // Entries that don't qualify (bare OCI URL references, unparseable
         // versions, etc.) are skipped here — a fallback step after the
         // concurrent batch handles their transitive deps.
         //
@@ -140,14 +141,13 @@ impl Opts {
         let mut resolver_root_names: HashSet<String> = HashSet::new();
         if !offline {
             let mut roots = Vec::new();
-            for (key, dep, pkg_type) in manifest.all_dependencies() {
-                // Only WIT interface entries are meaningful for the resolver —
-                // component keys (e.g. `root:component`) are unlikely to
-                // exist in the `wit_package` DB and would cause spurious
-                // `NoSolution` errors.
-                if pkg_type != wasm_manifest::PackageType::Interface {
-                    continue;
-                }
+            for (key, dep, _pkg_type) in manifest.all_dependencies() {
+                // Both WIT interface entries and registry components with
+                // WIT-style names (e.g. `ba:sample-wasi-http-rust`) are
+                // fed to the resolver.  Bare OCI references (containing
+                // `/`) and entries with unparseable versions are skipped —
+                // a fallback step after the concurrent batch handles their
+                // transitive deps.
                 let version_str = match dep {
                     wasm_manifest::Dependency::Compact(s)
                         if looks_like_wit_name(key) && !s.contains('/') =>
@@ -355,8 +355,8 @@ impl Opts {
                     );
 
                     // Fallback: install any transitive deps that were not
-                    // part of the upfront plan (e.g. deps of bare OCI refs
-                    // or packages not yet indexed by the meta-registry).
+                    // part of the upfront plan (e.g. deps of bare OCI URL
+                    // refs that bypass the resolver).
                     if !offline {
                         let unplanned: Vec<DependencyItem> = dependencies
                             .into_iter()
