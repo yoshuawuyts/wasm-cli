@@ -24,18 +24,12 @@ const DEFAULT_CONFIG: &str = r#"# wasm(1) configuration file
 # Per-registry credential helpers allow secure authentication with container registries.
 # Credentials are fetched on-demand and never stored to disk.
 
-# Example configurations (uncomment and modify as needed):
+# Example configuration (uncomment and modify as needed):
 
-# Option 1: Single JSON command (recommended for 1Password)
-# The command should output JSON with username and password fields:
-# [{"id": "username", "value": "..."}, {"id": "password", "value": "..."}]
+# Two separate commands for username and password.
+# Each command's stdout (trimmed) is used as the credential value.
 #
 # [registries."ghcr.io"]
-# credential-helper = "op item get ghcr --format json --fields username,password"
-
-# Option 2: Two separate commands (for simple scripts)
-#
-# [registries."my-registry.example.com"]
 # credential-helper.username = "/path/to/get-user.sh"
 # credential-helper.password = "/path/to/get-pass.sh"
 
@@ -561,7 +555,8 @@ mod tests {
         let config_path = config_dir.join("config.toml");
         let toml_content = r#"
 [registries."ghcr.io"]
-credential-helper = "echo test"
+credential-helper.username = "echo user"
+credential-helper.password = "echo pass"
 "#;
         fs::write(&config_path, toml_content).unwrap();
 
@@ -591,7 +586,7 @@ credential-helper.password = "/path/to/get-pass.sh"
                 assert_eq!(username, "/path/to/get-user.sh");
                 assert_eq!(password, "/path/to/get-pass.sh");
             }
-            _ => panic!("Expected Split credential helper"),
+            None => panic!("Expected credential helper"),
         }
     }
 
@@ -630,24 +625,14 @@ credential-helper.password = "/path/to/get-pass.sh"
     // r[verify config.credentials.cache]
     #[test]
     fn test_credential_cache() {
-        // Write JSON to a temp file to avoid shell quoting issues across platforms
-        let json = r#"[{"id": "username", "value": "user"}, {"id": "password", "value": "pass"}]"#;
-        let mut f = tempfile::NamedTempFile::new().unwrap();
-        use std::io::Write;
-        f.write_all(json.as_bytes()).unwrap();
-        let tmp_path = f.into_temp_path();
-        let path_str = tmp_path.to_str().unwrap();
-        let echo_cmd = if cfg!(target_os = "windows") {
-            format!("type {path_str}")
-        } else {
-            format!("cat {path_str}")
-        };
-
         let mut registries = HashMap::new();
         registries.insert(
             "test.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper::Json(echo_cmd)),
+                credential_helper: Some(CredentialHelper::Split {
+                    username: "echo user".to_string(),
+                    password: "echo pass".to_string(),
+                }),
             },
         );
         let config = Config {
@@ -682,13 +667,19 @@ credential-helper.password = "/path/to/get-pass.sh"
         global.registries.insert(
             "ghcr.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper::Json("global-cmd".to_string())),
+                credential_helper: Some(CredentialHelper::Split {
+                    username: "echo global-user".to_string(),
+                    password: "echo global-pass".to_string(),
+                }),
             },
         );
         global.registries.insert(
             "global-only.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper::Json("global-only-cmd".to_string())),
+                credential_helper: Some(CredentialHelper::Split {
+                    username: "echo global-only-user".to_string(),
+                    password: "echo global-only-pass".to_string(),
+                }),
             },
         );
 
@@ -696,13 +687,19 @@ credential-helper.password = "/path/to/get-pass.sh"
         local.registries.insert(
             "ghcr.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper::Json("local-cmd".to_string())),
+                credential_helper: Some(CredentialHelper::Split {
+                    username: "echo local-user".to_string(),
+                    password: "echo local-pass".to_string(),
+                }),
             },
         );
         local.registries.insert(
             "local-only.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper::Json("local-only-cmd".to_string())),
+                credential_helper: Some(CredentialHelper::Split {
+                    username: "echo local-only-user".to_string(),
+                    password: "echo local-only-pass".to_string(),
+                }),
             },
         );
 
@@ -710,8 +707,10 @@ credential-helper.password = "/path/to/get-pass.sh"
 
         // Local overrides global for "ghcr.io"
         match &merged.registries["ghcr.io"].credential_helper {
-            Some(CredentialHelper::Json(cmd)) => assert_eq!(cmd, "local-cmd"),
-            _ => panic!("Expected Json credential helper"),
+            Some(CredentialHelper::Split { username, .. }) => {
+                assert_eq!(username, "echo local-user")
+            }
+            None => panic!("Expected credential helper"),
         }
 
         // Global-only registry is preserved

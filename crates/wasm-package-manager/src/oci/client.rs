@@ -166,9 +166,17 @@ impl Client {
 fn resolve_auth(reference: &Reference, config: &Config) -> anyhow::Result<RegistryAuth> {
     let registry = reference.resolve_registry();
 
-    // First, check if a credential helper is configured in the config file
-    if let Some((username, password)) = config.get_credentials(registry)? {
-        return Ok(RegistryAuth::Basic(username, password));
+    // First, check if a credential helper is configured in the config file.
+    // If a helper is configured but fails, propagate the error rather than
+    // silently falling back to Docker credentials.
+    match config.get_credentials(registry)? {
+        Some((username, password)) => {
+            tracing::debug!(registry, "using credential helper for authentication");
+            return Ok(RegistryAuth::Basic(username, password));
+        }
+        None => {
+            tracing::debug!(registry, "no credential helper configured");
+        }
     }
 
     // Fall back to Docker credential store
@@ -180,11 +188,15 @@ fn resolve_auth(reference: &Reference, config: &Config) -> anyhow::Result<Regist
 
     match docker_credential::get_credential(server_url) {
         Ok(DockerCredential::UsernamePassword(username, password)) => {
+            tracing::debug!(registry, "using Docker credential store for authentication");
             Ok(RegistryAuth::Basic(username, password))
         }
         Ok(DockerCredential::IdentityToken(_)) => {
             Err(crate::oci::OciLayerError::IdentityTokenNotSupported.into())
         }
-        Err(_) => Ok(RegistryAuth::Anonymous),
+        Err(_) => {
+            tracing::debug!(registry, "no credentials found, using anonymous access");
+            Ok(RegistryAuth::Anonymous)
+        }
     }
 }

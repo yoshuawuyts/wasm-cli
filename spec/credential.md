@@ -2,9 +2,6 @@
 
 The credential helper subsystem extracts credentials for OCI registries.
 
-r[credential.json]
-JSON credential helpers MUST be executed and parsed correctly.
-
 r[credential.split]
 Split credential helpers MUST be executed correctly.
 

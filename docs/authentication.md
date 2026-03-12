@@ -21,11 +21,12 @@ The authentication resolution order is:
 You can configure credential helpers in your config file (`~/.config/wasm/config.toml`) to securely retrieve credentials from password managers or secret stores.
 
 ```toml
-# Using 1Password CLI
-[registries."ghcr.io"]
-credential-helper = "op item get ghcr --format json --fields username,password"
-
 # Using separate scripts
+[registries."ghcr.io"]
+credential-helper.username = "/path/to/get-user.sh"
+credential-helper.password = "/path/to/get-pass.sh"
+
+# Using separate scripts for another registry
 [registries."my-registry.example.com"]
 credential-helper.username = "/path/to/get-user.sh"
 credential-helper.password = "/path/to/get-pass.sh"
@@ -64,7 +65,8 @@ The authentication flow:
 2. Add your credential helper configuration:
    ```toml
    [registries."ghcr.io"]
-   credential-helper = "op item get ghcr --format json --fields username,password"
+   credential-helper.username = "op read 'op://Vault/ghcr/username'"
+   credential-helper.password = "op read 'op://Vault/ghcr/token'"
    ```
 
 3. Verify the configuration:

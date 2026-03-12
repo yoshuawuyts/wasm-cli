@@ -37,16 +37,9 @@ The configuration file uses TOML format. Here's an example with all available op
 # Per-registry credential helpers
 # These allow you to securely retrieve credentials from password managers
 # or other secret stores without storing them in plain text.
-
-# Option 1: Single JSON command (recommended for 1Password, etc.)
-# The command should output JSON with username and password fields:
-# [{"id": "username", "value": "..."}, {"id": "password", "value": "..."}]
-[registries."ghcr.io"]
-credential-helper = "op item get ghcr --format json --fields username,password"
-
-# Option 2: Separate commands for username and password
 # Each command's stdout (trimmed) is used as the credential value.
-[registries."my-registry.example.com"]
+
+[registries."ghcr.io"]
 credential-helper.username = "/path/to/get-user.sh"
 credential-helper.password = "/path/to/get-pass.sh"
 ```
@@ -55,19 +48,16 @@ credential-helper.password = "/path/to/get-pass.sh"
 
 Credential helpers allow you to integrate with password managers and secret stores for secure authentication. When `wasm` needs to authenticate with a registry, it first checks if a credential helper is configured. If not, it falls back to the Docker credential store.
 
+Credential helpers use two separate commands: one for the username and one for the password. Each command is executed through the shell and its stdout (trimmed) is used as the credential value.
+
 #### 1Password Integration
 
 To use 1Password with `wasm`, first ensure you have the [1Password CLI](https://developer.1password.com/docs/cli/) installed and configured. Then add your registry credentials to 1Password and configure the helper:
 
 ```toml
 [registries."ghcr.io"]
-credential-helper = "op item get 'GitHub Container Registry' --format json --fields username,password"
-```
-
-The command should output JSON in this format:
-
-```json
-[{"id": "username", "value": "your-username"}, {"id": "password", "value": "your-token"}]
+credential-helper.username = "op read 'op://Vault/ghcr/username'"
+credential-helper.password = "op read 'op://Vault/ghcr/token'"
 ```
 
 #### Custom Scripts
