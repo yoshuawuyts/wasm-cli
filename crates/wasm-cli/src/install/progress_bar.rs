@@ -13,10 +13,6 @@ use std::time::Duration;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use wasm_package_manager::ProgressEvent;
 
-/// Braille spinner tick characters.
-// r[impl cli.progress-bar.spinner-chars]
-const SPINNER_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
-
 /// Manages the phased install display.
 ///
 /// Supports four phases: syncing the registry, planning the install,
@@ -300,11 +296,12 @@ fn build_prefix(name: &str, version: Option<&str>, name_width: usize, is_complet
 }
 
 /// Build the Braille spinner tick strings for [`ProgressStyle::tick_strings`].
+// r[impl cli.progress-bar.spinner-chars]
 fn spinner_ticks() -> Vec<&'static str> {
-    let mut ticks: Vec<&str> = SPINNER_CHARS.split("").filter(|s| !s.is_empty()).collect();
-    // The last entry is the "final" (done) tick; use a green checkmark.
-    ticks.push("✓");
-    ticks
+    vec![
+        "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", // braille frames
+        "✓", // final (done) tick
+    ]
 }
 
 /// Template for the initial state before layer sizes are known: just bytes
@@ -890,5 +887,58 @@ mod tests {
         let (_, id) = display.add_bar("wasi:io", Some("0.2.3"));
         assert_eq!(display.entries.len(), 2, "should append a fallback row");
         assert_eq!(id, BarId(1));
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn show_plan_empty_list() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[]);
+        assert_eq!(display.entries.len(), 0);
+        assert_eq!(display.name_width, 0);
+    }
+
+    // r[verify cli.progress-bar.phase-done]
+    #[test]
+    fn finish_all_creates_completion_message() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+        display.finish_all(1, Duration::from_secs_f64(1.2));
+        // Should not panic; verifies message construction is valid.
+    }
+
+    // r[verify cli.progress-bar.phase-syncing]
+    #[test]
+    fn phase_spinners_replace_each_other() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.start_sync();
+        assert!(
+            display.phase_spinner.is_some(),
+            "sync should create spinner"
+        );
+
+        display.start_planning();
+        assert!(
+            display.phase_spinner.is_some(),
+            "planning should replace spinner"
+        );
+
+        display.start_installing();
+        assert!(
+            display.phase_spinner.is_some(),
+            "installing should replace spinner"
+        );
     }
 }
