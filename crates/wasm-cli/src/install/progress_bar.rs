@@ -1023,11 +1023,8 @@ mod tests {
         // name_width should have increased
         assert!(display.name_width > old_width);
 
-        // All entries should be realigned — check by verifying the prefix
-        // of the first (shorter) entry is now wider than the initial width.
-        let first_prefix = display.entries[0].bar.clone();
-        // The bar's prefix is an internal detail but we can verify the
-        // name_width is consistent across the display.
+        // All entries should be realigned — the name_width is consistent
+        // across the display after the fallback row was added.
         assert_eq!(display.name_width, "ba:very-long-package-name 1.0.0".len());
     }
 }
