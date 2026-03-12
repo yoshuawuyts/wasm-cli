@@ -23,6 +23,43 @@ use pubgrub::{
 
 use crate::storage::Store;
 
+// ─── Shared error mapping ────────────────────────────────────────────────────
+
+/// Map a [`pubgrub::PubGrubError`] into a [`ResolveError`].
+///
+/// Shared by both `resolve_from_db` (single-root) and `resolve_all_from_db`
+/// (multi-root) so the mapping stays in sync across both code paths.
+fn map_pubgrub_error<DP>(e: pubgrub::PubGrubError<DP>) -> ResolveError
+where
+    DP: DependencyProvider<
+            P = String,
+            V = WitVersion,
+            VS = WitVersionRange,
+            M = String,
+            Err = ResolveError,
+        >,
+{
+    match e {
+        pubgrub::PubGrubError::NoSolution(mut tree) => {
+            tree.collapse_no_versions();
+            ResolveError::NoSolution(pubgrub::DefaultStringReporter::report(&tree))
+        }
+        pubgrub::PubGrubError::ErrorRetrievingDependencies {
+            package,
+            version,
+            source,
+        } => ResolveError::Db(format!(
+            "failed to get deps for {package}@{version}: {source}"
+        )),
+        pubgrub::PubGrubError::ErrorChoosingVersion { package, source } => {
+            ResolveError::Db(format!("failed to choose version for {package}: {source}"))
+        }
+        pubgrub::PubGrubError::ErrorInShouldCancel(e) => {
+            ResolveError::Db(format!("resolution cancelled: {e}"))
+        }
+    }
+}
+
 // ─── Version type ────────────────────────────────────────────────────────────
 
 /// A `major.minor.patch` semantic version, used as the version type throughout
@@ -186,25 +223,7 @@ pub(crate) fn resolve_from_db(
 ) -> Result<HashMap<String, WitVersion>, ResolveError> {
     let provider = DbDependencyProvider::new(store);
     let selected: SelectedDependencies<DbDependencyProvider<'_>> =
-        pubgrub::resolve(&provider, package.into(), version).map_err(|e| match e {
-            pubgrub::PubGrubError::NoSolution(mut tree) => {
-                tree.collapse_no_versions();
-                ResolveError::NoSolution(pubgrub::DefaultStringReporter::report(&tree))
-            }
-            pubgrub::PubGrubError::ErrorRetrievingDependencies {
-                package,
-                version,
-                source,
-            } => ResolveError::Db(format!(
-                "failed to get deps for {package}@{version}: {source}"
-            )),
-            pubgrub::PubGrubError::ErrorChoosingVersion { package, source } => {
-                ResolveError::Db(format!("failed to choose version for {package}: {source}"))
-            }
-            pubgrub::PubGrubError::ErrorInShouldCancel(e) => {
-                ResolveError::Db(format!("resolution cancelled: {e}"))
-            }
-        })?;
+        pubgrub::resolve(&provider, package.into(), version).map_err(map_pubgrub_error)?;
 
     Ok(selected.into_iter().collect())
 }
@@ -219,11 +238,17 @@ const VIRTUAL_ROOT: &str = "<virtual-root>";
 /// virtual root package whose dependencies are the set of top-level packages
 /// to resolve together.
 ///
-/// This lets us feed all top-level constraints into a single PubGrub solve
-/// instead of running separate passes per root.
+/// Root packages are special-cased in `choose_version`: the exact requested
+/// version is returned directly (it does not need to be present in the DB).
+/// This avoids spurious `NoSolution` errors for root packages that haven't
+/// been indexed yet, letting the fallback installer handle their transitive
+/// deps sequentially.
 struct VirtualRootProvider<'s> {
     inner: DbDependencyProvider<'s>,
     root_deps: DependencyConstraints<String, WitVersionRange>,
+    /// Exact versions requested for each root package.  Used by
+    /// `choose_version` so roots don't need to be in the DB.
+    root_versions: HashMap<String, WitVersion>,
 }
 
 impl DependencyProvider for VirtualRootProvider<'_> {
@@ -253,10 +278,18 @@ impl DependencyProvider for VirtualRootProvider<'_> {
     ) -> Result<Option<WitVersion>, ResolveError> {
         if package == VIRTUAL_ROOT {
             let v = WitVersion::new(0, 0, 0);
-            Ok(if range.contains(&v) { Some(v) } else { None })
-        } else {
-            self.inner.choose_version(package, range)
+            return Ok(if range.contains(&v) { Some(v) } else { None });
         }
+        // For root packages, return the exact requested version if it
+        // satisfies the range — this avoids requiring the package to be
+        // present in the DB (unindexed roots fall back to sequential
+        // transitive dep discovery).
+        if let Some(root_ver) = self.root_versions.get(package)
+            && range.contains(root_ver)
+        {
+            return Ok(Some(*root_ver));
+        }
+        self.inner.choose_version(package, range)
     }
 
     fn prioritize(
@@ -269,29 +302,6 @@ impl DependencyProvider for VirtualRootProvider<'_> {
             0
         } else {
             self.inner.prioritize(package, range, stats)
-        }
-    }
-}
-
-/// Map a [`pubgrub::PubGrubError`] into a [`ResolveError`].
-fn map_pubgrub_error(e: pubgrub::PubGrubError<VirtualRootProvider<'_>>) -> ResolveError {
-    match e {
-        pubgrub::PubGrubError::NoSolution(mut tree) => {
-            tree.collapse_no_versions();
-            ResolveError::NoSolution(pubgrub::DefaultStringReporter::report(&tree))
-        }
-        pubgrub::PubGrubError::ErrorRetrievingDependencies {
-            package,
-            version,
-            source,
-        } => ResolveError::Db(format!(
-            "failed to get deps for {package}@{version}: {source}"
-        )),
-        pubgrub::PubGrubError::ErrorChoosingVersion { package, source } => {
-            ResolveError::Db(format!("failed to choose version for {package}: {source}"))
-        }
-        pubgrub::PubGrubError::ErrorInShouldCancel(e) => {
-            ResolveError::Db(format!("resolution cancelled: {e}"))
         }
     }
 }
@@ -324,11 +334,13 @@ pub(crate) fn resolve_all_from_db(
 
     let mut root_deps: DependencyConstraints<String, WitVersionRange> =
         DependencyConstraints::default();
+    let mut root_versions: HashMap<String, WitVersion> = HashMap::new();
     for (name, version) in roots {
         let new_range = Ranges::singleton(*version);
         match root_deps.get(name) {
             None => {
                 root_deps.insert(name.clone(), new_range);
+                root_versions.insert(name.clone(), *version);
             }
             Some(existing_range) => {
                 let intersection = existing_range.intersection(&new_range);
@@ -338,6 +350,9 @@ pub(crate) fn resolve_all_from_db(
                     )));
                 }
                 root_deps.insert(name.clone(), intersection);
+                // For same-version duplicates the value is the same; for
+                // compatible duplicates (shouldn't happen with singletons
+                // but covered for correctness) keep the first version.
             }
         }
     }
@@ -345,6 +360,7 @@ pub(crate) fn resolve_all_from_db(
     let provider = VirtualRootProvider {
         inner: DbDependencyProvider::new(store),
         root_deps,
+        root_versions,
     };
 
     let selected: SelectedDependencies<VirtualRootProvider<'_>> = pubgrub::resolve(

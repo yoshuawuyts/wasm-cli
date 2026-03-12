@@ -123,9 +123,19 @@ impl Opts {
         // mode).  We skip silently and let the fallback installer handle it.
         let mut resolved_transitive: HashMap<String, wasm_package_manager::resolver::WitVersion> =
             HashMap::new();
+        // Track which manifest keys were actually fed into the resolver as
+        // roots.  Used later to build the `planned_packages` set.
+        let mut resolver_root_names: HashSet<String> = HashSet::new();
         if !offline {
             let mut roots = Vec::new();
-            for (key, dep, _) in manifest.all_dependencies() {
+            for (key, dep, pkg_type) in manifest.all_dependencies() {
+                // Only WIT interface entries are meaningful for the resolver —
+                // component keys (e.g. `root:component`) are unlikely to
+                // exist in the `wit_package` DB and would cause spurious
+                // `NoSolution` errors.
+                if pkg_type != wasm_manifest::PackageType::Interface {
+                    continue;
+                }
                 let version_str = match dep {
                     wasm_manifest::Dependency::Compact(s)
                         if looks_like_wit_name(key) && !s.contains('/') =>
@@ -141,6 +151,7 @@ impl Opts {
                     continue;
                 };
                 roots.push((key.clone(), version));
+                resolver_root_names.insert(key.clone());
             }
 
             if !roots.is_empty() {
@@ -215,19 +226,22 @@ impl Opts {
             .collect();
 
         // Derive the set of all WIT package names being installed in the
-        // concurrent batch — both top-level and transitive.  This ensures the
-        // fallback path does not sequentially re-install a dep that is already
-        // enqueued in the concurrent batch (e.g. a package that is both a
-        // top-level dep and a transitive dep of another top-level).
+        // concurrent batch — both top-level resolver roots and transitive.
+        // This ensures the fallback path does not sequentially re-install a
+        // dep that is already enqueued in the concurrent batch (e.g. a
+        // package that is both a top-level dep and a transitive dep of
+        // another top-level).
+        //
+        // Only the actual resolver roots are included (not all manifest
+        // keys), so component entries and entries that didn't qualify for
+        // the resolver are correctly left out and can fall through to the
+        // sequential fallback.
         let planned_packages: HashSet<String> = {
             let transitive_names = transitive_installs.iter().filter_map(|entry| match entry {
                 PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),
                 PlannedInstall::TopLevel { .. } => None,
             });
-            // Top-level manifest keys that went through the resolver are also
-            // being installed concurrently and should be excluded from fallback.
-            let top_level_names = manifest.all_dependencies().map(|(key, _, _)| key.clone());
-            transitive_names.chain(top_level_names).collect()
+            transitive_names.chain(resolver_root_names).collect()
         };
 
         let all_installs: Vec<PlannedInstall> = to_install
@@ -857,15 +871,17 @@ mod tests {
     }
 
     #[test]
-    fn planned_packages_includes_top_level_and_enqueued_transitive() {
+    fn planned_packages_includes_resolver_roots_and_enqueued_transitive() {
         use super::PlannedInstall;
         use std::collections::HashSet;
 
         // Simulate: the resolver returned two transitive deps (wasi:io and
         // wasi:cli), but only wasi:io survived filtering (e.g. wasi:cli was
-        // already in the lockfile or unresolvable via OCI).  Top-level
-        // manifest keys ("wasi:http") are also included in the planned set
-        // so the fallback path doesn't reinstall them sequentially.
+        // already in the lockfile or unresolvable via OCI).  Only actual
+        // resolver roots (interface keys that went through the resolver) are
+        // included in the planned set — component keys and entries that
+        // didn't qualify are excluded so they correctly fall through to the
+        // sequential fallback.
         let transitive_installs = vec![PlannedInstall::Transitive {
             reference: "ghcr.io/test/wasi-io:0.2.0"
                 .parse()
@@ -874,28 +890,36 @@ mod tests {
         }];
 
         // This mirrors the derivation in Opts::run: transitive names from
-        // the actual install vec, plus all manifest keys.
-        let top_level_keys = vec!["wasi:http".to_string()];
+        // the actual install vec, plus only the resolver root names (not
+        // all manifest keys).
+        let resolver_root_names: HashSet<String> = ["wasi:http".to_string()].into_iter().collect();
         let planned: HashSet<String> = {
             let transitive_names = transitive_installs.iter().filter_map(|entry| match entry {
                 PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),
                 PlannedInstall::TopLevel { .. } => None,
             });
-            transitive_names.chain(top_level_keys).collect()
+            transitive_names.chain(resolver_root_names).collect()
         };
 
         // "wasi:io" was actually enqueued as transitive → in planned set.
         assert!(planned.contains("wasi:io"));
-        // "wasi:http" is a top-level manifest key → in planned set.
+        // "wasi:http" is a resolver root → in planned set.
         assert!(
             planned.contains("wasi:http"),
-            "top-level manifest keys should appear in planned set"
+            "resolver root names should appear in planned set"
         );
         // "wasi:cli" was resolved but not enqueued → absent from planned,
         // so the fallback installer handles it.
         assert!(
             !planned.contains("wasi:cli"),
             "only enqueued deps should appear in planned set"
+        );
+        // Component keys (e.g. "root:component") that didn't go through the
+        // resolver are absent from planned so their transitive deps are
+        // handled by the sequential fallback.
+        assert!(
+            !planned.contains("root:component"),
+            "component keys should not appear in planned set"
         );
     }
 }
