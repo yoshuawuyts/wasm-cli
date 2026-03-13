@@ -114,6 +114,100 @@ fn test_cli_local_list_help_snapshot() {
     assert_snapshot!(output);
 }
 
+// r[verify cli.local-clean.help]
+#[test]
+fn test_cli_local_clean_help_snapshot() {
+    let output = run_cli(&["local", "clean", "--help"]);
+    assert_snapshot!(output);
+}
+
+// r[verify cli.local-clean.removes-lockfile]
+// r[verify cli.local-clean.removes-vendor-wasm]
+// r[verify cli.local-clean.removes-vendor-wit]
+#[test]
+fn test_local_clean_removes_artifacts() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+
+    // Set up a project by running `wasm init`
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["init"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute init");
+    assert!(output.status.success(), "init failed");
+
+    // Add some content to vendor directories
+    std::fs::write(dir.path().join("vendor/wasm/test.wasm"), b"fake wasm")
+        .expect("write vendor/wasm file");
+    std::fs::write(dir.path().join("vendor/wit/test.wit"), b"fake wit")
+        .expect("write vendor/wit file");
+
+    // Verify the files exist before clean
+    assert!(dir.path().join("wasm.lock.toml").is_file());
+    assert!(dir.path().join("vendor/wasm/test.wasm").is_file());
+    assert!(dir.path().join("vendor/wit/test.wit").is_file());
+
+    // Run `wasm local clean`
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["local", "clean"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute local clean");
+    assert!(
+        output.status.success(),
+        "local clean failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify lockfile was removed
+    assert!(
+        !dir.path().join("wasm.lock.toml").exists(),
+        "lockfile should be removed"
+    );
+
+    // Verify vendor directory contents were removed but directories remain
+    assert!(
+        dir.path().join("vendor/wasm").is_dir(),
+        "vendor/wasm dir should still exist"
+    );
+    assert!(
+        dir.path().join("vendor/wit").is_dir(),
+        "vendor/wit dir should still exist"
+    );
+    assert!(
+        !dir.path().join("vendor/wasm/test.wasm").exists(),
+        "vendor/wasm contents should be removed"
+    );
+    assert!(
+        !dir.path().join("vendor/wit/test.wit").exists(),
+        "vendor/wit contents should be removed"
+    );
+
+    // Verify the manifest is untouched
+    assert!(
+        dir.path().join("wasm.toml").is_file(),
+        "manifest should still exist"
+    );
+}
+
+#[test]
+fn test_local_clean_succeeds_when_nothing_to_clean() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+
+    // Run clean in an empty directory — should not fail
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["local", "clean"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute local clean");
+
+    assert!(
+        output.status.success(),
+        "local clean should succeed in empty dir: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 // =============================================================================
 // Registry Command Help Tests
 // =============================================================================
