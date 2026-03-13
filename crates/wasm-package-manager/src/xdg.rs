@@ -40,7 +40,7 @@ fn resolve_config_home(
     home_dir: Option<PathBuf>,
     platform_dir: Option<PathBuf>,
 ) -> Option<PathBuf> {
-    // Honour $XDG_CONFIG_HOME when set to a non-empty, absolute path.
+    // Honor $XDG_CONFIG_HOME when set to a non-empty, absolute path.
     if let Some(val) = xdg_config_home {
         let path = PathBuf::from(val);
         if !path.as_os_str().is_empty() && path.is_absolute() {
