@@ -54,11 +54,13 @@ pub mod resolver;
 /// Storage layer for persisting package metadata and state.
 pub mod storage;
 pub mod types;
+mod xdg;
 
 pub use config::{Config, RegistryConfig, RunConfig};
 pub use credential_helper::{CredentialError, CredentialHelper};
 pub use oci_client::Reference;
 pub use progress::ProgressEvent;
+pub(crate) use xdg::xdg_config_home;
 
 /// Parse an OCI reference string, stripping the optional `oci://` scheme prefix.
 ///

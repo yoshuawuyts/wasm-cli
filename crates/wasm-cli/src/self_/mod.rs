@@ -123,17 +123,21 @@ impl Opts {
                 let local_config_path = Config::local_config_path();
 
                 println!("[Configuration]");
-                println!("Global config:\t{}", global_config_path.display());
-                if global_config_path.exists() {
-                    println!("Status:\t\texists");
-                } else {
-                    println!("Status:\t\tnot created (will use defaults)");
-                    println!();
-                    println!("To create a default config file with examples, run:");
-                    if let Some(parent) = global_config_path.parent() {
-                        println!("  mkdir -p {}", parent.display());
+                if let Some(ref global_path) = global_config_path {
+                    println!("Global config:\t{}", global_path.display());
+                    if global_path.exists() {
+                        println!("Status:\t\texists");
+                    } else {
+                        println!("Status:\t\tnot created (will use defaults)");
+                        println!();
+                        println!("To create a default config file with examples, run:");
+                        if let Some(parent) = global_path.parent() {
+                            println!("  mkdir -p {}", parent.display());
+                        }
+                        println!("  touch {}", global_path.display());
                     }
-                    println!("  touch {}", global_config_path.display());
+                } else {
+                    println!("Global config:\t(could not determine config directory)");
                 }
 
                 println!();

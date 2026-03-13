@@ -15,6 +15,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
+use crate::xdg_config_home;
+
 use crate::credential_helper::CredentialHelper;
 
 /// Default configuration file content with commented examples.
@@ -176,7 +178,8 @@ impl Config {
     /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn load_from(config_dir: Option<PathBuf>) -> Result<Self> {
-        let config_path = Self::config_path_from(config_dir);
+        let config_path = Self::config_path_from(config_dir)
+            .context("Could not determine config directory (set $XDG_CONFIG_HOME or $HOME)")?;
         Self::load_from_path(&config_path)
     }
 
@@ -252,20 +255,27 @@ impl Config {
 
     /// Returns the path to the configuration file.
     ///
+    /// Returns `None` when no suitable config directory can be determined.
+    ///
     /// # Examples
     ///
     /// ```rust,no_run
     /// use wasm_package_manager::Config;
     ///
-    /// let path = Config::config_path();
-    /// println!("Config file: {}", path.display());
+    /// if let Some(path) = Config::config_path() {
+    ///     println!("Config file: {}", path.display());
+    /// }
     /// ```
     #[must_use]
-    pub fn config_path() -> PathBuf {
+    pub fn config_path() -> Option<PathBuf> {
         Self::config_path_from(None)
     }
 
     /// Returns the path to the configuration file from a specified directory.
+    ///
+    /// When `config_dir` is `None`, falls back to `$XDG_CONFIG_HOME` (or
+    /// the platform default). Returns `None` only when `config_dir` is `None`
+    /// *and* no suitable directory can be determined from the environment.
     ///
     /// # Examples
     ///
@@ -274,13 +284,12 @@ impl Config {
     /// use std::path::PathBuf;
     ///
     /// let path = Config::config_path_from(Some(PathBuf::from("/tmp/cfg")));
-    /// assert_eq!(path, PathBuf::from("/tmp/cfg/wasm/config.toml"));
+    /// assert_eq!(path, Some(PathBuf::from("/tmp/cfg/wasm/config.toml")));
     /// ```
     #[must_use]
-    pub fn config_path_from(config_dir: Option<PathBuf>) -> PathBuf {
-        let base = config_dir
-            .unwrap_or_else(|| dirs::config_dir().unwrap_or_else(|| PathBuf::from(".config")));
-        base.join("wasm").join("config.toml")
+    pub fn config_path_from(config_dir: Option<PathBuf>) -> Option<PathBuf> {
+        let base = config_dir.or_else(xdg_config_home)?;
+        Some(base.join("wasm").join("config.toml"))
     }
 
     /// Returns the path to the local configuration file.
@@ -310,20 +319,27 @@ impl Config {
     /// same format as the local `wasm.toml` manifest and provides global
     /// per-component permission overrides.
     ///
+    /// Returns `None` when no suitable config directory can be determined.
+    ///
     /// # Examples
     ///
     /// ```rust,no_run
     /// use wasm_package_manager::Config;
     ///
-    /// let path = Config::components_path();
-    /// println!("Components manifest: {}", path.display());
+    /// if let Some(path) = Config::components_path() {
+    ///     println!("Components manifest: {}", path.display());
+    /// }
     /// ```
     #[must_use]
-    pub fn components_path() -> PathBuf {
+    pub fn components_path() -> Option<PathBuf> {
         Self::components_path_from(None)
     }
 
     /// Returns the path to the global components manifest from a specified directory.
+    ///
+    /// When `config_dir` is `None`, falls back to `$XDG_CONFIG_HOME` (or
+    /// the platform default). Returns `None` only when `config_dir` is `None`
+    /// *and* no suitable directory can be determined from the environment.
     ///
     /// # Examples
     ///
@@ -332,13 +348,12 @@ impl Config {
     /// use std::path::PathBuf;
     ///
     /// let path = Config::components_path_from(Some(PathBuf::from("/tmp/cfg")));
-    /// assert_eq!(path, PathBuf::from("/tmp/cfg/wasm/components.toml"));
+    /// assert_eq!(path, Some(PathBuf::from("/tmp/cfg/wasm/components.toml")));
     /// ```
     #[must_use]
-    pub fn components_path_from(config_dir: Option<PathBuf>) -> PathBuf {
-        let base = config_dir
-            .unwrap_or_else(|| dirs::config_dir().unwrap_or_else(|| PathBuf::from(".config")));
-        base.join("wasm").join("components.toml")
+    pub fn components_path_from(config_dir: Option<PathBuf>) -> Option<PathBuf> {
+        let base = config_dir.or_else(xdg_config_home)?;
+        Some(base.join("wasm").join("components.toml"))
     }
 
     /// Load the global components manifest from `$XDG_CONFIG_HOME/wasm/components.toml`.
@@ -382,7 +397,9 @@ impl Config {
     pub fn load_components_from(
         config_dir: Option<PathBuf>,
     ) -> Result<Option<wasm_manifest::Manifest>> {
-        let path = Self::components_path_from(config_dir);
+        let Some(path) = Self::components_path_from(config_dir) else {
+            return Ok(None);
+        };
         if !path.exists() {
             return Ok(None);
         }
@@ -431,7 +448,8 @@ impl Config {
     // r[impl config.ensure-exists]
     // r[impl config.ensure-idempotent]
     pub fn ensure_exists_at(config_dir: Option<PathBuf>) -> Result<PathBuf> {
-        let config_path = Self::config_path_from(config_dir);
+        let config_path = Self::config_path_from(config_dir)
+            .context("Could not determine config directory (set $XDG_CONFIG_HOME or $HOME)")?;
 
         if config_path.exists() {
             return Ok(config_path);
