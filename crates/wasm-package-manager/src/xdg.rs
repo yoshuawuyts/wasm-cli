@@ -26,20 +26,22 @@ pub(crate) fn xdg_config_home() -> PathBuf {
     platform_config_home()
 }
 
+/// Fallback when no XDG or platform-specific env var is set: `$HOME/.config`.
+fn home_dot_config() -> PathBuf {
+    dirs::home_dir().map_or_else(|| PathBuf::from(".config"), |h| h.join(".config"))
+}
+
 /// Platform-specific default when `$XDG_CONFIG_HOME` is not set.
 #[cfg(windows)]
 fn platform_config_home() -> PathBuf {
     // %APPDATA% is the conventional roaming config directory on Windows.
-    env::var_os("APPDATA").map_or_else(
-        || dirs::home_dir().map_or_else(|| PathBuf::from(".config"), |h| h.join(".config")),
-        PathBuf::from,
-    )
+    env::var_os("APPDATA").map_or_else(home_dot_config, PathBuf::from)
 }
 
 /// Platform-specific default when `$XDG_CONFIG_HOME` is not set.
 #[cfg(not(windows))]
 fn platform_config_home() -> PathBuf {
-    dirs::home_dir().map_or_else(|| PathBuf::from(".config"), |h| h.join(".config"))
+    home_dot_config()
 }
 
 #[cfg(test)]
@@ -58,10 +60,11 @@ mod tests {
         // When $XDG_CONFIG_HOME is not set, verify the platform default.
         if env::var_os("XDG_CONFIG_HOME").is_none() {
             if cfg!(windows) {
-                // On Windows the fallback is %APPDATA%.
-                if let Some(appdata) = env::var_os("APPDATA") {
-                    assert_eq!(path, PathBuf::from(appdata));
-                }
+                // On Windows the fallback is %APPDATA%, which is always
+                // expected to be set. If it is missing something is very
+                // wrong with the environment, so we let the test fail.
+                let appdata = env::var_os("APPDATA").expect("%APPDATA% should be set on Windows");
+                assert_eq!(path, PathBuf::from(appdata));
             } else {
                 assert!(
                     path.ends_with(".config"),
