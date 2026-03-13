@@ -8,9 +8,11 @@
 
 | XDG Variable       | Purpose                                                | Linux/BSD                     | macOS                             | Windows               |
 | ------------------ | ------------------------------------------------------ | ----------------------------- | --------------------------------- | --------------------- |
-| `$XDG_CONFIG_HOME` | User-specific configuration files                      | `~/.config`                   | `~/Library/Preferences`           | `%LOCALAPPDATA%`      |
+| `$XDG_CONFIG_HOME` | User-specific configuration files                      | `~/.config`                   | `~/Library/Application Support`   | `%APPDATA%`           |
 | `$XDG_DATA_HOME`   | User-specific data files                               | `~/.local/share`              | `~/Library/Application Support`   | `%LOCALAPPDATA%`      |
-| `$XDG_STATE_HOME`  | User-specific state data (logs, history, recent files) | `~/.local/state`              | `~/Library/Application Support`   | `%LOCALAPPDATA%`      |
+| `$XDG_STATE_HOME`  | User-specific state data (logs, history, recent files) | `~/.local/state`              | `~/Library/Application Support`*  | `%LOCALAPPDATA%`*     |
+
+\* On macOS and Windows, there is no native state directory; logs fall back to the data directory.
 
 ## Configuration Files
 
