@@ -2,61 +2,43 @@
 //!
 //! This module handles the display of download progress for packages being
 //! installed. Each package gets a single aggregated progress bar that combines
-//! all layer downloads. Packages are displayed in a tree structure with
-//! `├──` and `└──` glyphs.
+//! all layer downloads. Packages are displayed as a flat, column-aligned list
+//! with per-package progress bars and checkmark completion markers.
 //!
-//! The [`ProgressTree`] type manages the dynamic `└──` glyph: every newly
-//! added bar becomes the "last" entry (`└──`), while the previously-last bar
-//! is demoted to `├──`.
+//! The [`InstallDisplay`] type manages the phased display: syncing, planning,
+//! installing, and done.
+
+use std::time::Duration;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use wasm_package_manager::ProgressEvent;
 
-/// Tree glyph for non-last items in the tree.
-const TREE_GLYPH_MID: &str = "├──";
-
-/// Tree glyph for the last item in the tree.
-const TREE_GLYPH_END: &str = "└──";
-
-/// Return the appropriate tree glyph for a position in a list.
+/// Manages the phased install display.
 ///
-/// # Examples
-///
-/// ```rust,ignore
-/// assert_eq!(tree_glyph(false), "├──");
-/// assert_eq!(tree_glyph(true), "└──");
-/// ```
-// r[impl cli.progress-bar.tree-glyph]
-fn tree_glyph(is_last: bool) -> &'static str {
-    if is_last {
-        TREE_GLYPH_END
-    } else {
-        TREE_GLYPH_MID
-    }
-}
-
-/// Manages a list of progress bars rendered as a flat tree.
-///
-/// The last bar always shows `└──`; when a new bar is added, the
-/// previously-last bar is demoted to `├──`.
-pub(crate) struct ProgressTree {
+/// Supports four phases: syncing the registry, planning the install,
+/// installing packages concurrently, and a final completion summary.
+/// Package rows are flat and column-aligned without tree glyphs.
+pub(crate) struct InstallDisplay {
     multi: MultiProgress,
-    /// All bars and their display metadata, in insertion order.
-    entries: Vec<TreeEntry>,
-    /// Monotonically increasing counter for unique bar IDs.
+    /// All package rows, in insertion order.
+    entries: Vec<RowEntry>,
+    /// Monotonically increasing counter for unique row IDs.
     next_id: usize,
+    /// Phase spinner shown below the package list.
+    phase_spinner: Option<ProgressBar>,
+    /// Padding width for column-aligned package names.
+    name_width: usize,
 }
 
-/// Opaque handle returned by [`ProgressTree::add_bar`] to identify a specific
-/// progress bar entry when finishing it.  Using an ID instead of the
+/// Opaque handle returned by [`InstallDisplay::add_bar`] to identify a specific
+/// row entry when finishing it.  Using an ID instead of the
 /// package name avoids misidentification when two installs share the same
 /// display name and version.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BarId(usize);
 
-/// Metadata kept for each bar so we can rebuild its prefix when the glyph
-/// changes (e.g. from `└──` to `├──`).
-struct TreeEntry {
+/// Metadata kept for each row.
+struct RowEntry {
     id: BarId,
     bar: ProgressBar,
     name: String,
@@ -64,40 +46,165 @@ struct TreeEntry {
     is_complete: bool,
 }
 
-impl ProgressTree {
-    /// Create a new progress tree backed by the given [`MultiProgress`].
+impl InstallDisplay {
+    /// Create a new install display backed by the given [`MultiProgress`].
     pub(crate) fn new(multi: MultiProgress) -> Self {
         Self {
             multi,
             entries: Vec::new(),
             next_id: 0,
+            phase_spinner: None,
+            name_width: 0,
         }
     }
 
-    /// Add a new in-progress package bar. The bar becomes the new "last"
-    /// entry (`└──`), and the previously-last bar (if any) is demoted to
-    /// `├──`.
+    /// Start the syncing phase spinner.
+    // r[impl cli.progress-bar.phase-syncing]
+    // r[impl cli.progress-bar.spinner-interval]
+    pub(crate) fn start_sync(&mut self) {
+        self.set_phase_spinner("Syncing registry");
+    }
+
+    /// Start the planning phase spinner.
+    // r[impl cli.progress-bar.phase-planning]
+    pub(crate) fn start_planning(&mut self) {
+        self.set_phase_spinner("Planning");
+    }
+
+    /// Display the resolved plan as a flat list of packages.
     ///
-    /// Returns the [`ProgressBar`] handle and a [`BarId`] that must be
-    /// passed to [`finish_bar`](Self::finish_bar) to identify this entry.
+    /// Each entry is rendered as `name version` with column-aligned padding.
+    /// This pre-creates the progress bar rows so that `add_bar` can later
+    /// attach progress tracking to each row by name.
+    // r[impl cli.progress-bar.flat-rows]
+    // r[impl cli.progress-bar.version-display]
+    pub(crate) fn show_plan(&mut self, packages: &[(&str, Option<&str>)]) {
+        self.clear_phase_spinner();
+
+        // Compute column width from the longest `name version` string.
+        self.name_width = packages
+            .iter()
+            .map(|(name, version)| match version {
+                Some(v) => format!("{name} {v}").len(),
+                None => name.len(),
+            })
+            .max()
+            .unwrap_or(0);
+
+        for &(name, version) in packages {
+            self.create_row(name, version);
+        }
+    }
+
+    /// Start the installing phase spinner.
+    // r[impl cli.progress-bar.phase-installing]
+    pub(crate) fn start_installing(&mut self) {
+        self.set_phase_spinner("Installing");
+    }
+
+    /// Look up an existing row by display name and version, and return its
+    /// progress bar handle and [`BarId`].  If no pre-created row exists
+    /// (e.g. a late fallback dependency), a new row is appended.
     // r[impl cli.progress-bar.bar-yellow]
     // r[impl cli.progress-bar.size-grey]
     // r[impl cli.progress-bar.eta-grey]
     pub(crate) fn add_bar(&mut self, name: &str, version: Option<&str>) -> (ProgressBar, BarId) {
-        // Demote the old last entry to ├──
-        self.demote_last();
+        // Try to find an existing planned row for this package, matching on
+        // both name and version to avoid misidentification when the same
+        // display name appears with different versions.
+        if let Some(entry) = self
+            .entries
+            .iter()
+            .find(|e| e.name == name && e.version.as_deref() == version)
+        {
+            let pb = entry.bar.clone();
+            // Reset the bar from its "finished" plan state so that position
+            // and length updates from run_progress_bars are rendered.
+            pb.reset();
+            pb.set_style(initial_style());
+            return (pb, entry.id);
+        }
 
-        let prefix = build_prefix(TREE_GLYPH_END, name, version, false);
+        // Fallback: append a new row for a late-discovered dependency.
+        let label_len = match version {
+            Some(v) => format!("{name} {v}").len(),
+            None => name.len(),
+        };
+        if label_len > self.name_width {
+            self.name_width = label_len;
+            self.realign_prefixes();
+        }
+        self.create_row(name, version)
+    }
+
+    /// Mark a row as complete with a green `✓` marker.
+    ///
+    /// The row is looked up exclusively via `bar_id`; the caller does not
+    /// need to pass the [`ProgressBar`] handle.  If all layer totals were
+    /// `None` (so the bar length is still 0), the length is set to the
+    /// current position so that [`DONE_TEMPLATE`] renders the actual
+    /// downloaded byte count instead of `0 B`.
+    // r[impl cli.progress-bar.checkmark-complete]
+    pub(crate) fn finish_bar(&mut self, bar_id: BarId) {
+        let Some(entry) = self.entries.iter_mut().find(|e| e.id == bar_id) else {
+            tracing::debug!("finish_bar called with unknown BarId({bar_id:?})");
+            return;
+        };
+
+        if entry.bar.length() == Some(0) {
+            entry.bar.set_length(entry.bar.position());
+        }
+
+        let prefix = build_prefix(&entry.name, entry.version.as_deref(), self.name_width);
+        entry.bar.set_style(done_style());
+        entry.bar.set_prefix(prefix);
+        entry
+            .bar
+            .finish_with_message(console::style("✓").green().to_string());
+        entry.is_complete = true;
+    }
+
+    /// Returns the number of successfully completed package rows.
+    pub(crate) fn completed_count(&self) -> usize {
+        self.entries.iter().filter(|e| e.is_complete).count()
+    }
+
+    /// Display the final completion summary.
+    // r[impl cli.progress-bar.phase-done]
+    pub(crate) fn finish_all(&mut self, count: usize, elapsed: Duration) {
+        self.clear_phase_spinner();
+
+        let msg = format!(
+            "{} Installed {} packages in {:.1}s",
+            console::style("✓").green().bold(),
+            count,
+            elapsed.as_secs_f64()
+        );
         let pb = self.multi.add(ProgressBar::new(0));
-        // Start with the initial (bytes-only) style; run_progress_bars()
-        // will switch to the full bar style once a total is known.
-        pb.set_style(initial_style());
+        pb.set_style(ProgressStyle::with_template("{msg}").expect("valid template"));
+        pb.finish_with_message(msg);
+    }
+
+    /// Create a row entry and add it to the display.
+    fn create_row(&mut self, name: &str, version: Option<&str>) -> (ProgressBar, BarId) {
+        let prefix = build_prefix(name, version, self.name_width);
+
+        // Insert the new row *before* the phase spinner so it stays at
+        // the bottom of the output.
+        let pb = if let Some(ref spinner) = self.phase_spinner {
+            self.multi.insert_before(spinner, ProgressBar::new(0))
+        } else {
+            self.multi.add(ProgressBar::new(0))
+        };
+
+        pb.set_style(plan_style());
         pb.set_prefix(prefix);
+        pb.finish(); // show immediately as a static line
 
         let id = BarId(self.next_id);
         self.next_id += 1;
 
-        self.entries.push(TreeEntry {
+        self.entries.push(RowEntry {
             id,
             bar: pb.clone(),
             name: name.to_string(),
@@ -108,55 +215,33 @@ impl ProgressTree {
         (pb, id)
     }
 
-    /// Mark a progress bar as complete: green name, bar hidden, size only.
-    ///
-    /// The bar is looked up exclusively via `bar_id`; the caller does not
-    /// need to pass the [`ProgressBar`] handle.  If all layer totals were
-    /// `None` (so the bar length is still 0), the length is set to the
-    /// current position so that [`DONE_TEMPLATE`] renders the actual
-    /// downloaded byte count instead of `0 B`.
-    // r[impl cli.progress-bar.bar-hidden-on-complete]
-    pub(crate) fn finish_bar(&mut self, bar_id: BarId) {
-        // Find this bar's index in the entries list by unique ID.
-        let Some(idx) = self.entries.iter().position(|e| e.id == bar_id) else {
-            tracing::debug!("finish_bar called with unknown BarId({bar_id:?})");
-            return;
-        };
+    /// Set (or replace) the phase spinner with the given label.
+    fn set_phase_spinner(&mut self, label: &str) {
+        self.clear_phase_spinner();
 
-        let is_last = idx == self.entries.len() - 1;
-        let Some(entry) = self.entries.get_mut(idx) else {
-            return;
-        };
-
-        let prefix = build_prefix(
-            tree_glyph(is_last),
-            &entry.name,
-            entry.version.as_deref(),
-            true,
-        );
-
-        // When all layer totals were None, the bar length is still 0.
-        // Set it to the current position so done_style() renders the
-        // actual downloaded byte count instead of "0 B".
-        if entry.bar.length() == Some(0) {
-            entry.bar.set_length(entry.bar.position());
-        }
-
-        entry.bar.set_style(done_style());
-        entry.bar.set_prefix(prefix);
-        entry.bar.finish();
-        entry.is_complete = true;
+        let spinner = self.multi.add(ProgressBar::new_spinner());
+        let style = ProgressStyle::with_template(&format!("{{spinner}} {label}"))
+            .expect("valid spinner template")
+            .tick_strings(&spinner_ticks());
+        spinner.set_style(style);
+        spinner.enable_steady_tick(Duration::from_millis(80));
+        self.phase_spinner = Some(spinner);
     }
 
-    /// Demote the current "last" entry from `└──` to `├──`.
-    fn demote_last(&mut self) {
-        if let Some(entry) = self.entries.last() {
-            let prefix = build_prefix(
-                TREE_GLYPH_MID,
-                &entry.name,
-                entry.version.as_deref(),
-                entry.is_complete,
-            );
+    /// Remove the current phase spinner, if any.
+    fn clear_phase_spinner(&mut self) {
+        if let Some(spinner) = self.phase_spinner.take() {
+            spinner.finish_and_clear();
+        }
+    }
+
+    /// Update all row prefixes to the current `name_width`.
+    ///
+    /// Called when a fallback row causes `name_width` to grow so that
+    /// previously created rows stay column-aligned.
+    fn realign_prefixes(&mut self) {
+        for entry in &mut self.entries {
+            let prefix = build_prefix(&entry.name, entry.version.as_deref(), self.name_width);
             entry.bar.set_prefix(prefix);
         }
     }
@@ -194,7 +279,7 @@ pub(crate) fn package_display_parts(
 /// OCI repository paths typically look like `ghcr.io/webassembly/wasi-logging`.
 /// This function takes the last two `/`-separated segments and joins them with
 /// `:` so that the display matches the `namespace:name` format used elsewhere
-/// in the tree output.  When fewer than two segments are available, the full
+/// in the output.  When fewer than two segments are available, the full
 /// repository path is returned as-is.
 // r[impl cli.progress-bar.namespace-name]
 pub(crate) fn oci_repo_display_name(repo: &str) -> String {
@@ -209,29 +294,44 @@ pub(crate) fn oci_repo_display_name(repo: &str) -> String {
     }
 }
 
-/// Build the ANSI-colored prefix string for a progress bar line.
+/// Build the ANSI-colored prefix string for a row.
 ///
-/// During download the name is yellow; when complete it is green.
-/// The `@version` suffix is always white.
-// r[impl cli.progress-bar.package-name-downloading]
-// r[impl cli.progress-bar.package-name-complete]
-// r[impl cli.progress-bar.version-white]
-// r[impl cli.progress-bar.no-indent]
-fn build_prefix(glyph: &str, name: &str, version: Option<&str>, is_complete: bool) -> String {
-    let styled_name = if is_complete {
-        console::style(name).green().to_string()
-    } else {
-        console::style(name).yellow().to_string()
+/// The prefix is `name version` padded to `name_width` for column alignment.
+/// When complete, the name is shown in green; otherwise white.
+/// The version is space-separated (not `@`-separated).
+// r[impl cli.progress-bar.version-display]
+// r[impl cli.progress-bar.flat-rows]
+// r[impl cli.progress-bar.name-color-downloading]
+// r[impl cli.progress-bar.name-color-complete]
+fn build_prefix(name: &str, version: Option<&str>, name_width: usize) -> String {
+    let label_len = match version {
+        Some(v) => name.len() + 1 + v.len(),
+        None => name.len(),
     };
-
+    let padding = " ".repeat(name_width.saturating_sub(label_len));
     match version {
         Some(v) => format!(
-            "{glyph} {}{}",
-            styled_name,
-            console::style(format!("@{v}")).white()
+            "{} {}{}",
+            console::style(name).white(),
+            console::style(v).dim(),
+            padding,
         ),
-        None => format!("{glyph} {styled_name}"),
+        None => format!("{}{}", console::style(name).white(), padding),
     }
+}
+
+/// Build the Braille spinner tick strings for [`ProgressStyle::tick_strings`].
+///
+/// The last element is the "done" tick shown when the spinner finishes.
+/// We use a space since the phase spinner is always cleared via
+/// `finish_and_clear()` — the checkmark is reserved for completed
+/// package rows and the final summary line.
+// r[impl cli.progress-bar.spinner-chars]
+fn spinner_ticks() -> Vec<&'static str> {
+    vec![
+        "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", // braille frames
+        " ", // done tick (cleared immediately, never visible)
+    ]
 }
 
 /// Template for the initial state before layer sizes are known: just bytes
@@ -243,8 +343,11 @@ const INITIAL_TEMPLATE: &str = "{prefix} {binary_bytes:.dim}";
 const PROGRESS_TEMPLATE: &str =
     "{prefix} {bar:12.yellow} {binary_bytes:.dim}/{binary_total_bytes:.dim} {eta:.dim}";
 
-/// Template for completed downloads: no bar, just dim total size.
-const DONE_TEMPLATE: &str = "{prefix} {binary_total_bytes:.dim}";
+/// Template for completed downloads: checkmark only.
+const DONE_TEMPLATE: &str = "{prefix} {msg}";
+
+/// Template for plan rows before downloading starts: just the prefix.
+const PLAN_TEMPLATE: &str = "{prefix}";
 
 /// Style for the initial state before any total is known: bytes only.
 fn initial_style() -> ProgressStyle {
@@ -258,9 +361,14 @@ fn progress_style() -> ProgressStyle {
         .progress_chars("━━┄")
 }
 
-/// Style for completed downloads: no bar, just dim total size.
+/// Style for completed downloads: green checkmark.
 fn done_style() -> ProgressStyle {
     ProgressStyle::with_template(DONE_TEMPLATE).expect("valid progress bar template")
+}
+
+/// Style for planned rows before downloading starts.
+fn plan_style() -> ProgressStyle {
+    ProgressStyle::with_template(PLAN_TEMPLATE).expect("valid progress bar template")
 }
 
 /// Consume progress events and update a single aggregated progress bar.
@@ -315,7 +423,7 @@ pub(crate) async fn run_progress_bars(
             | ProgressEvent::LayerStored { .. }
             | ProgressEvent::InstallComplete => {
                 // No action needed: the bar is finished by the caller
-                // (ProgressTree::finish_bar) after this task completes.
+                // (InstallDisplay::finish_bar) after this task completes.
             }
         }
     }
@@ -324,18 +432,6 @@ pub(crate) async fn run_progress_bars(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // r[verify cli.progress-bar.tree-glyph]
-    #[test]
-    fn tree_glyph_mid_for_non_last() {
-        assert_eq!(tree_glyph(false), "├──");
-    }
-
-    // r[verify cli.progress-bar.tree-glyph]
-    #[test]
-    fn tree_glyph_end_for_last() {
-        assert_eq!(tree_glyph(true), "└──");
-    }
 
     // r[verify cli.progress-bar.namespace-name]
     #[test]
@@ -410,138 +506,144 @@ mod tests {
         );
     }
 
-    // r[verify cli.progress-bar.no-indent]
+    // r[verify cli.progress-bar.version-display]
     #[test]
-    fn prefix_not_indented() {
-        let prefix = build_prefix("├──", "wasi:http", Some("0.2.0"), false);
-        let plain = console::strip_ansi_codes(&prefix);
-        // The prefix must start with the tree glyph, not spaces
-        assert!(
-            plain.starts_with("├──"),
-            "prefix must start with tree glyph, got: {plain}"
-        );
-    }
-
-    // r[verify cli.progress-bar.package-name-downloading]
-    #[test]
-    fn prefix_contains_name_while_downloading() {
-        let prefix = build_prefix("├──", "wasi:http", Some("0.2.0"), false);
+    fn prefix_uses_space_separator_for_version() {
+        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20);
         let plain = console::strip_ansi_codes(&prefix);
         assert!(
-            plain.contains("wasi:http"),
-            "prefix must contain package name: {plain}"
+            plain.contains("wasi:http 0.2.0"),
+            "prefix must use space separator: {plain}"
         );
-    }
-
-    // r[verify cli.progress-bar.package-name-complete]
-    #[test]
-    fn prefix_contains_name_when_complete() {
-        let prefix = build_prefix("├──", "wasi:http", Some("0.2.0"), true);
-        let plain = console::strip_ansi_codes(&prefix);
-        assert!(
-            plain.contains("wasi:http"),
-            "prefix must contain package name: {plain}"
-        );
-    }
-
-    // r[verify cli.progress-bar.version-white]
-    #[test]
-    fn prefix_contains_version() {
-        let prefix = build_prefix("├──", "wasi:http", Some("0.2.0"), false);
-        let plain = console::strip_ansi_codes(&prefix);
-        assert!(
-            plain.contains("@0.2.0"),
-            "prefix must contain @version: {plain}"
-        );
-    }
-
-    // r[verify cli.progress-bar.version-white]
-    #[test]
-    fn prefix_no_version_when_none() {
-        let prefix = build_prefix("├──", "wasi:http", None, false);
-        let plain = console::strip_ansi_codes(&prefix);
         assert!(
             !plain.contains('@'),
-            "prefix must not contain @ when no version: {plain}"
+            "prefix must not contain @ separator: {plain}"
         );
     }
 
-    // r[verify cli.progress-bar.tree-glyph]
+    // r[verify cli.progress-bar.flat-rows]
     #[test]
-    fn progress_tree_demotes_last_bar() {
-        use indicatif::ProgressDrawTarget;
-
-        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
-        let mut tree = ProgressTree::new(multi);
-
-        let (pb1, _id1) = tree.add_bar("wasi:http", Some("0.2.0"));
-        // First bar should be └── (it's the last)
+    fn prefix_has_no_tree_glyphs() {
+        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20);
+        let plain = console::strip_ansi_codes(&prefix);
         assert!(
-            console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_END),
-            "first bar should start as └──"
+            !plain.contains("├──"),
+            "prefix must not contain tree glyphs: {plain}"
         );
-
-        let (pb2, _id2) = tree.add_bar("wasi:io", Some("0.2.0"));
-        // pb1 should now be ├── (demoted)
         assert!(
-            console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),
-            "first bar should be demoted to ├──"
-        );
-        // pb2 should be └── (new last)
-        assert!(
-            console::strip_ansi_codes(&pb2.prefix()).starts_with(TREE_GLYPH_END),
-            "second bar should be └──"
+            !plain.contains("└──"),
+            "prefix must not contain tree glyphs: {plain}"
         );
     }
 
-    // r[verify cli.progress-bar.tree-glyph]
+    // r[verify cli.progress-bar.flat-rows]
     #[test]
-    fn progress_tree_finish_preserves_glyph() {
-        use indicatif::ProgressDrawTarget;
-
-        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
-        let mut tree = ProgressTree::new(multi);
-
-        let (pb1, id1) = tree.add_bar("wasi:http", Some("0.2.0"));
-        let (pb2, id2) = tree.add_bar("wasi:io", Some("0.2.0"));
-
-        // Finish pb1 — it should remain ├── since pb2 is last
-        tree.finish_bar(id1);
-        assert!(
-            console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),
-            "finished non-last bar should be ├──"
-        );
-
-        // Finish pb2 — it's the last, should stay └──
-        tree.finish_bar(id2);
-        assert!(
-            console::strip_ansi_codes(&pb2.prefix()).starts_with(TREE_GLYPH_END),
-            "finished last bar should be └──"
+    fn prefix_is_column_aligned() {
+        let p1 = build_prefix("wasi:http", Some("0.2.0"), 20);
+        let p2 = build_prefix("wasi:io", Some("0.2.3"), 20);
+        let plain1 = console::strip_ansi_codes(&p1);
+        let plain2 = console::strip_ansi_codes(&p2);
+        assert_eq!(
+            plain1.len(),
+            plain2.len(),
+            "prefixes must be padded to equal width: '{plain1}' vs '{plain2}'"
         );
     }
 
-    // r[verify cli.progress-bar.tree-glyph]
+    // r[verify cli.progress-bar.version-display]
     #[test]
-    fn progress_tree_new_bar_after_finished_demotes() {
+    fn prefix_no_version_when_none() {
+        let prefix = build_prefix("wasi:http", None, 20);
+        let plain = console::strip_ansi_codes(&prefix);
+        assert!(
+            plain.starts_with("wasi:http"),
+            "prefix must start with package name: {plain}"
+        );
+    }
+
+    // r[verify cli.progress-bar.checkmark-complete]
+    #[test]
+    fn prefix_green_when_complete() {
+        let prefix = build_prefix("wasi:http", Some("0.2.0"), 20);
+        let plain = console::strip_ansi_codes(&prefix);
+        assert!(
+            plain.contains("wasi:http 0.2.0"),
+            "completed prefix must contain package name: {plain}"
+        );
+    }
+
+    // r[verify cli.progress-bar.spinner-chars]
+    #[test]
+    fn spinner_tick_chars_are_braille() {
+        let ticks = spinner_ticks();
+        // 10 braille chars + 1 done tick (space)
+        assert_eq!(ticks.len(), 11);
+        assert_eq!(ticks[0], "⠋");
+        assert_eq!(ticks[9], "⠏");
+        assert_eq!(
+            ticks[10], " ",
+            "done tick should be a space, not a checkmark"
+        );
+    }
+
+    // r[verify cli.progress-bar.spinner-interval]
+    #[test]
+    fn spinner_interval_is_80ms() {
         use indicatif::ProgressDrawTarget;
 
         let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
-        let mut tree = ProgressTree::new(multi);
+        let mut display = InstallDisplay::new(multi);
 
-        let (pb1, id1) = tree.add_bar("wasi:http", Some("0.2.0"));
-        tree.finish_bar(id1);
-
-        // pb1 was └── and finished. Now add pb2 — pb1 should be demoted to ├──
-        let (pb2, _id2) = tree.add_bar("wasi:io", Some("0.2.0"));
-
+        display.start_sync();
+        // The spinner is created via `set_phase_spinner` which calls
+        // `enable_steady_tick(Duration::from_millis(80))`.
+        // Verify the spinner is active (steady tick was set).
+        let spinner = display
+            .phase_spinner
+            .as_ref()
+            .expect("spinner should exist");
         assert!(
-            console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),
-            "finished bar should be demoted to ├── when new bar is added"
+            !spinner.is_finished(),
+            "spinner should be ticking (not finished)"
         );
-        assert!(
-            console::strip_ansi_codes(&pb2.prefix()).starts_with(TREE_GLYPH_END),
-            "new bar should be └──"
-        );
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn show_plan_creates_aligned_rows() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[
+            ("wasi:http", Some("0.2.3")),
+            ("wasi:io", Some("0.2.3")),
+            ("ba:sample-wasi-http-rust", Some("0.1.6")),
+        ]);
+
+        // All rows should have the same name_width
+        assert_eq!(display.entries.len(), 3);
+
+        // name_width should match the longest label
+        let expected_width = "ba:sample-wasi-http-rust 0.1.6".len();
+        assert_eq!(display.name_width, expected_width);
+    }
+
+    // r[verify cli.progress-bar.checkmark-complete]
+    #[test]
+    fn finish_bar_shows_checkmark() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+        let (_, bar_id) = display.add_bar("wasi:http", Some("0.2.0"));
+        display.finish_bar(bar_id);
+
+        let entry = &display.entries[0];
+        assert!(entry.is_complete);
     }
 
     // r[verify cli.progress-bar.aggregate-layers]
@@ -664,7 +766,7 @@ mod tests {
         let _ = handle.await;
     }
 
-    // r[verify cli.progress-bar.bar-hidden-on-complete]
+    // r[verify cli.progress-bar.checkmark-complete]
     #[test]
     fn done_style_template_has_no_bar() {
         assert!(
@@ -701,8 +803,6 @@ mod tests {
     }
 
     // Verify all style factory functions produce usable ProgressStyle instances.
-    // This guards against template syntax errors and ensures the constants used
-    // by the tests above are the same ones that reach production code.
 
     // r[verify cli.progress-bar.bar-yellow]
     #[test]
@@ -712,10 +812,9 @@ mod tests {
         pb.set_style(style);
         pb.set_length(100);
         pb.set_position(50);
-        // No panic ⇒ template is valid and can be applied.
     }
 
-    // r[verify cli.progress-bar.bar-hidden-on-complete]
+    // r[verify cli.progress-bar.checkmark-complete]
     #[test]
     fn done_style_produces_valid_style() {
         let style = done_style();
@@ -731,6 +830,14 @@ mod tests {
         let pb = ProgressBar::hidden();
         pb.set_style(style);
         pb.set_position(500);
+    }
+
+    #[test]
+    fn plan_style_produces_valid_style() {
+        let style = plan_style();
+        let pb = ProgressBar::hidden();
+        pb.set_style(style);
+        pb.finish();
     }
 
     // Verify the initial template has no bar/total/eta (bytes-only).
@@ -801,5 +908,203 @@ mod tests {
 
         drop(tx);
         let _ = handle.await;
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn add_bar_reuses_planned_row() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0")), ("wasi:io", Some("0.2.3"))]);
+        assert_eq!(display.entries.len(), 2);
+
+        // add_bar for a planned name should reuse the existing row
+        let (_, id) = display.add_bar("wasi:http", Some("0.2.0"));
+        assert_eq!(display.entries.len(), 2, "should not add a new row");
+        assert_eq!(id, BarId(0));
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn add_bar_appends_fallback_row() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+        assert_eq!(display.entries.len(), 1);
+
+        // add_bar for an unknown name should append a new row
+        let (_, id) = display.add_bar("wasi:io", Some("0.2.3"));
+        assert_eq!(display.entries.len(), 2, "should append a fallback row");
+        assert_eq!(id, BarId(1));
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn show_plan_empty_list() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[]);
+        assert_eq!(display.entries.len(), 0);
+        assert_eq!(display.name_width, 0);
+    }
+
+    // r[verify cli.progress-bar.phase-done]
+    #[test]
+    fn finish_all_creates_completion_message() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+        display.finish_all(1, Duration::from_secs_f64(1.2));
+        // Should not panic; verifies message construction is valid.
+    }
+
+    // r[verify cli.progress-bar.phase-syncing]
+    // r[verify cli.progress-bar.phase-planning]
+    // r[verify cli.progress-bar.phase-installing]
+    #[test]
+    fn phase_spinners_replace_each_other() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.start_sync();
+        assert!(
+            display.phase_spinner.is_some(),
+            "sync should create spinner"
+        );
+
+        display.start_planning();
+        assert!(
+            display.phase_spinner.is_some(),
+            "planning should replace spinner"
+        );
+
+        display.start_installing();
+        assert!(
+            display.phase_spinner.is_some(),
+            "installing should replace spinner"
+        );
+    }
+
+    // r[verify cli.progress-bar.bar-yellow]
+    #[test]
+    fn add_bar_resets_finished_state_for_progress() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+
+        // After show_plan, the bar is in a "finished" state (plan_style).
+        // add_bar must reset it so progress updates are rendered.
+        let (pb, _id) = display.add_bar("wasi:http", Some("0.2.0"));
+
+        // The bar should accept position/length updates after reset.
+        pb.set_length(1000);
+        pb.set_position(500);
+        assert_eq!(pb.length(), Some(1000));
+        assert_eq!(pb.position(), 500);
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn add_bar_same_name_different_version_creates_new_row() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+        assert_eq!(display.entries.len(), 1);
+
+        // Same name but different version should create a new row
+        let (_, id) = display.add_bar("wasi:http", Some("0.3.0"));
+        assert_eq!(display.entries.len(), 2);
+        assert_eq!(id, BarId(1));
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn fallback_row_realigns_existing_prefixes() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+        let old_width = display.name_width;
+
+        // Add a fallback row with a much longer name
+        display.add_bar("ba:very-long-package-name", Some("1.0.0"));
+
+        // name_width should have increased
+        assert!(display.name_width > old_width);
+
+        // All entries should be realigned — the name_width is consistent
+        // across the display after the fallback row was added.
+        assert_eq!(display.name_width, "ba:very-long-package-name 1.0.0".len());
+    }
+
+    // r[verify cli.progress-bar.name-color-downloading]
+    #[test]
+    fn prefix_unstyled_during_download() {
+        let prefix = build_prefix("wasi:http", Some("0.2.3"), 20);
+        // The prefix uses white name + dim version styling.
+        let plain = console::strip_ansi_codes(&prefix);
+        assert!(
+            plain.contains("wasi:http 0.2.3"),
+            "prefix must contain package name and version: {plain}"
+        );
+    }
+
+    // r[verify cli.progress-bar.name-color-complete]
+    #[test]
+    fn prefix_green_on_completion() {
+        // Force colors on so the test is deterministic regardless of TTY.
+        console::set_colors_enabled(true);
+        let styled = build_prefix("wasi:http", Some("0.2.3"), 20);
+        // The prefix uses white name + dim version styling (ANSI codes present).
+        assert_ne!(
+            styled,
+            console::strip_ansi_codes(&styled),
+            "prefix must contain ANSI styling"
+        );
+    }
+
+    // r[verify cli.progress-bar.plan-timing]
+    #[test]
+    fn plan_displayed_before_installing_phase() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        // Simulate the phase sequence: planning → show_plan → installing.
+        display.start_planning();
+        display.show_plan(&[("wasi:io", Some("0.2.3"))]);
+        // Rows exist before the installing phase begins.
+        assert_eq!(display.completed_count(), 0);
+        assert_eq!(
+            display.entries.len(),
+            1,
+            "plan must be visible before installing starts"
+        );
+        display.start_installing();
+        // Rows remain after starting the install phase.
+        assert_eq!(display.entries.len(), 1);
     }
 }

@@ -21,7 +21,9 @@ use wasm_package_manager::{ProgressEvent, Reference};
 
 use crate::util::write_lock_file;
 use errors::InstallError;
-use progress_bar::{ProgressTree, oci_repo_display_name, package_display_parts, run_progress_bars};
+use progress_bar::{
+    InstallDisplay, oci_repo_display_name, package_display_parts, run_progress_bars,
+};
 
 /// Default meta-registry URL.
 const REGISTRY_URL: &str = Manager::DEFAULT_REGISTRY_URL;
@@ -83,13 +85,18 @@ impl Opts {
             Manager::open().await.map_err(crate::util::into_miette)?
         };
 
+        // Shared progress display for all concurrent installs.
+        let multi = MultiProgress::new();
+        let display = std::sync::Arc::new(tokio::sync::Mutex::new(InstallDisplay::new(multi)));
+
         // Sync the local package index from the meta-registry so WIT-style
         // names and search-based lookups can be resolved.
         if !offline {
-            match manager
+            display.lock().await.start_sync();
+            let sync_result = manager
                 .sync_from_meta_registry(REGISTRY_URL, SYNC_INTERVAL, SyncPolicy::IfStale)
-                .await
-            {
+                .await;
+            match sync_result {
                 Ok(SyncResult::Degraded { error }) => {
                     tracing::warn!("registry sync failed: {error}");
                 }
@@ -105,16 +112,47 @@ impl Opts {
 
         let start_time = std::time::Instant::now();
 
+        // Start the planning phase spinner.
+        if !offline {
+            display.lock().await.start_planning();
+        }
+
+        // Determine the list of (reference, update_manifest) pairs to install.
+        // When no inputs are provided, install everything from the manifest.
+        // When inputs are provided, each can be:
+        //   - An OCI reference → install and add to manifest
+        //   - A scope:component manifest key → resolve from manifest and install
+        //   - A WIT-style name (e.g. wasi:http) → resolve via known-package DB
+        // Each entry is (reference, update_manifest, explicit_name).
+        // `explicit_name` is set when the user provided a WIT-style name
+        // (e.g. `ba:sample-wasi-http-rust`) so that we use it as the manifest
+        // key instead of re-deriving from binary metadata.
+        //
+        // Built *before* the resolver so that both manifest entries and CLI
+        // inputs can be fed into the PubGrub planning pass.
+        let to_install: Vec<(Reference, bool, Option<String>)> = if self.inputs.is_empty() {
+            manifest
+                .all_dependencies()
+                .map(|(key, dep, _)| {
+                    resolve_manifest_dependency(key, dep, &manager)
+                        .map(|(r, name)| (r, false, name))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()
+                .map_err(crate::util::into_miette)?
+        } else {
+            resolve_install_inputs(&self.inputs, &manifest, &manager)?
+        };
+
         // Pre-install conflict detection + transitive dependency planning.
         //
-        // Collect all WIT-style manifest entries that have parseable semver
-        // versions, then resolve them *all* in a single PubGrub pass via
-        // `resolve_all_dependencies`.  This ensures shared transitive
-        // dependencies are resolved consistently across roots instead of
-        // running separate per-root passes that could produce conflicting
-        // version selections.
+        // Collect all packages to install that have WIT-style names (both
+        // interfaces and registry components) with parseable semver versions,
+        // then resolve them *all* in a single PubGrub pass via
+        // `resolve_all_dependencies`.  This covers both manifest entries and
+        // CLI inputs so that `wasm install ba:foo` on a fresh project also
+        // gets its transitive deps planned upfront.
         //
-        // Entries that don't qualify (bare OCI references, unparseable
+        // Entries that don't qualify (bare OCI URL references, unparseable
         // versions, etc.) are skipped here — a fallback step after the
         // concurrent batch handles their transitive deps.
         //
@@ -123,35 +161,29 @@ impl Opts {
         // mode).  We skip silently and let the fallback installer handle it.
         let mut resolved_transitive: HashMap<String, wasm_package_manager::resolver::WitVersion> =
             HashMap::new();
-        // Track which manifest keys were actually fed into the resolver as
-        // roots.  Used later to build the `planned_packages` set.
         let mut resolver_root_names: HashSet<String> = HashSet::new();
         if !offline {
             let mut roots = Vec::new();
-            for (key, dep, pkg_type) in manifest.all_dependencies() {
-                // Only WIT interface entries are meaningful for the resolver —
-                // component keys (e.g. `root:component`) are unlikely to
-                // exist in the `wit_package` DB and would cause spurious
-                // `NoSolution` errors.
-                if pkg_type != wasm_manifest::PackageType::Interface {
+
+            // Feed CLI inputs / manifest entries into the resolver via
+            // `to_install`.  Entries with an `explicit_name` (WIT-style)
+            // plus a parseable semver tag qualify as resolver roots.
+            for (reference, _update, explicit_name) in &to_install {
+                let Some(name) = explicit_name.as_deref() else {
+                    continue;
+                };
+                if !looks_like_wit_name(name) {
                     continue;
                 }
-                let version_str = match dep {
-                    wasm_manifest::Dependency::Compact(s)
-                        if looks_like_wit_name(key) && !s.contains('/') =>
-                    {
-                        s.as_str()
-                    }
-                    _ => continue,
-                };
-                let Ok(version) = version_str
+                let tag = reference.tag().unwrap_or_default();
+                let Ok(version) = tag
                     .trim_start_matches('v')
                     .parse::<wasm_package_manager::resolver::WitVersion>()
                 else {
                     continue;
                 };
-                roots.push((key.clone(), version));
-                resolver_root_names.insert(key.clone());
+                roots.push((name.to_string(), version));
+                resolver_root_names.insert(name.to_string());
             }
 
             if !roots.is_empty() {
@@ -166,39 +198,12 @@ impl Opts {
                 }
             }
 
-            // Remove top-level manifest entries — they are installed as part
-            // of the main install batch, not as transitive dependencies.
-            for (key, _, _) in manifest.all_dependencies() {
-                resolved_transitive.remove(key);
+            // Remove top-level entries — they are installed as part of the
+            // main install batch, not as transitive dependencies.
+            for name in &resolver_root_names {
+                resolved_transitive.remove(name);
             }
         }
-
-        // Determine the list of (reference, update_manifest) pairs to install.
-        // When no inputs are provided, install everything from the manifest.
-        // When inputs are provided, each can be:
-        //   - An OCI reference → install and add to manifest
-        //   - A scope:component manifest key → resolve from manifest and install
-        //   - A WIT-style name (e.g. wasi:http) → resolve via known-package DB
-        // Each entry is (reference, update_manifest, explicit_name).
-        // `explicit_name` is set when the user provided a WIT-style name
-        // (e.g. `ba:sample-wasi-http-rust`) so that we use it as the manifest
-        // key instead of re-deriving from binary metadata.
-        let to_install: Vec<(Reference, bool, Option<String>)> = if self.inputs.is_empty() {
-            manifest
-                .all_dependencies()
-                .map(|(key, dep, _)| {
-                    resolve_manifest_dependency(key, dep, &manager)
-                        .map(|(r, name)| (r, false, name))
-                })
-                .collect::<anyhow::Result<Vec<_>>>()
-                .map_err(crate::util::into_miette)?
-        } else {
-            resolve_install_inputs(&self.inputs, &manifest, &manager)?
-        };
-
-        // Shared progress display for all concurrent installs.
-        let multi = MultiProgress::new();
-        let tree = std::sync::Arc::new(tokio::sync::Mutex::new(ProgressTree::new(multi)));
 
         // `&Manager` is Copy, so each async-move block captures its own copy of
         // the reference without requiring Arc or any synchronisation primitive.
@@ -225,25 +230,6 @@ impl Opts {
             })
             .collect();
 
-        // Derive the set of all WIT package names being installed in the
-        // concurrent batch — both top-level resolver roots and transitive.
-        // This ensures the fallback path does not sequentially re-install a
-        // dep that is already enqueued in the concurrent batch (e.g. a
-        // package that is both a top-level dep and a transitive dep of
-        // another top-level).
-        //
-        // Only the actual resolver roots are included (not all manifest
-        // keys), so component entries and entries that didn't qualify for
-        // the resolver are correctly left out and can fall through to the
-        // sequential fallback.
-        let planned_packages: HashSet<String> = {
-            let transitive_names = transitive_installs.iter().filter_map(|entry| match entry {
-                PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),
-                PlannedInstall::TopLevel { .. } => None,
-            });
-            transitive_names.chain(resolver_root_names).collect()
-        };
-
         let all_installs: Vec<PlannedInstall> = to_install
             .into_iter()
             .map(
@@ -256,6 +242,23 @@ impl Opts {
             .chain(transitive_installs)
             .collect();
 
+        // Display the resolved plan and transition to the installing phase.
+        // r[impl cli.progress-bar.plan-timing]
+        if !offline {
+            let plan_entries: Vec<(String, Option<String>)> = all_installs
+                .iter()
+                .map(PlannedInstall::display_info)
+                .collect();
+            let plan_refs: Vec<(&str, Option<&str>)> = plan_entries
+                .iter()
+                .map(|(n, v)| (n.as_str(), v.as_deref()))
+                .collect();
+
+            let mut d = display.lock().await;
+            d.show_plan(&plan_refs);
+            d.start_installing();
+        }
+
         // Run all installs (top-level + transitive) concurrently.
         // Top-level failures are fatal; transitive failures are logged and
         // skipped to preserve the soft-failure semantics of the old
@@ -263,14 +266,14 @@ impl Opts {
         let results: anyhow::Result<Vec<Option<(InstallResult, PlannedInstall)>>> = all_installs
             .into_co_stream()
             .map(|entry| {
-                let tree = SharedTree::clone(&tree);
+                let display = SharedDisplay::clone(&display);
                 let vendor_dir = wasm_vendor_dir.clone();
                 let wit_vendor_dir = wit_vendor_dir.clone();
                 async move {
                     let (display_name, version) = entry.display_info();
                     let install_result = install_one(
                         manager_ref,
-                        &tree,
+                        &display,
                         offline,
                         entry.reference(),
                         &vendor_dir,
@@ -321,35 +324,13 @@ impl Opts {
                     explicit_name,
                     ..
                 } => {
-                    let dependencies = process_top_level_result(
+                    process_top_level_result(
                         result,
                         update_manifest,
                         explicit_name,
                         &mut manifest,
                         &mut lockfile,
                     );
-
-                    // Fallback: install any transitive deps that were not
-                    // part of the upfront plan (e.g. deps of bare OCI refs
-                    // or packages not yet indexed by the meta-registry).
-                    if !offline {
-                        let unplanned: Vec<DependencyItem> = dependencies
-                            .into_iter()
-                            .filter(|d| !planned_packages.contains(&d.package))
-                            .collect();
-                        if !unplanned.is_empty() {
-                            install_transitive_deps(
-                                unplanned,
-                                manager_ref,
-                                &tree,
-                                &wasm_vendor_dir,
-                                &wit_vendor_dir,
-                                &mut lockfile,
-                            )
-                            .await
-                            .map_err(crate::util::into_miette)?;
-                        }
-                    }
                 }
                 PlannedInstall::Transitive { .. } => {
                     upsert_lockfile_type(&mut lockfile, &result);
@@ -374,20 +355,28 @@ impl Opts {
             .await
             .into_diagnostic()?;
 
-        // Print completion message with elapsed time
+        // Display the final completion summary.
         let elapsed = start_time.elapsed();
-        println!(
-            "\n{:>12} installation in {:.1}s",
-            console::style("Finished").green().bold(),
-            elapsed.as_secs_f64()
-        );
+        if offline {
+            // Offline mode never starts the phased display — print a plain
+            // summary line so the user still sees the result.
+            println!(
+                "{} Installed in {:.1}s",
+                console::style("✓").green().bold(),
+                elapsed.as_secs_f64()
+            );
+        } else {
+            let mut d = display.lock().await;
+            let completed_count = d.completed_count();
+            d.finish_all(completed_count, elapsed);
+        }
 
         Ok(())
     }
 }
 
-/// Shared handle to a [`ProgressTree`] for use across concurrent tasks.
-type SharedTree = std::sync::Arc<tokio::sync::Mutex<ProgressTree>>;
+/// Shared handle to an [`InstallDisplay`] for use across concurrent tasks.
+type SharedDisplay = std::sync::Arc<tokio::sync::Mutex<InstallDisplay>>;
 
 /// A package planned for installation, tagged as either a top-level
 /// manifest dependency or a transitive dependency discovered by the
@@ -460,7 +449,7 @@ impl PlannedInstall {
 /// progress across all layers.
 async fn install_one(
     manager: &Manager,
-    tree: &SharedTree,
+    display: &SharedDisplay,
     offline: bool,
     reference: &Reference,
     vendor_dir: &std::path::Path,
@@ -469,19 +458,14 @@ async fn install_one(
 ) -> anyhow::Result<InstallResult> {
     if offline {
         // No progress bars in offline mode — print a simple status line.
-        // Use ├── since we cannot rewrite previous lines to fix up └──.
-        let version_str = display_version.map(|v| format!("@{v}")).unwrap_or_default();
-        println!(
-            "├── {}{}",
-            console::style(display_name).yellow(),
-            console::style(version_str).white(),
-        );
+        let version_str = display_version.map(|v| format!(" {v}")).unwrap_or_default();
+        println!("{display_name}{version_str}");
         return manager.install(reference.clone(), vendor_dir).await;
     }
 
     let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
 
-    let (pb, bar_id) = tree.lock().await.add_bar(display_name, display_version);
+    let (pb, bar_id) = display.lock().await.add_bar(display_name, display_version);
 
     // Spawn progress rendering task
     let progress_handle = tokio::task::spawn(run_progress_bars(pb.clone(), progress_rx));
@@ -496,9 +480,9 @@ async fn install_one(
     // Wait for progress bars to finish rendering
     let _ = progress_handle.await;
 
-    // Only mark the bar as complete (green, hidden) on successful installs.
+    // Only mark the bar as complete (green checkmark) on successful installs.
     if result.is_ok() {
-        tree.lock().await.finish_bar(bar_id);
+        display.lock().await.finish_bar(bar_id);
     }
 
     result
@@ -609,114 +593,6 @@ fn process_top_level_result(
     );
 
     result.dependencies
-}
-
-/// Recursively install transitive WIT dependencies of a component.
-///
-/// Installs each wave of dependencies concurrently and then collects
-/// their transitive deps for the next wave. This is a breadth-first
-/// traversal where each level is installed as a concurrent batch.
-///
-/// A visited set prevents cycles and duplicates, and lockfile-present
-/// entries are skipped.  Failures are logged and skipped — the manifest
-/// is **not** modified.
-async fn install_transitive_deps(
-    initial_deps: Vec<DependencyItem>,
-    manager: &Manager,
-    tree: &SharedTree,
-    wasm_vendor_dir: &std::path::Path,
-    wit_vendor_dir: &std::path::Path,
-    lockfile: &mut wasm_manifest::Lockfile,
-) -> anyhow::Result<()> {
-    let mut current_wave = initial_deps;
-    let mut visited: HashSet<(String, Option<String>)> = HashSet::new();
-
-    while !current_wave.is_empty() {
-        // Build a set of lockfile interface names for O(1) lookups.
-        let lockfile_names: HashSet<&str> = lockfile
-            .interfaces
-            .iter()
-            .map(|p| p.name.as_str())
-            .collect();
-
-        // Deduplicate and filter the current wave, collecting
-        // installable entries.
-        let wave_entries: Vec<(DependencyItem, Reference, String, Option<String>)> = current_wave
-            .into_iter()
-            .filter(|dep| {
-                let dep_key = (dep.package.clone(), dep.version.clone());
-                visited.insert(dep_key)
-            })
-            .filter(|dep| !lockfile_names.contains(dep.package.as_str()))
-            .filter_map(|dep| {
-                let dep_ref = resolve_dep_reference(manager, &dep)?;
-                let (name, version) = package_display_parts(Some(&dep.package), dep_ref.tag());
-                let display_name = if name.is_empty() {
-                    dep.package.clone()
-                } else {
-                    name
-                };
-                Some((dep, dep_ref, display_name, version))
-            })
-            .collect();
-
-        if wave_entries.is_empty() {
-            break;
-        }
-
-        // Install all entries in this wave concurrently.
-        let results: Vec<Option<InstallResult>> = wave_entries
-            .into_co_stream()
-            .map(|(dep, dep_ref, display_name, version)| {
-                let tree = SharedTree::clone(tree);
-                let vendor_dir = wasm_vendor_dir.to_path_buf();
-                let wit_dir = wit_vendor_dir.to_path_buf();
-                async move {
-                    let dep_result = match install_one(
-                        manager,
-                        &tree,
-                        false,
-                        &dep_ref,
-                        &vendor_dir,
-                        &display_name,
-                        version.as_deref(),
-                    )
-                    .await
-                    {
-                        Ok(r) => r,
-                        Err(e) => {
-                            tracing::debug!(
-                                "Failed to install WIT dependency '{}': {e} — skipping",
-                                dep.package,
-                            );
-                            return None;
-                        }
-                    };
-
-                    if let Err(e) = re_vendor_wit_files(&dep_result, &wit_dir).await {
-                        tracing::debug!(
-                            "Failed to vendor WIT files for '{}': {e} — skipping",
-                            dep.package,
-                        );
-                    }
-
-                    Some(dep_result)
-                }
-            })
-            .collect()
-            .await;
-
-        // Process results: update lockfile and collect next-wave deps.
-        let mut next_wave = Vec::new();
-        for result in results.into_iter().flatten() {
-            upsert_lockfile_type(lockfile, &result);
-            next_wave.extend(result.dependencies);
-        }
-
-        current_wave = next_wave;
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -898,58 +774,5 @@ mod tests {
         );
         // Original .wasm should still be present (not moved).
         assert!(wasm_path.exists(), "component .wasm should be untouched");
-    }
-
-    #[test]
-    fn planned_packages_includes_resolver_roots_and_enqueued_transitive() {
-        use super::PlannedInstall;
-        use std::collections::HashSet;
-
-        // Simulate: the resolver returned two transitive deps (wasi:io and
-        // wasi:cli), but only wasi:io survived filtering (e.g. wasi:cli was
-        // already in the lockfile or unresolvable via OCI).  Only actual
-        // resolver roots (interface keys that went through the resolver) are
-        // included in the planned set — component keys and entries that
-        // didn't qualify are excluded so they correctly fall through to the
-        // sequential fallback.
-        let transitive_installs = vec![PlannedInstall::Transitive {
-            reference: "ghcr.io/test/wasi-io:0.2.0"
-                .parse()
-                .expect("valid reference"),
-            package_name: "wasi:io".to_string(),
-        }];
-
-        // This mirrors the derivation in Opts::run: transitive names from
-        // the actual install vec, plus only the resolver root names (not
-        // all manifest keys).
-        let resolver_root_names: HashSet<String> = HashSet::from(["wasi:http".to_string()]);
-        let planned: HashSet<String> = {
-            let transitive_names = transitive_installs.iter().filter_map(|entry| match entry {
-                PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),
-                PlannedInstall::TopLevel { .. } => None,
-            });
-            transitive_names.chain(resolver_root_names).collect()
-        };
-
-        // "wasi:io" was actually enqueued as transitive → in planned set.
-        assert!(planned.contains("wasi:io"));
-        // "wasi:http" is a resolver root → in planned set.
-        assert!(
-            planned.contains("wasi:http"),
-            "resolver root names should appear in planned set"
-        );
-        // "wasi:cli" was resolved but not enqueued → absent from planned,
-        // so the fallback installer handles it.
-        assert!(
-            !planned.contains("wasi:cli"),
-            "only enqueued deps should appear in planned set"
-        );
-        // Component keys (e.g. "root:component") that didn't go through the
-        // resolver are absent from planned so their transitive deps are
-        // handled by the sequential fallback.
-        assert!(
-            !planned.contains("root:component"),
-            "component keys should not appear in planned set"
-        );
     }
 }

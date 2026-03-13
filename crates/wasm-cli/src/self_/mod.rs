@@ -195,10 +195,15 @@ impl Opts {
             Opts::Clean => {
                 let store = Manager::open().await?;
                 let state_info = store.state_info();
-                let data_dir = state_info.data_dir().to_path_buf();
+                let store_dir = state_info.store_dir().to_path_buf();
+                let db_dir = state_info
+                    .metadata_file()
+                    .parent()
+                    .expect("metadata file must have a parent directory")
+                    .to_path_buf();
 
-                if !data_dir.exists() {
-                    println!("Nothing to clean (data directory does not exist)");
+                if !store_dir.exists() && !db_dir.exists() {
+                    println!("Nothing to clean (store and db directories do not exist)");
                     return Ok(());
                 }
 
@@ -209,12 +214,13 @@ impl Opts {
                 // Drop the manager to release the database connection before removing files
                 drop(store);
 
-                std::fs::remove_dir_all(&data_dir)?;
-                println!(
-                    "Cleaned up {} of data from {}",
-                    format_size(total_size),
-                    data_dir.display()
-                );
+                if store_dir.exists() {
+                    std::fs::remove_dir_all(&store_dir)?;
+                }
+                if db_dir.exists() {
+                    std::fs::remove_dir_all(&db_dir)?;
+                }
+                println!("Cleaned up {} of data", format_size(total_size));
                 Ok(())
             }
         }

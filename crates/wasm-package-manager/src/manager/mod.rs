@@ -550,7 +550,12 @@ impl Manager {
             let tag = if let Some(v) = dep.version.as_deref() {
                 v.to_string()
             } else {
-                pick_latest_stable_tag(&known.tags).unwrap_or_else(|| "latest".to_string())
+                // Try tags from the OCI store first, then fall back to
+                // versions stored in the `wit_package` table (populated by
+                // sync stubs even when no OCI manifest has been pulled yet).
+                pick_latest_stable_tag(&known.tags)
+                    .or_else(|| self.pick_latest_wit_package_version(&dep.package))
+                    .unwrap_or_else(|| "latest".to_string())
             };
             let ref_str = format!("{}/{}:{}", known.registry, known.repository, tag);
             return Ok(Some(ref_str.parse()?));
@@ -579,7 +584,22 @@ impl Manager {
         {
             return tag;
         }
+        // Fall back to versions from the `wit_package` table (sync stubs).
+        if let Some(v) = self.pick_latest_wit_package_version(&dep.package) {
+            return v;
+        }
         "latest".to_string()
+    }
+
+    /// Pick the latest stable semver version from the `wit_package` table.
+    ///
+    /// This is used as a fallback when OCI tags are not yet available (e.g.
+    /// on a fresh DB where sync has stored `wit_package` stubs but no OCI
+    /// manifests have been pulled).
+    fn pick_latest_wit_package_version(&self, package_name: &str) -> Option<String> {
+        let versions = self.store.list_wit_package_versions(package_name).ok()?;
+        let tags: Vec<String> = versions;
+        pick_latest_stable_tag(&tags)
     }
 
     /// Get data from the store
@@ -1048,12 +1068,13 @@ impl Manager {
             }
 
             // r[impl db.wit-package-dependency.populate-on-sync]
-            // Store dependency information from the sync response so the
-            // local database can answer dependency queries without network
-            // access.
-            if !pkg.dependencies.is_empty()
-                && let (Some(ns), Some(name)) = (&pkg.wit_namespace, &pkg.wit_name)
-            {
+            // Store package and dependency information from the sync response
+            // so the local database can answer dependency and version queries
+            // without network access.  A `wit_package` stub row is created
+            // even for packages with no dependencies — the resolver needs the
+            // row to exist so that `choose_version` can enumerate available
+            // versions.
+            if let (Some(ns), Some(name)) = (&pkg.wit_namespace, &pkg.wit_name) {
                 let package_name = format!("{ns}:{name}");
                 // Use the latest stable semver tag as the canonical version;
                 // strip any leading "v" so it matches the WIT version string.
@@ -1068,7 +1089,7 @@ impl Manager {
                     tracing::warn!(
                         package = %package_name,
                         error = %e,
-                        "Failed to store synced dependencies"
+                        "Failed to store synced package"
                     );
                 }
             }

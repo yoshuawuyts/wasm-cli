@@ -5,3 +5,5 @@ Cargo.lock
 .DS_Store
 registry.toml
 .tracey/
+wasm.lock.toml
+wasm.toml

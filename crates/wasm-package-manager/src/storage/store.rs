@@ -959,10 +959,9 @@ impl Store {
         version: Option<&str>,
         dependencies: &[wasm_meta_registry_client::PackageDependencyRef],
     ) -> anyhow::Result<()> {
-        if dependencies.is_empty() {
-            return Ok(());
-        }
-
+        // Always create (or reuse) the wit_package stub so the resolver
+        // can enumerate available versions even for leaf packages with no
+        // dependencies.
         let pkg_id = self.find_or_insert_wit_package(package_name, version)?;
 
         for dep in dependencies {
