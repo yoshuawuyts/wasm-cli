@@ -54,8 +54,8 @@ impl Store {
         let data_dir = dirs::data_local_dir()
             .context("No local data dir known for the current OS")?
             .join("wasm");
-        let config_file = dirs::config_dir()
-            .context("No config dir known for the current OS")?
+        let config_file = crate::xdg_config_home()
+            .context("Could not determine config directory (set $XDG_CONFIG_HOME or $HOME)")?
             .join("wasm")
             .join("config.toml");
         Self::open_inner(data_dir, config_file).await
