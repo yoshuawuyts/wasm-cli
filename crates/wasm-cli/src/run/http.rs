@@ -14,11 +14,14 @@ use wasmparser::{Parser, Payload};
 use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
-use wasmtime_wasi_http::bindings::ProxyPre;
-use wasmtime_wasi_http::bindings::http::types::Scheme;
-use wasmtime_wasi_http::body::HyperOutgoingBody;
 use wasmtime_wasi_http::io::TokioIo;
-use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
+use wasmtime_wasi_http::p2::bindings::ProxyPre;
+use wasmtime_wasi_http::p2::bindings::http::types::Scheme;
+use wasmtime_wasi_http::p2::body::HyperOutgoingBody;
+use wasmtime_wasi_http::{
+    WasiHttpCtx,
+    p2::{WasiHttpCtxView, WasiHttpView},
+};
 
 use super::errors::RunError;
 
@@ -39,12 +42,13 @@ impl WasiView for HttpState {
 }
 
 impl WasiHttpView for HttpState {
-    fn ctx(&mut self) -> &mut WasiHttpCtx {
-        &mut self.http
-    }
-
-    fn table(&mut self) -> &mut ResourceTable {
-        &mut self.table
+    fn http(&mut self) -> WasiHttpCtxView<'_> {
+        WasiHttpCtxView {
+            ctx: &mut self.http,
+            table: &mut self.table,
+            // Use the built-in default hooks (standard outgoing request handling).
+            hooks: Default::default(),
+        }
     }
 }
 
@@ -106,7 +110,7 @@ pub(super) async fn serve(
 
     let mut linker: Linker<HttpState> = Linker::new(&engine);
     wasmtime_wasi::p2::add_to_linker_async(&mut linker).map_err(crate::util::into_miette)?;
-    wasmtime_wasi_http::add_only_http_to_linker_async(&mut linker)
+    wasmtime_wasi_http::p2::add_only_http_to_linker_async(&mut linker)
         .map_err(crate::util::into_miette)?;
 
     let pre = ProxyPre::new(
@@ -190,8 +194,11 @@ async fn handle_request(
     );
 
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    let req = store.data_mut().new_incoming_request(Scheme::Http, req)?;
-    let out = store.data_mut().new_response_outparam(sender)?;
+    let req = store
+        .data_mut()
+        .http()
+        .new_incoming_request(Scheme::Http, req)?;
+    let out = store.data_mut().http().new_response_outparam(sender)?;
     let pre = server.pre.clone();
 
     // Spawn so the guest can continue writing the body after the initial
