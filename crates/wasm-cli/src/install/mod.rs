@@ -168,6 +168,9 @@ impl Opts {
             // Feed CLI inputs / manifest entries into the resolver via
             // `to_install`.  Entries with an `explicit_name` (WIT-style)
             // plus a parseable semver tag qualify as resolver roots.
+            // Packages without a parseable version (e.g. tagged `latest`)
+            // are shimmed to `0.0.0` so PubGrub can still resolve their
+            // full transitive dependency graph.
             for (reference, _update, explicit_name) in &to_install {
                 let Some(name) = explicit_name.as_deref() else {
                     continue;
@@ -176,12 +179,10 @@ impl Opts {
                     continue;
                 }
                 let tag = reference.tag().unwrap_or_default();
-                let Ok(version) = tag
+                let version = tag
                     .trim_start_matches('v')
                     .parse::<wasm_package_manager::resolver::WitVersion>()
-                else {
-                    continue;
-                };
+                    .unwrap_or(wasm_package_manager::resolver::WitVersion::new(0, 0, 0));
                 roots.push((name.to_string(), version));
                 resolver_root_names.insert(name.to_string());
             }

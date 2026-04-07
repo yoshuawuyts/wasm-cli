@@ -595,10 +595,11 @@ impl Manager {
     ///
     /// This is used as a fallback when OCI tags are not yet available (e.g.
     /// on a fresh DB where sync has stored `wit_package` stubs but no OCI
-    /// manifests have been pulled).
+    /// manifests have been pulled).  The synthetic `0.0.0` shim used for
+    /// unversioned packages is excluded.
     fn pick_latest_wit_package_version(&self, package_name: &str) -> Option<String> {
         let versions = self.store.list_wit_package_versions(package_name).ok()?;
-        let tags: Vec<String> = versions;
+        let tags: Vec<String> = versions.into_iter().filter(|v| v != "0.0.0").collect();
         pick_latest_stable_tag(&tags)
     }
 
@@ -1078,12 +1079,16 @@ impl Manager {
                 let package_name = format!("{ns}:{name}");
                 // Use the latest stable semver tag as the canonical version;
                 // strip any leading "v" so it matches the WIT version string.
-                // Falls back to None when no stable semver tag is available.
-                let version = pick_latest_stable_tag(&pkg.tags)
-                    .map(|t| t.trim_start_matches('v').to_string());
+                // When no stable semver tag is available, fall back to "0.0.0"
+                // so the resolver can still find the package (the installer
+                // shims unversioned roots to 0.0.0 for PubGrub resolution).
+                let version = pick_latest_stable_tag(&pkg.tags).map_or_else(
+                    || "0.0.0".to_string(),
+                    |t| t.trim_start_matches('v').to_string(),
+                );
                 if let Err(e) = self.store.upsert_package_dependencies_from_sync(
                     &package_name,
-                    version.as_deref(),
+                    Some(&version),
                     &pkg.dependencies,
                 ) {
                     tracing::warn!(
