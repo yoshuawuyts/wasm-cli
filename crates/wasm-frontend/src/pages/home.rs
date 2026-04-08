@@ -161,13 +161,13 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
                 .text(format!("No {heading} found yet."))
         });
     } else {
-        // Package list — compact rows instead of card grid
-        let mut list = Division::builder();
-        list.class("divide-y divide-border-light");
+        // Package grid — card layout
+        let mut grid = Division::builder();
+        grid.class("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4");
         for pkg in visible {
-            list.push(render_row(pkg));
+            grid.push(render_card(pkg));
         }
-        section.push(list.build());
+        section.push(grid.build());
 
         // "View all" link
         if has_more {
@@ -184,8 +184,8 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
     section.build()
 }
 
-/// Render a single package as a compact row.
-fn render_row(pkg: &KnownPackage) -> Division {
+/// Render a single package as a card.
+fn render_card(pkg: &KnownPackage) -> Division {
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
@@ -203,35 +203,35 @@ fn render_row(pkg: &KnownPackage) -> Division {
             .anchor(|a| {
                 a.href(format!("/{ns}/{name}"))
                     .class(
-                        "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
+                        "block border border-border rounded-lg p-4 hover:border-accent/40 hover:bg-surface transition-colors",
                     )
                     .span(|s| {
-                        s.class("font-semibold text-accent shrink-0")
+                        s.class("block font-semibold text-accent truncate")
                             .text(display_name)
                     })
                     .span(|s| {
-                        s.class("text-sm text-fg-faint shrink-0")
-                            .text(version.to_owned())
+                        s.class("block text-sm text-fg-muted mt-1 line-clamp-2")
+                            .text(description.to_owned())
                     })
                     .span(|s| {
-                        s.class("text-sm text-fg-muted truncate")
-                            .text(description.to_owned())
+                        s.class("block text-xs text-fg-faint mt-3 font-mono")
+                            .text(version.to_owned())
                     })
             })
             .build(),
         _ => Division::builder()
-            .class("flex items-baseline gap-3 py-3 -mx-2 px-2 rounded")
+            .class("border border-border rounded-lg p-4")
             .span(|s| {
-                s.class("font-semibold text-fg shrink-0")
+                s.class("block font-semibold text-fg truncate")
                     .text(display_name)
             })
             .span(|s| {
-                s.class("text-sm text-fg-faint shrink-0")
-                    .text(version.to_owned())
+                s.class("block text-sm text-fg-muted mt-1 line-clamp-2")
+                    .text(description.to_owned())
             })
             .span(|s| {
-                s.class("text-sm text-fg-muted truncate")
-                    .text(description.to_owned())
+                s.class("block text-xs text-fg-faint mt-3 font-mono")
+                    .text(version.to_owned())
             })
             .build(),
     }
