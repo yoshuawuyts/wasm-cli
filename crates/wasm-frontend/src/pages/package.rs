@@ -3,7 +3,7 @@
 // r[impl frontend.pages.package-detail]
 
 use html::content::{Aside, Navigation, Section};
-use html::inline_text::{Anchor, Span};
+use html::inline_text::Span;
 use html::text_content::{Division, ListItem, UnorderedList};
 use wasm_meta_registry_client::KnownPackage;
 
@@ -49,16 +49,13 @@ pub(crate) fn render(pkg: &KnownPackage, version: &str) -> String {
     // Main content column
     let mut main_col = Division::builder();
     main_col.class("md:col-span-2 space-y-8");
-    if let Some(tags) = render_tags(pkg, version) {
-        main_col.push(tags);
-    }
     if let Some(deps) = render_dependencies(pkg) {
         main_col.push(deps);
     }
     grid.push(main_col.build());
 
     // Sidebar
-    grid.push(render_sidebar(pkg));
+    grid.push(render_sidebar(pkg, version));
 
     body.push(grid.build());
 
@@ -77,42 +74,6 @@ fn render_breadcrumb(display_name: &str) -> Navigation {
         .span(|s| s.class("mx-1").text("/"))
         .span(|s| s.text(display_name.to_owned()))
         .build()
-}
-
-/// Render the tags/versions section.
-fn render_tags(pkg: &KnownPackage, current_version: &str) -> Option<Section> {
-    if pkg.tags.is_empty() {
-        return None;
-    }
-
-    let url_name = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => format!("{ns}/{name}"),
-        _ => pkg.repository.clone(),
-    };
-
-    let mut section = Section::builder();
-    section.heading_2(|h2| h2.class("text-lg font-semibold mb-3").text("Versions"));
-
-    let mut tag_div = Division::builder();
-    tag_div.class("flex flex-wrap gap-2");
-    for tag in &pkg.tags {
-        let is_current = tag == current_version;
-        let classes = if is_current {
-            "px-3 py-1 rounded-full text-sm bg-accent text-white"
-        } else {
-            "px-3 py-1 rounded-full text-sm bg-surface-muted text-fg-secondary hover:bg-border-light transition-colors"
-        };
-        let href = format!("/{url_name}/{tag}");
-        let anchor = Anchor::builder()
-            .href(href)
-            .class(classes)
-            .text(tag.clone())
-            .build();
-        tag_div.push(anchor);
-    }
-    section.push(tag_div.build());
-
-    Some(section.build())
 }
 
 /// Render the dependencies section.
@@ -149,13 +110,23 @@ fn render_dependencies(pkg: &KnownPackage) -> Option<Section> {
     Some(section.build())
 }
 
-/// Render the sidebar with metadata.
-fn render_sidebar(pkg: &KnownPackage) -> Aside {
+/// Render the sidebar with metadata and version selector.
+fn render_sidebar(pkg: &KnownPackage, current_version: &str) -> Aside {
+    let url_name = match (&pkg.wit_namespace, &pkg.wit_name) {
+        (Some(ns), Some(name)) => format!("{ns}/{name}"),
+        _ => pkg.repository.clone(),
+    };
+
     let mut aside = Aside::builder();
     aside.class("space-y-4");
 
     let mut card = Division::builder();
     card.class("bg-surface border border-border rounded-lg p-5 space-y-4 text-sm");
+
+    // Version selector dropdown
+    if !pkg.tags.is_empty() {
+        card.push(render_version_select(pkg, current_version, &url_name));
+    }
 
     // Repository: combined registry/repository as a clickable link
     let repo_url = format!("https://{}/{}", pkg.registry, pkg.repository);
@@ -170,6 +141,40 @@ fn render_sidebar(pkg: &KnownPackage) -> Aside {
     aside.push(card.build());
 
     aside.build()
+}
+
+/// Render the version selector dropdown.
+fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &str) -> Division {
+    let mut select = html::forms::Select::builder();
+    select
+        .id("version-select")
+        .name("version")
+        .class("w-full px-3 py-2 rounded-md border border-border bg-surface text-fg text-sm");
+
+    for tag in &pkg.tags {
+        let is_current = tag == current_version;
+        if is_current {
+            select.option(|opt| opt.value(tag.clone()).text(tag.clone()).selected(true));
+        } else {
+            select.option(|opt| opt.value(tag.clone()).text(tag.clone()));
+        }
+    }
+
+    let script_body = format!(
+        "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/{url_name}/'+this.value}})"
+    );
+
+    Division::builder()
+        .division(|dt| {
+            dt.class("text-fg-muted text-xs uppercase tracking-wide")
+                .text("Version")
+        })
+        .division(|dd| {
+            dd.class("mt-0.5")
+                .push(select.build())
+                .script(|s| s.text(script_body))
+        })
+        .build()
 }
 
 /// Render a single sidebar metadata row.
