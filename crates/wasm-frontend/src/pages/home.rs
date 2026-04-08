@@ -6,8 +6,8 @@ use html::content::Section;
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
-use crate::api_client::{ApiClient, ApiError};
 use crate::layout;
+use wasm_meta_registry_client::{ApiClient, ApiError};
 
 /// Maximum number of packages to show per section on the home page.
 const HOME_SECTION_LIMIT: usize = 6;

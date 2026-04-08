@@ -6,8 +6,8 @@ use html::inline_text::Anchor;
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
-use crate::api_client::{ApiClient, ApiError};
 use crate::layout;
+use wasm_meta_registry_client::{ApiClient, ApiError};
 
 /// Fetch matching packages and render the search results page.
 pub(crate) async fn render(client: &ApiClient, query: &str) -> String {

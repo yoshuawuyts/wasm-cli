@@ -11,7 +11,6 @@
 
 // r[impl frontend.server.wasi-http]
 
-mod api_client;
 mod footer;
 mod layout;
 mod nav;
@@ -24,7 +23,8 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Json, Router, routing::get};
 use serde::Deserialize;
 
-use crate::api_client::ApiClient;
+use wasm_meta_registry_client::ApiClient;
+
 use crate::reserved::is_reserved;
 
 /// Build the application router with all frontend routes.

@@ -21,10 +21,11 @@ anyhow = { workspace = true }
 exponential-backoff = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true, optional = true }
 
-[dev-dependencies]
-serde_json = { workspace = true }
+[target.'cfg(all(target_os = "wasi", target_env = "p2"))'.dependencies]
+wstd = { workspace = true }
 
 [lints]
 workspace = true

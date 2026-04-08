@@ -5,8 +5,8 @@
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
-use crate::api_client::{ApiClient, ApiError};
 use crate::layout;
+use wasm_meta_registry_client::{ApiClient, ApiError};
 
 /// Fetch all packages and render a paginated list.
 pub(crate) async fn render(client: &ApiClient, offset: u32, limit: u32) -> String {

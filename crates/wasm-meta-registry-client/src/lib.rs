@@ -36,6 +36,12 @@ mod client;
 #[cfg(feature = "client")]
 pub use client::{FetchResult, RegistryClient};
 
+#[cfg(any(all(target_os = "wasi", target_env = "p2"), feature = "client"))]
+mod api_client;
+
+#[cfg(any(all(target_os = "wasi", target_env = "p2"), feature = "client"))]
+pub use api_client::{ApiClient, ApiError};
+
 /// A declared dependency on another WIT package, as returned in the
 /// `/v1/packages` response.
 ///
