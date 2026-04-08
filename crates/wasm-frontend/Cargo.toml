@@ -19,9 +19,13 @@ axum = { version = "0.8", default-features = false, features = ["json", "query"]
 html = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+semver = { workspace = true }
 wasm-meta-registry-client = { workspace = true }
 wstd = { workspace = true }
 wstd-axum = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
 
 [lints]
 workspace = true

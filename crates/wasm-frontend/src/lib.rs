@@ -71,6 +71,21 @@ struct SearchParams {
     q: String,
 }
 
+/// Query parameters for the all-packages page.
+#[derive(Deserialize)]
+struct AllPackagesParams {
+    /// Pagination offset.
+    #[serde(default)]
+    offset: u32,
+    /// Pagination limit.
+    #[serde(default = "default_all_packages_limit")]
+    limit: u32,
+}
+
+fn default_all_packages_limit() -> u32 {
+    100
+}
+
 // r[impl frontend.pages.search]
 /// Search results page.
 async fn search(Query(params): Query<SearchParams>) -> Response {
@@ -81,9 +96,10 @@ async fn search(Query(params): Query<SearchParams>) -> Response {
 
 // r[impl frontend.pages.all]
 /// Paginated listing of all known packages.
-async fn all_packages() -> Response {
+async fn all_packages(Query(params): Query<AllPackagesParams>) -> Response {
     let client = ApiClient::from_env();
-    let html = pages::all::render(&client).await;
+    let limit = params.limit.clamp(1, 200);
+    let html = pages::all::render(&client, params.offset, limit).await;
     with_cache_control(html, "public, max-age=60")
 }
 
@@ -106,14 +122,14 @@ async fn package_redirect(
     let client = ApiClient::from_env();
     match client.fetch_package_by_wit(&namespace, &name).await {
         Ok(Some(pkg)) => {
-            let version = pkg
-                .tags
-                .first()
-                .cloned()
-                .unwrap_or_else(|| "latest".to_string());
-            Ok(Redirect::temporary(&format!(
-                "/{namespace}/{name}/{version}"
-            )))
+            if let Some(version) = pick_redirect_version(&pkg.tags) {
+                Ok(Redirect::temporary(&format!(
+                    "/{namespace}/{name}/{version}"
+                )))
+            } else {
+                eprintln!("wasm-frontend: package has no redirectable tags: {namespace}/{name}");
+                Err(not_found_response())
+            }
         }
         Ok(None) => {
             eprintln!("wasm-frontend: package not found: {namespace}/{name}");
@@ -139,6 +155,10 @@ async fn package_detail(
     let client = ApiClient::from_env();
     match client.fetch_package_by_wit(&namespace, &name).await {
         Ok(Some(pkg)) => {
+            if !pkg.tags.iter().any(|tag| tag == &version) {
+                eprintln!("wasm-frontend: version not found for {namespace}/{name}: {version}");
+                return not_found_response();
+            }
             let html = pages::package::render(&pkg, &version);
             with_cache_control(html, "public, max-age=300")
         }
@@ -191,4 +211,98 @@ fn with_cache_control(html: String, cache_control: &'static str) -> Response {
         HeaderValue::from_static(cache_control),
     );
     response
+}
+
+#[must_use]
+fn pick_redirect_version(tags: &[String]) -> Option<String> {
+    tags.iter()
+        .filter_map(|tag| {
+            semver::Version::parse(tag)
+                .ok()
+                .filter(|version| version.pre.is_empty())
+                .map(|version| (version, tag))
+        })
+        .max_by(|(left_version, _), (right_version, _)| left_version.cmp(right_version))
+        .map(|(_, tag)| tag.clone())
+        .or_else(|| tags.iter().find(|tag| tag.as_str() == "latest").cloned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // r[verify frontend.routing.reserved-namespaces]
+    #[tokio::test]
+    async fn package_redirect_reserved_namespace_returns_not_found() {
+        let response = package_redirect(Path(("all".to_string(), "demo".to_string())))
+            .await
+            .expect_err("reserved namespace should not redirect");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .expect("cache-control header should be set"),
+            "no-cache"
+        );
+    }
+
+    // r[verify frontend.routing.reserved-namespaces]
+    #[tokio::test]
+    async fn package_detail_reserved_namespace_returns_not_found() {
+        let response = package_detail(Path((
+            "all".to_string(),
+            "demo".to_string(),
+            "1.0.0".to_string(),
+        )))
+        .await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .expect("cache-control header should be set"),
+            "no-cache"
+        );
+    }
+
+    // r[verify frontend.pages.not-found]
+    #[tokio::test]
+    async fn fallback_not_found_has_expected_status_and_headers() {
+        let response = not_found(Uri::from_static("/does-not-exist")).await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .expect("cache-control header should be set"),
+            "no-cache"
+        );
+    }
+
+    #[test]
+    fn pick_redirect_version_prefers_latest_stable_semver() {
+        let tags = vec![
+            "latest".to_string(),
+            "2.0.0-rc.1".to_string(),
+            "1.2.0".to_string(),
+            "1.10.0".to_string(),
+        ];
+        assert_eq!(pick_redirect_version(&tags), Some("1.10.0".to_string()));
+    }
+
+    #[test]
+    fn pick_redirect_version_falls_back_to_latest_tag() {
+        let tags = vec!["latest".to_string(), "sha256-deadbeef".to_string()];
+        assert_eq!(pick_redirect_version(&tags), Some("latest".to_string()));
+    }
+
+    #[test]
+    fn pick_redirect_version_returns_none_for_unusable_tags() {
+        let tags = vec!["sha256-deadbeef".to_string()];
+        assert_eq!(pick_redirect_version(&tags), None);
+    }
 }

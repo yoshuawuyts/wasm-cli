@@ -56,13 +56,14 @@ impl ApiClient {
         &self,
         limit: u32,
     ) -> Result<Vec<KnownPackage>, ApiError> {
-        let url = format!("{}/v1/packages?limit={limit}", self.base_url);
+        let url = format!("{}/v1/packages/recent?limit={limit}", self.base_url);
         self.fetch_packages_from(&url).await
     }
 
     /// Search packages by query string.
     pub(crate) async fn search_packages(&self, query: &str) -> Result<Vec<KnownPackage>, ApiError> {
-        let url = format!("{}/v1/search?q={query}", self.base_url);
+        let encoded_query = percent_encode_query_component(query);
+        let url = format!("{}/v1/search?q={encoded_query}", self.base_url);
         self.fetch_packages_from(&url).await
     }
 
@@ -118,4 +119,19 @@ impl ApiClient {
             }
         })
     }
+}
+
+/// Percent-encode a query parameter component according to RFC 3986.
+#[must_use]
+fn percent_encode_query_component(input: &str) -> String {
+    let mut encoded = String::with_capacity(input.len());
+    for byte in input.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(char::from(byte));
+        } else {
+            use std::fmt::Write as _;
+            write!(&mut encoded, "%{byte:02X}").expect("writing to a String cannot fail");
+        }
+    }
+    encoded
 }

@@ -113,6 +113,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/health", get(health))
         .route("/v1/search", get(search))
         .route("/v1/packages", get(list_packages))
+        .route("/v1/packages/recent", get(list_recent_packages))
         .route("/v1/packages/{registry}/{*repository}", get(get_package))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -145,6 +146,18 @@ async fn list_packages(
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     let packages = manager.list_known_packages(params.offset, params.limit)?;
+    Ok(Json(packages))
+}
+
+/// List recently updated known packages.
+async fn list_recent_packages(
+    State(manager): State<AppState>,
+    Query(params): Query<ListParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let manager = manager
+        .lock()
+        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
+    let packages = manager.list_recent_known_packages(params.offset, params.limit)?;
     Ok(Json(packages))
 }
 

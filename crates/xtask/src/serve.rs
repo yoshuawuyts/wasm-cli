@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result};
 
-use crate::{run_command, workspace_root};
+use crate::workspace_root;
 
 /// Run the full frontend development stack.
 pub(crate) fn run_serve() -> Result<()> {
@@ -21,16 +21,23 @@ pub(crate) fn run_serve() -> Result<()> {
 
     // 1. Build the frontend component.
     eprintln!(":: Building wasm-frontend for wasm32-wasip2…");
-    run_command(
-        "cargo",
-        &[
+    let build_status = Command::new("cargo")
+        .env("API_BASE_URL", "http://127.0.0.1:8081")
+        .args([
             "build",
             "--package",
             "wasm-frontend",
             "--target",
             "wasm32-wasip2",
-        ],
-    )?;
+        ])
+        .status()
+        .context("failed to build wasm-frontend")?;
+    if !build_status.success() {
+        anyhow::bail!(
+            "cargo build failed with exit code: {:?}",
+            build_status.code()
+        );
+    }
 
     let wasm_path = root
         .join("target/wasm32-wasip2/debug/wasm_frontend.wasm")
@@ -45,7 +52,7 @@ pub(crate) fn run_serve() -> Result<()> {
         .to_owned();
 
     // 2. Start the meta-registry.
-    eprintln!(":: Starting meta-registry on 0.0.0.0:8081…");
+    eprintln!(":: Starting meta-registry on 127.0.0.1:8081…");
     let mut registry_child = Command::new("cargo")
         .args([
             "run",
@@ -54,16 +61,18 @@ pub(crate) fn run_serve() -> Result<()> {
             "--",
             &registry_dir,
             "--bind",
-            "0.0.0.0:8081",
+            "127.0.0.1:8081",
         ])
         .spawn()
         .context("failed to start wasm-meta-registry")?;
 
     // 3. Start wasmtime serve.
-    eprintln!(":: Starting wasmtime serve on 0.0.0.0:8080…");
+    eprintln!(":: Starting wasmtime serve on 127.0.0.1:8080…");
     let mut wasmtime_child = Command::new("wasmtime")
         .args([
             "serve",
+            "--listen",
+            "127.0.0.1:8080",
             "-Scli",
             "-Sinherit-network",
             "-Sallow-ip-name-lookup",

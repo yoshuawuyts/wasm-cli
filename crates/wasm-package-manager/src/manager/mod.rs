@@ -702,6 +702,27 @@ impl Manager {
             .collect()
     }
 
+    /// Get recently updated known packages.
+    ///
+    /// Uses pagination with `offset` and `limit` parameters.
+    pub fn list_recent_known_packages(
+        &self,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<KnownPackage>> {
+        self.store
+            .list_recent_known_packages(offset, limit)?
+            .into_iter()
+            .map(|raw| {
+                let mut pkg = KnownPackage::from(raw);
+                pkg.dependencies = self
+                    .store
+                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
+                Ok(pkg)
+            })
+            .collect()
+    }
+
     /// Add or update a known package entry.
     pub fn add_known_package(
         &self,

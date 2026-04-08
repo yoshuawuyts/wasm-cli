@@ -685,6 +685,15 @@ impl Store {
         RawKnownPackage::get_all(&self.conn, offset, limit)
     }
 
+    /// Get recently updated known packages.
+    pub(crate) fn list_recent_known_packages(
+        &self,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<RawKnownPackage>> {
+        RawKnownPackage::get_recent(&self.conn, offset, limit)
+    }
+
     /// Get a known package by registry and repository.
     pub(crate) fn get_known_package(
         &self,

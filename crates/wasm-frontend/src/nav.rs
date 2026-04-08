@@ -28,26 +28,23 @@ pub(crate) fn render(current_path: &str) -> String {
       <a href="/all" class="underline-offset-4 hover:underline transition-colors"{all_aria}>All Packages</a>
       <a href="/about" class="underline-offset-4 hover:underline transition-colors"{about_aria}>About</a>
     </div>
-    <button
-      class="sm:hidden p-2 -mr-2 rounded hover:bg-white/10 transition-colors"
-      onclick="const nav=document.getElementById('mobile-nav');const open=!nav.classList.contains('hidden');nav.classList.toggle('hidden');this.setAttribute('aria-expanded',!open)"
-      aria-label="Toggle menu"
-      aria-expanded="false"
-      aria-controls="mobile-nav"
-    >
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
-      </svg>
-    </button>
+    <details class="sm:hidden relative">
+      <summary class="list-none cursor-pointer p-2 -mr-2 rounded hover:bg-white/10 transition-colors" aria-label="Toggle menu">
+        <span class="sr-only">Toggle menu</span>
+        <svg class="w-5 h-5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </summary>
+      <div class="absolute right-0 mt-2 w-56 bg-accent border border-white/20 rounded-md shadow-lg px-3 py-2 space-y-1 text-sm font-medium z-10">
+        <form action="/search" method="get" class="flex mb-2">
+          <input type="search" name="q" placeholder="Search packages…" aria-label="Search packages" class="flex-1 px-3 py-2 rounded-l text-sm bg-white/15 text-white placeholder:text-white/60 border border-white/20 focus:bg-white/25 focus:border-white/40 focus:outline-none transition-colors">
+          <button type="submit" class="px-3 py-2 rounded-r text-sm font-medium bg-white/20 border border-l-0 border-white/20 hover:bg-white/30 transition-colors">Search</button>
+        </form>
+        <a href="/all" class="block py-2 px-2 rounded hover:bg-white/10 transition-colors"{all_aria}>All Packages</a>
+        <a href="/about" class="block py-2 px-2 rounded hover:bg-white/10 transition-colors"{about_aria}>About</a>
+      </div>
+    </details>
   </nav>
-  <div id="mobile-nav" class="hidden sm:hidden px-4 pb-3 space-y-1 text-sm font-medium">
-    <form action="/search" method="get" class="flex mb-2">
-      <input type="search" name="q" placeholder="Search packages…" aria-label="Search packages" class="flex-1 px-3 py-2 rounded-l text-sm bg-white/15 text-white placeholder:text-white/60 border border-white/20 focus:bg-white/25 focus:border-white/40 focus:outline-none transition-colors">
-      <button type="submit" class="px-3 py-2 rounded-r text-sm font-medium bg-white/20 border border-l-0 border-white/20 hover:bg-white/30 transition-colors">Search</button>
-    </form>
-    <a href="/all" class="block py-2 px-2 rounded hover:bg-white/10 transition-colors"{all_aria}>All Packages</a>
-    <a href="/about" class="block py-2 px-2 rounded hover:bg-white/10 transition-colors"{about_aria}>About</a>
-  </div>
 </header>"#,
     )
 }

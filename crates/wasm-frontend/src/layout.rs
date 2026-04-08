@@ -23,6 +23,7 @@ pub(crate) const ACCENT_COLOR: &str = "#512FEB";
 /// color CSS variables, and footer.
 #[must_use]
 pub(crate) fn document(title: &str, body_content: &str) -> String {
+    let escaped_title = escape_html_text(title);
     let current_path = match title {
         "Home" => "/",
         "All Packages" => "/all",
@@ -38,7 +39,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Browse and discover WebAssembly components and WIT interfaces published to OCI registries.">
-  <title>{title} — wasm registry</title>
+  <title>{escaped_title} — wasm registry</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {{
@@ -85,7 +86,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     }}
   </style>
 </head>
-<body class="bg-white text-fg min-h-screen flex flex-col font-mono leading-relaxed">
+<body class="bg-white text-fg min-h-screen flex flex-col leading-relaxed">
   {nav}
   <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-10">
     {body_content}
@@ -93,9 +94,25 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
   {footer}
 </body>
 </html>"#,
-        title = title,
+        escaped_title = escaped_title,
         nav = nav::render(current_path),
         footer = footer::render(),
         body_content = body_content,
     )
+}
+
+#[must_use]
+fn escape_html_text(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#x27;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }

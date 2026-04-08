@@ -3,7 +3,6 @@
 // r[impl frontend.pages.home]
 
 use html::content::Section;
-use html::inline_text::Anchor;
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
@@ -87,10 +86,6 @@ fn render_hero(total: usize) -> Division {
 }
 
 /// Split packages into (components, interfaces) based on WIT metadata.
-///
-/// Packages with a `wit_name` are considered interfaces unless their
-/// repository path suggests they are a component (heuristic: no `/`
-/// separator in the WIT name is ambiguous, so we default to interface).
 fn split_by_kind(packages: &[KnownPackage]) -> (Vec<&KnownPackage>, Vec<&KnownPackage>) {
     let mut components = Vec::new();
     let mut interfaces = Vec::new();
@@ -171,15 +166,10 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Option<Section> 
 }
 
 /// Render a single package as a compact row.
-fn render_row(pkg: &KnownPackage) -> Anchor {
+fn render_row(pkg: &KnownPackage) -> Division {
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
-    };
-
-    let href = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => format!("/{ns}/{name}"),
-        _ => "#".to_string(),
     };
 
     let description = pkg
@@ -189,22 +179,41 @@ fn render_row(pkg: &KnownPackage) -> Anchor {
 
     let version = pkg.tags.first().map_or("—", String::as_str);
 
-    Anchor::builder()
-        .href(href)
-        .class(
-            "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
-        )
-        .span(|s| {
-            s.class("font-semibold text-accent shrink-0")
-                .text(display_name)
-        })
-        .span(|s| {
-            s.class("text-sm text-fg-faint shrink-0")
-                .text(version.to_owned())
-        })
-        .span(|s| {
-            s.class("text-sm text-fg-muted truncate")
-                .text(description.to_owned())
-        })
-        .build()
+    match (&pkg.wit_namespace, &pkg.wit_name) {
+        (Some(ns), Some(name)) => Division::builder()
+            .anchor(|a| {
+                a.href(format!("/{ns}/{name}"))
+                    .class(
+                        "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
+                    )
+                    .span(|s| {
+                        s.class("font-semibold text-accent shrink-0")
+                            .text(display_name)
+                    })
+                    .span(|s| {
+                        s.class("text-sm text-fg-faint shrink-0")
+                            .text(version.to_owned())
+                    })
+                    .span(|s| {
+                        s.class("text-sm text-fg-muted truncate")
+                            .text(description.to_owned())
+                    })
+            })
+            .build(),
+        _ => Division::builder()
+            .class("flex items-baseline gap-3 py-3 -mx-2 px-2 rounded")
+            .span(|s| {
+                s.class("font-semibold text-fg shrink-0")
+                    .text(display_name)
+            })
+            .span(|s| {
+                s.class("text-sm text-fg-faint shrink-0")
+                    .text(version.to_owned())
+            })
+            .span(|s| {
+                s.class("text-sm text-fg-muted truncate")
+                    .text(description.to_owned())
+            })
+            .build(),
+    }
 }

@@ -269,6 +269,54 @@ impl RawKnownPackage {
         Ok(packages)
     }
 
+    /// Get known packages ordered by most recent update timestamp.
+    pub(crate) fn get_recent(
+        conn: &Connection,
+        offset: u32,
+        limit: u32,
+    ) -> anyhow::Result<Vec<RawKnownPackage>> {
+        let mut stmt = conn.prepare(
+            "SELECT id, registry, repository, updated_at, created_at,
+                    wit_namespace, wit_name
+             FROM oci_repository
+             ORDER BY updated_at DESC
+             LIMIT ?1 OFFSET ?2",
+        )?;
+
+        let rows = stmt.query_map((limit, offset), |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
+            ))
+        })?;
+
+        let mut packages = Vec::new();
+        for row in rows {
+            let (id, registry, repository, updated_at, created_at, wit_ns, wit_n) = row?;
+            let tags = Self::fetch_tags(conn, id);
+            let description = Self::fetch_description(conn, id);
+            packages.push(RawKnownPackage {
+                id,
+                registry,
+                repository,
+                description,
+                tags,
+                signature_tags: Vec::new(),
+                attestation_tags: Vec::new(),
+                last_seen_at: updated_at,
+                created_at,
+                wit_namespace: wit_ns,
+                wit_name: wit_n,
+            });
+        }
+        Ok(packages)
+    }
+
     /// Get a known package by registry and repository.
     pub(crate) fn get(
         conn: &Connection,
