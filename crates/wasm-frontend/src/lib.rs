@@ -86,18 +86,25 @@ async fn package_redirect(
     }
 
     let client = ApiClient::from_env();
-    if let Some(pkg) = client.fetch_package_by_wit(&namespace, &name).await {
-        let version = pkg
-            .tags
-            .first()
-            .cloned()
-            .unwrap_or_else(|| "latest".to_string());
-        Ok(Redirect::temporary(&format!(
-            "/{namespace}/{name}/{version}"
-        )))
-    } else {
-        eprintln!("wasm-frontend: package not found: {namespace}/{name}");
-        Err(not_found_response())
+    match client.fetch_package_by_wit(&namespace, &name).await {
+        Ok(Some(pkg)) => {
+            let version = pkg
+                .tags
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "latest".to_string());
+            Ok(Redirect::temporary(&format!(
+                "/{namespace}/{name}/{version}"
+            )))
+        }
+        Ok(None) => {
+            eprintln!("wasm-frontend: package not found: {namespace}/{name}");
+            Err(not_found_response())
+        }
+        Err(e) => {
+            eprintln!("wasm-frontend: API error looking up {namespace}/{name}: {e}");
+            Err(error_response(&e.to_string()))
+        }
     }
 }
 
@@ -112,12 +119,19 @@ async fn package_detail(
     }
 
     let client = ApiClient::from_env();
-    if let Some(pkg) = client.fetch_package_by_wit(&namespace, &name).await {
-        let html = pages::package::render(&pkg, &version);
-        with_cache_control(html, "public, max-age=300")
-    } else {
-        eprintln!("wasm-frontend: package not found: {namespace}/{name}@{version}");
-        not_found_response()
+    match client.fetch_package_by_wit(&namespace, &name).await {
+        Ok(Some(pkg)) => {
+            let html = pages::package::render(&pkg, &version);
+            with_cache_control(html, "public, max-age=300")
+        }
+        Ok(None) => {
+            eprintln!("wasm-frontend: package not found: {namespace}/{name}@{version}");
+            not_found_response()
+        }
+        Err(e) => {
+            eprintln!("wasm-frontend: API error looking up {namespace}/{name}@{version}: {e}");
+            error_response(&e.to_string())
+        }
     }
 }
 
@@ -133,6 +147,17 @@ fn not_found_response() -> Response {
     let html = pages::not_found::render();
     let mut response = axum::response::Html(html).into_response();
     *response.status_mut() = StatusCode::NOT_FOUND;
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    response
+}
+
+/// Render an error page when the registry API is unreachable.
+fn error_response(message: &str) -> Response {
+    let html = pages::error::render(message);
+    let mut response = axum::response::Html(html).into_response();
+    *response.status_mut() = StatusCode::BAD_GATEWAY;
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));

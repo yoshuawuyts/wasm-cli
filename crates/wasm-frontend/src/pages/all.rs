@@ -6,13 +6,19 @@ use html::inline_text::Anchor;
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
-use crate::api_client::ApiClient;
+use crate::api_client::{ApiClient, ApiError};
 use crate::layout;
 
 /// Fetch all packages and render a paginated list.
 pub(crate) async fn render(client: &ApiClient) -> String {
-    let packages = client.fetch_all_packages(0, 100).await;
+    match client.fetch_all_packages(0, 500).await {
+        Ok(packages) => render_packages(&packages),
+        Err(err) => render_error(&err),
+    }
+}
 
+/// Render the package listing page.
+fn render_packages(packages: &[KnownPackage]) -> String {
     let mut body = Division::builder();
 
     // Page header with count
@@ -46,11 +52,35 @@ pub(crate) async fn render(client: &ApiClient) -> String {
 
         let mut list = Division::builder();
         list.class("divide-y divide-gray-100");
-        for pkg in &packages {
+        for pkg in packages {
             list.push(render_row(pkg));
         }
         body.push(list.build());
     }
+
+    layout::document("All Packages", &body.build().to_string())
+}
+
+/// Render the page with an API error message.
+fn render_error(err: &ApiError) -> String {
+    let mut body = Division::builder();
+
+    body.division(|div| {
+        div.class("pb-6 border-b border-gray-200 mb-6")
+            .heading_1(|h1| {
+                h1.class("text-3xl font-bold tracking-tight")
+                    .text("All Packages")
+            })
+    });
+
+    body.division(|div| {
+        div.class("py-16 text-center")
+            .paragraph(|p| {
+                p.class("text-gray-900 font-semibold")
+                    .text("Unable to load packages")
+            })
+            .paragraph(|p| p.class("text-sm text-gray-500 mt-2").text(err.to_string()))
+    });
 
     layout::document("All Packages", &body.build().to_string())
 }

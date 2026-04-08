@@ -7,7 +7,7 @@ use html::inline_text::Anchor;
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
-use crate::api_client::ApiClient;
+use crate::api_client::{ApiClient, ApiError};
 use crate::layout;
 
 /// Maximum number of packages to show per section on the home page.
@@ -15,9 +15,15 @@ const HOME_SECTION_LIMIT: usize = 6;
 
 /// Fetch recent packages and render the home page.
 pub(crate) async fn render(client: &ApiClient) -> String {
-    let packages = client.fetch_recent_packages(50).await;
+    match client.fetch_recent_packages(50).await {
+        Ok(packages) => render_packages(&packages),
+        Err(err) => render_error(&err),
+    }
+}
 
-    let (components, interfaces) = split_by_kind(&packages);
+/// Render the home page with a list of packages.
+fn render_packages(packages: &[KnownPackage]) -> String {
+    let (components, interfaces) = split_by_kind(packages);
 
     let mut body = Division::builder();
 
@@ -41,6 +47,21 @@ pub(crate) async fn render(client: &ApiClient) -> String {
         });
     }
 
+    layout::document("Home", &body.build().to_string())
+}
+
+/// Render the home page with an API error message.
+fn render_error(err: &ApiError) -> String {
+    let mut body = Division::builder();
+    body.push(render_hero(0));
+    body.division(|div| {
+        div.class("py-16 text-center")
+            .paragraph(|p| {
+                p.class("text-gray-900 font-semibold")
+                    .text("Unable to load packages")
+            })
+            .paragraph(|p| p.class("text-sm text-gray-500 mt-2").text(err.to_string()))
+    });
     layout::document("Home", &body.build().to_string())
 }
 
