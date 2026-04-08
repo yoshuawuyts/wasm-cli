@@ -71,30 +71,13 @@ pub(crate) fn render(pkg: &KnownPackage, version: &str, tab: &ActiveTab<'_>) -> 
     // Main content column (varies by tab)
     let mut main_col = Division::builder();
     main_col.class("md:col-span-2 space-y-8");
-    match tab {
-        ActiveTab::Docs { version_detail } => {
-            if let Some(detail) = version_detail {
-                main_col.push(render_wit_content(detail));
-            }
-        }
-        ActiveTab::Dependencies => {
-            main_col.push(render_dependencies_panel(pkg));
-        }
-        ActiveTab::Dependents {
-            importers,
-            exporters,
-        } => {
-            main_col.push(render_dependents_panel(importers, exporters));
-        }
+    if let Some(deps) = render_dependencies(pkg) {
+        main_col.push(deps);
     }
     grid.push(main_col.build());
 
     // Sidebar
-    let version_detail = match tab {
-        ActiveTab::Docs { version_detail } => *version_detail,
-        _ => None,
-    };
-    grid.push(render_sidebar(pkg, version, &display_name, version_detail));
+    grid.push(render_sidebar(pkg, version));
 
     body.push(grid.build());
 
@@ -159,322 +142,42 @@ fn render_breadcrumb(display_name: &str) -> Navigation {
         .build()
 }
 
-/// Render the WIT content section for a package version.
-///
-/// For interfaces, displays the full WIT source text.
-/// For components, displays the world imports and exports.
-fn render_wit_content(detail: &PackageVersion) -> Section {
-    let mut section = Section::builder();
-
-    if !detail.worlds.is_empty() {
-        section.push(render_worlds(detail));
-    }
-
-    if let Some(wit_text) = &detail.wit_text {
-        section.heading_2(|h2| {
-            h2.class("text-lg font-semibold mb-3")
-                .text("WIT Definition")
-        });
-        section.push(
-            html::text_content::PreformattedText::builder()
-                .class("bg-surface-muted border border-border rounded-lg p-4 overflow-x-auto text-sm leading-relaxed")
-                .code(|code| code.class("text-fg").text(wit_text.clone()))
-                .build(),
-        );
-    }
-
-    section.build()
-}
-
-/// Render the worlds section showing imports and exports.
-fn render_worlds(detail: &PackageVersion) -> Division {
-    let mut container = Division::builder();
-    container.class("space-y-6");
-
-    for world in &detail.worlds {
-        let mut world_div = Division::builder();
-        world_div.class("space-y-3");
-        world_div.heading_2(|h2| {
-            h2.class("text-lg font-semibold")
-                .text(format!("world {}", world.name))
-        });
-
-        if let Some(desc) = &world.description {
-            world_div.paragraph(|p| p.class("text-fg-secondary text-sm").text(desc.clone()));
-        }
-
-        if !world.imports.is_empty() {
-            world_div.push(render_interface_list("Imports", &world.imports));
-        }
-        if !world.exports.is_empty() {
-            world_div.push(render_interface_list("Exports", &world.exports));
-        }
-        container.push(world_div.build());
-    }
-
-    container.build()
-}
-
-/// Render a list of WIT interface references (imports or exports).
-fn render_interface_list(
-    label: &str,
-    interfaces: &[wasm_meta_registry_client::WitInterfaceRef],
-) -> Division {
-    let mut div = Division::builder();
-    div.heading_3(|h3| {
-        h3.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-2")
-            .text(label.to_owned())
-    });
-
-    let mut ul = UnorderedList::builder();
-    ul.class("space-y-1 ml-1");
-    for iface in interfaces {
-        let display = format_interface_ref(iface);
-        ul.list_item(|li| {
-            li.class("text-sm font-mono")
-                .span(|s| s.class("text-accent").text(display))
-        });
-    }
-    div.push(ul.build());
-    div.build()
-}
-
-/// Format a WIT interface reference as a display string.
-fn format_interface_ref(iface: &wasm_meta_registry_client::WitInterfaceRef) -> String {
-    let mut s = iface.package.clone();
-    if let Some(name) = &iface.interface {
-        s.push('/');
-        s.push_str(name);
-    }
-    if let Some(v) = &iface.version {
-        s.push('@');
-        s.push_str(v);
-    }
-    s
-}
-
-/// Render the tab bar with links to each tab route.
-fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
-    let active_class = "text-accent border-b-2 border-accent font-semibold";
-    let inactive_class = "text-fg-muted hover:text-fg";
-    let tab_base = "px-4 py-2 text-sm transition-colors inline-block";
-
-    let tabs = vec![
-        (
-            "Docs".to_string(),
-            url_base.to_string(),
-            matches!(active, ActiveTab::Docs { .. }),
-        ),
-        (
-            "Dependencies".to_string(),
-            format!("{url_base}/dependencies"),
-            matches!(active, ActiveTab::Dependencies),
-        ),
-        (
-            "Dependents".to_string(),
-            format!("{url_base}/dependents"),
-            matches!(active, ActiveTab::Dependents { .. }),
-        ),
-    ];
-
-    Division::builder()
-        .class("flex border-b border-border mb-8")
-        .push({
-            let mut nav = Division::builder();
-            nav.class("flex");
-            for (label, href, is_active) in tabs {
-                let style = if is_active {
-                    active_class
-                } else {
-                    inactive_class
-                };
-                nav.anchor(|a| {
-                    a.href(href)
-                        .class(format!("{tab_base} {style}"))
-                        .text(label)
-                });
-            }
-            nav.build()
-        })
-        .build()
-}
-
-/// Render the dependencies panel showing forward dependencies.
-fn render_dependencies_panel(pkg: &KnownPackage) -> Division {
-    let mut div = Division::builder();
-
+/// Render the dependencies section.
+fn render_dependencies(pkg: &KnownPackage) -> Option<Section> {
     if pkg.dependencies.is_empty() {
-        div.paragraph(|p| {
-            p.class("text-fg-muted text-sm italic")
-                .text("No dependencies")
-        });
-        return div.build();
+        return None;
     }
 
+    let mut section = Section::builder();
+    section.heading_2(|h2| h2.class("text-lg font-semibold mb-3").text("Dependencies"));
+
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-2");
+    ul.class("space-y-1");
     for dep in &pkg.dependencies {
         let mut li = ListItem::builder();
-        li.class("text-sm font-mono");
-        li.push(
-            Span::builder()
-                .class("text-accent")
-                .push(
-                    html::inline_text::Anchor::builder()
-                        .href(format!("/{}", dep.package.replace(':', "/")))
-                        .class("text-accent hover:underline font-medium")
-                        .text(dep.package.clone())
-                        .build(),
-                )
-                .build(),
-        );
+        li.class("text-sm");
+        let dep_span = Span::builder()
+            .class("text-accent")
+            .text(dep.package.clone())
+            .build();
+        li.push(dep_span);
         if let Some(v) = &dep.version {
-            li.push(
-                Span::builder()
-                    .class("text-fg-faint ml-1")
-                    .text(format!("@ {v}"))
-                    .build(),
-            );
+            li.push(Span::builder().class("text-fg-faint").text(" @ ").build());
+            let version_span = Span::builder()
+                .class("text-fg-faint")
+                .text(v.clone())
+                .build();
+            li.push(version_span);
         }
         ul.push(li.build());
     }
-    div.push(ul.build());
-    div.build()
-}
+    section.push(ul.build());
 
-/// Render the dependents panel with All / Importers / Exporters filter.
-fn render_dependents_panel(importers: &[KnownPackage], exporters: &[KnownPackage]) -> Division {
-    let active_class = "text-accent border-b-2 border-accent font-semibold";
-    let inactive_class = "text-fg-muted hover:text-fg";
-    let filter_base = "px-3 py-1.5 text-xs cursor-pointer transition-colors";
-
-    let mut container = Division::builder();
-
-    // Sub-filter bar
-    container.division(|div| {
-        div.class("flex border-b border-border mb-4")
-            .button(|btn| {
-                btn.id("filter-all")
-                    .class(format!("{filter_base} {active_class}"))
-                    .text(format!("All ({})", importers.len() + exporters.len()))
-            })
-            .button(|btn| {
-                btn.id("filter-importers")
-                    .class(format!("{filter_base} {inactive_class}"))
-                    .text(format!("Importers ({})", importers.len()))
-            })
-            .button(|btn| {
-                btn.id("filter-exporters")
-                    .class(format!("{filter_base} {inactive_class}"))
-                    .text(format!("Exporters ({})", exporters.len()))
-            })
-    });
-
-    // All panel
-    let mut all: Vec<&KnownPackage> = importers.iter().chain(exporters.iter()).collect();
-    all.sort_by(|a, b| a.repository.cmp(&b.repository));
-    all.dedup_by(|a, b| a.repository == b.repository);
-    container.push(render_filterable_package_list("list-all", &all, true));
-
-    // Importers panel
-    let importer_refs: Vec<&KnownPackage> = importers.iter().collect();
-    container.push(render_filterable_package_list(
-        "list-importers",
-        &importer_refs,
-        false,
-    ));
-
-    // Exporters panel
-    let exporter_refs: Vec<&KnownPackage> = exporters.iter().collect();
-    container.push(render_filterable_package_list(
-        "list-exporters",
-        &exporter_refs,
-        false,
-    ));
-
-    // Filter switching script
-    let script = format!(
-        "(function(){{\
-        var filters=[['filter-all','list-all'],['filter-importers','list-importers'],['filter-exporters','list-exporters']];\
-        var active='{active_class}',inactive='{inactive_class}',base='{filter_base}';\
-        filters.forEach(function(f){{\
-        document.getElementById(f[0]).addEventListener('click',function(){{\
-        filters.forEach(function(o){{\
-        document.getElementById(o[0]).className=base+' '+(o[0]===f[0]?active:inactive);\
-        document.getElementById(o[1]).style.display=o[0]===f[0]?'':'none'\
-        }})}})}})\
-        }})()"
-    );
-    container.script(|s| s.text(script));
-
-    container.build()
-}
-
-/// Render a filterable package list panel.
-fn render_filterable_package_list(id: &str, packages: &[&KnownPackage], visible: bool) -> Division {
-    let mut div = Division::builder();
-    div.id(id.to_owned());
-    if !visible {
-        div.style("display:none");
-    }
-
-    if packages.is_empty() {
-        div.paragraph(|p| p.class("text-fg-muted text-sm italic").text("None found"));
-        return div.build();
-    }
-
-    let mut ul = UnorderedList::builder();
-    ul.class("space-y-2");
-    for pkg in packages {
-        let name = match (&pkg.wit_namespace, &pkg.wit_name) {
-            (Some(ns), Some(n)) => format!("{ns}:{n}"),
-            _ => pkg.repository.clone(),
-        };
-        let desc = pkg
-            .description
-            .as_deref()
-            .unwrap_or("No description available");
-
-        ul.list_item(|li| {
-            let li = li.class("text-sm");
-            match (&pkg.wit_namespace, &pkg.wit_name) {
-                (Some(ns), Some(n)) => {
-                    let href = format!("/{ns}/{n}");
-                    li.anchor(|a| {
-                        a.href(href)
-                            .class("text-accent hover:underline font-medium")
-                            .text(name)
-                    });
-                }
-                _ => {
-                    li.push(
-                        Span::builder()
-                            .class("text-accent font-medium")
-                            .text(name)
-                            .build(),
-                    );
-                }
-            }
-
-            li.push(
-                Span::builder()
-                    .class("text-fg-secondary ml-2")
-                    .text(format!("— {desc}"))
-                    .build(),
-            )
-        });
-    }
-    div.push(ul.build());
-    div.build()
+    Some(section.build())
 }
 
 /// Render the sidebar with metadata and version selector.
-fn render_sidebar(
-    pkg: &KnownPackage,
-    current_version: &str,
-    display_name: &str,
-    version_detail: Option<&PackageVersion>,
-) -> Aside {
+fn render_sidebar(pkg: &KnownPackage, current_version: &str) -> Aside {
     let url_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}/{name}"),
         _ => pkg.repository.clone(),
@@ -488,6 +191,11 @@ fn render_sidebar(
 
     let mut card = Division::builder();
     card.class("bg-surface border border-border rounded-lg p-5 space-y-4 text-sm");
+
+    // Version selector dropdown
+    if !pkg.tags.is_empty() {
+        card.push(render_version_select(pkg, current_version, &url_name));
+    }
 
     // Repository: combined registry/repository as a clickable link
     let repo_url = format!("https://{}/{}", pkg.registry, pkg.repository);
@@ -506,8 +214,6 @@ fn render_sidebar(
 
 /// Render the version selector dropdown.
 fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &str) -> Division {
-    let url_name_js =
-        serde_json::to_string(url_name).expect("url_name should serialize to a JS string");
     let mut select = html::forms::Select::builder();
     select
         .id("version-select")
@@ -524,23 +230,13 @@ fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &s
     }
 
     let script_body = format!(
-        "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/' + {url_name_js} + '/' + this.value}})"
-    );
-
-    let version_count = pkg.tags.len();
-    let version_label = format!(
-        "{version_count} {}",
-        if version_count == 1 {
-            "version"
-        } else {
-            "versions"
-        }
+        "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/{url_name}/'+this.value}})"
     );
 
     Division::builder()
         .division(|dt| {
             dt.class("text-fg-muted text-xs uppercase tracking-wide")
-                .text(version_label)
+                .text("Version")
         })
         .division(|dd| {
             dd.class("mt-0.5")
