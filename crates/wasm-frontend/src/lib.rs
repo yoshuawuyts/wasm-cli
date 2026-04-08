@@ -222,7 +222,7 @@ fn pick_redirect_version(tags: &[String]) -> Option<String> {
                 .filter(|version| version.pre.is_empty())
                 .map(|version| (version, tag))
         })
-        .max_by(|(left_version, _), (right_version, _)| left_version.cmp(right_version))
+        .max_by(|(acc_version, _), (candidate_version, _)| acc_version.cmp(candidate_version))
         .map(|(_, tag)| tag.clone())
         .or_else(|| tags.iter().find(|tag| tag.as_str() == "latest").cloned())
 }

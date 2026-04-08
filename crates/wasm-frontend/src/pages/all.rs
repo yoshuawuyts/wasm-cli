@@ -139,55 +139,87 @@ fn render_row(pkg: &KnownPackage) -> Division {
 }
 
 fn render_pagination(packages: &[KnownPackage], offset: u32, limit: u32) -> Division {
-    let effective_limit = limit.max(1);
-    let has_prev = offset > 0;
-    let has_next = u32::try_from(packages.len()) == Ok(effective_limit);
-    let prev_offset = offset.saturating_sub(effective_limit);
-    let next_offset = offset.saturating_add(effective_limit);
-    let count = u32::try_from(packages.len()).unwrap_or(0);
-    let (start, end) = if count == 0 {
-        (0, 0)
-    } else {
-        (offset.saturating_add(1), offset.saturating_add(count))
-    };
-
-    let mut controls = Division::builder();
-    controls.class("flex items-center gap-2");
-    if has_prev {
-        controls.anchor(|a| {
-            a.href(format!("/all?offset={prev_offset}&limit={effective_limit}"))
-                .class(
-                    "px-3 py-1.5 rounded border border-border text-sm hover:bg-surface transition-colors",
-                )
-                .text("Previous")
-        });
-    } else {
-        controls.span(|s| {
-            s.class("px-3 py-1.5 rounded border border-border-light text-sm text-fg-faint")
-                .text("Previous")
-        });
-    }
-    if has_next {
-        controls.anchor(|a| {
-            a.href(format!("/all?offset={next_offset}&limit={effective_limit}"))
-                .class(
-                    "px-3 py-1.5 rounded border border-border text-sm hover:bg-surface transition-colors",
-                )
-                .text("Next")
-        });
-    } else {
-        controls.span(|s| {
-            s.class("px-3 py-1.5 rounded border border-border-light text-sm text-fg-faint")
-                .text("Next")
-        });
-    }
-
+    let state = PaginationState::new(packages.len(), offset, limit);
     let mut container = Division::builder();
     container.class("flex items-center justify-between gap-4 mt-8 pt-6 border-t border-border");
     container.span(|s| {
         s.class("text-sm text-fg-faint")
-            .text(format!("Showing {start}–{end}"))
+            .text(format!("Showing {}–{}", state.start, state.end))
     });
-    container.push(controls.build());
+    container.push(render_pagination_controls(&state));
     container.build()
+}
+
+#[derive(Debug)]
+struct PaginationState {
+    effective_limit: u32,
+    prev_offset: u32,
+    next_offset: u32,
+    has_prev: bool,
+    has_next: bool,
+    start: u32,
+    end: u32,
+}
+
+impl PaginationState {
+    #[must_use]
+    fn new(package_count: usize, offset: u32, limit: u32) -> Self {
+        let effective_limit = limit.max(1);
+        let has_prev = offset > 0;
+        let has_next = u32::try_from(package_count) == Ok(effective_limit);
+        let prev_offset = offset.saturating_sub(effective_limit);
+        let next_offset = offset.saturating_add(effective_limit);
+        let count = u32::try_from(package_count).unwrap_or(0);
+        let (start, end) = if count == 0 {
+            (0, 0)
+        } else {
+            (offset.saturating_add(1), offset.saturating_add(count))
+        };
+
+        Self {
+            effective_limit,
+            prev_offset,
+            next_offset,
+            has_prev,
+            has_next,
+            start,
+            end,
+        }
+    }
+}
+
+fn render_pagination_controls(state: &PaginationState) -> Division {
+    let mut controls = Division::builder();
+    controls.class("flex items-center gap-2");
+    if state.has_prev {
+        controls.anchor(|a| {
+            a.href(format!(
+                "/all?offset={}&limit={}",
+                state.prev_offset, state.effective_limit
+            ))
+            .class("px-3 py-1.5 rounded border border-border text-sm hover:bg-surface transition-colors")
+            .text("Previous")
+        });
+    } else {
+        controls.span(|s| {
+            s.class("px-3 py-1.5 rounded border border-border-light text-sm text-fg-faint")
+                .text("Previous")
+        });
+    }
+    if state.has_next {
+        controls.anchor(|a| {
+            a.href(format!(
+                "/all?offset={}&limit={}",
+                state.next_offset, state.effective_limit
+            ))
+            .class("px-3 py-1.5 rounded border border-border text-sm hover:bg-surface transition-colors")
+            .text("Next")
+        });
+    } else {
+        controls.span(|s| {
+            s.class("px-3 py-1.5 rounded border border-border-light text-sm text-fg-faint")
+                .text("Next")
+        });
+    }
+    controls.build()
 }

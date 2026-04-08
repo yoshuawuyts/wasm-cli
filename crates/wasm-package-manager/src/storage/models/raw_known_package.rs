@@ -280,10 +280,10 @@ impl RawKnownPackage {
                     wit_namespace, wit_name
              FROM oci_repository
              ORDER BY updated_at DESC
-             LIMIT ?1 OFFSET ?2",
+             LIMIT ?2 OFFSET ?1",
         )?;
 
-        let rows = stmt.query_map((limit, offset), |row| {
+        let rows = stmt.query_map((offset, limit), |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, String>(1)?,
