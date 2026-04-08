@@ -62,11 +62,53 @@ pub(crate) fn render(
     grid.push(main_col.build());
 
     // Sidebar
-    grid.push(render_sidebar(pkg, version));
+    grid.push(render_sidebar(pkg, version, &display_name));
 
     body.push(grid.build());
 
     layout::document(&display_name, &body.build().to_string())
+}
+
+/// Render the install command section with a copy button.
+fn render_install_command(display_name: &str, version: &str) -> Division {
+    let command = format!("wasm install {display_name}@{version}");
+
+    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
+
+    let script = format!(
+        "(function(){{\
+        var btn=document.getElementById('copy-install-btn');\
+        var copyIcon=\"{copy_icon}\";\
+        var checkIcon=\"{check_icon}\";\
+        btn.innerHTML=copyIcon;\
+        btn.addEventListener('click',function(){{\
+        navigator.clipboard.writeText('{command}').then(function(){{\
+        btn.innerHTML=checkIcon;\
+        setTimeout(function(){{btn.innerHTML=copyIcon}},2000)\
+        }})}})}})()",
+    );
+
+    Division::builder()
+        .class("bg-surface border border-border rounded-lg p-5 space-y-2 text-sm group/install")
+        .division(|div| {
+            div.class(
+                "flex items-center gap-2 bg-surface-muted border border-border \
+                 rounded-md px-3 py-2 font-mono text-xs text-fg",
+            )
+            .code(|code| {
+                code.class("flex-1 select-all overflow-x-auto whitespace-nowrap")
+                    .text(command)
+            })
+            .button(|btn| {
+                btn.id("copy-install-btn").class(
+                    "shrink-0 text-fg-muted opacity-0 group-hover/install:opacity-100 \
+                     hover:text-fg transition-opacity cursor-pointer",
+                )
+            })
+            .script(|s| s.text(script))
+        })
+        .build()
 }
 
 /// Render the breadcrumb navigation.
@@ -212,7 +254,7 @@ fn render_dependencies(pkg: &KnownPackage) -> Option<Section> {
 }
 
 /// Render the sidebar with metadata and version selector.
-fn render_sidebar(pkg: &KnownPackage, current_version: &str) -> Aside {
+fn render_sidebar(pkg: &KnownPackage, current_version: &str, display_name: &str) -> Aside {
     let url_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}/{name}"),
         _ => pkg.repository.clone(),
@@ -220,6 +262,9 @@ fn render_sidebar(pkg: &KnownPackage, current_version: &str) -> Aside {
 
     let mut aside = Aside::builder();
     aside.class("space-y-4");
+
+    // Install command
+    aside.push(render_install_command(display_name, current_version));
 
     let mut card = Division::builder();
     card.class("bg-surface border border-border rounded-lg p-5 space-y-4 text-sm");
