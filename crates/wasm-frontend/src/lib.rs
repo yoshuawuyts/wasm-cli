@@ -230,7 +230,9 @@ fn pick_redirect_version(tags: &[String]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::body::to_bytes;
 
+    // r[verify frontend.pages.package-redirect]
     // r[verify frontend.routing.reserved-namespaces]
     #[tokio::test]
     async fn package_redirect_reserved_namespace_returns_not_found() {
@@ -248,6 +250,8 @@ mod tests {
         );
     }
 
+    // r[verify frontend.pages.package-detail]
+    // r[verify frontend.routing.package-path]
     // r[verify frontend.routing.reserved-namespaces]
     #[tokio::test]
     async fn package_detail_reserved_namespace_returns_not_found() {
@@ -280,6 +284,39 @@ mod tests {
                 .get(header::CACHE_CONTROL)
                 .expect("cache-control header should be set"),
             "no-cache"
+        );
+    }
+
+    // r[verify frontend.server.wasi-http]
+    // r[verify frontend.server.health]
+    #[tokio::test]
+    async fn health_returns_ok_json_and_no_cache() {
+        let response = health().await.into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .expect("cache-control header should be set"),
+            "no-cache"
+        );
+
+        let bytes = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("health response body should be readable");
+        assert_eq!(bytes.as_ref(), br#"{"status":"ok"}"#);
+    }
+
+    // r[verify frontend.caching.static-pages]
+    #[test]
+    fn with_cache_control_sets_header() {
+        let response = with_cache_control("<p>Hello</p>".to_string(), "public, max-age=60");
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .expect("cache-control header should be set"),
+            "public, max-age=60"
         );
     }
 

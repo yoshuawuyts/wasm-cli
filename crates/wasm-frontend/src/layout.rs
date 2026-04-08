@@ -116,3 +116,23 @@ fn escape_html_text(text: &str) -> String {
     }
     escaped
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // r[verify frontend.rendering.html-crate]
+    // r[verify frontend.styling.tailwind]
+    // r[verify frontend.styling.light-theme]
+    // r[verify frontend.styling.accent-color]
+    // r[verify frontend.styling.responsive]
+    #[test]
+    fn document_includes_expected_rendering_and_styling_primitives() {
+        let html = document("Home", "<p>Body</p>");
+        assert!(html.contains("<html lang=\"en\">"));
+        assert!(html.contains("https://cdn.tailwindcss.com"));
+        assert!(html.contains(ACCENT_COLOR));
+        assert!(html.contains("<meta name=\"viewport\""));
+        assert!(html.contains("bg-white text-fg"));
+    }
+}

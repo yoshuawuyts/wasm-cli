@@ -217,3 +217,38 @@ fn render_row(pkg: &KnownPackage) -> Division {
             .build(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn package(wit_namespace: Option<&str>) -> KnownPackage {
+        KnownPackage {
+            registry: "ghcr.io".to_string(),
+            repository: "example/pkg".to_string(),
+            description: None,
+            tags: vec!["1.0.0".to_string()],
+            signature_tags: vec![],
+            attestation_tags: vec![],
+            last_seen_at: "2026-01-01T00:00:00Z".to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            wit_namespace: wit_namespace.map(ToOwned::to_owned),
+            wit_name: Some("demo".to_string()),
+            dependencies: vec![],
+        }
+    }
+
+    // r[verify frontend.pages.home]
+    #[test]
+    fn split_by_kind_uses_wit_namespace_presence() {
+        let interface = package(Some("wasi"));
+        let component = package(None);
+        let input = vec![interface, component];
+
+        let (components, interfaces) = split_by_kind(&input);
+        assert_eq!(components.len(), 1);
+        assert_eq!(interfaces.len(), 1);
+        assert!(components[0].wit_namespace.is_none());
+        assert!(interfaces[0].wit_namespace.is_some());
+    }
+}

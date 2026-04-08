@@ -367,3 +367,26 @@ fn percent_encode_query_component(input: &str) -> String {
     }
     encoded
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // r[verify frontend.api.base-url]
+    #[test]
+    fn from_env_uses_compile_time_or_default_base_url() {
+        let client = RegistryClient::from_env();
+        let expected = option_env!("API_BASE_URL").unwrap_or(DEFAULT_API_BASE_URL);
+        assert_eq!(client.base_url, expected);
+    }
+
+    // r[verify frontend.api.callback]
+    #[test]
+    fn percent_encoding_escapes_query_parameter_delimiters() {
+        let query = "name with spaces & ? /";
+        assert_eq!(
+            percent_encode_query_component(query),
+            "name%20with%20spaces%20%26%20%3F%20%2F"
+        );
+    }
+}

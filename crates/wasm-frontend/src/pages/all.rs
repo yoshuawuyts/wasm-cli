@@ -223,3 +223,20 @@ fn render_pagination_controls(state: &PaginationState) -> Division {
     }
     controls.build()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // r[verify frontend.pages.all]
+    #[test]
+    fn pagination_state_calculates_prev_and_next_offsets() {
+        let state = PaginationState::new(100, 100, 100);
+        assert_eq!(state.prev_offset, 0);
+        assert_eq!(state.next_offset, 200);
+        assert!(state.has_prev);
+        assert!(state.has_next);
+        assert_eq!(state.start, 101);
+        assert_eq!(state.end, 200);
+    }
+}
