@@ -156,8 +156,15 @@ fn render_sidebar(pkg: &KnownPackage) -> Aside {
 
     let mut card = Division::builder();
     card.class("bg-surface border border-border rounded-lg p-5 space-y-4 text-sm");
-    card.push(sidebar_row("Registry", &pkg.registry));
-    card.push(sidebar_row("Repository", &pkg.repository));
+
+    // Repository: combined registry/repository as a clickable link
+    let repo_url = format!("https://{}/{}", pkg.registry, pkg.repository);
+    let repo_display = format!("{}/{}", pkg.registry, pkg.repository);
+    card.push(sidebar_link_row("Repository", &repo_display, &repo_url));
+
+    if let Some(kind) = &pkg.kind {
+        card.push(sidebar_row("Kind", &kind.to_string()));
+    }
     card.push(sidebar_row("Created", &pkg.created_at));
     card.push(sidebar_row("Last updated", &pkg.last_seen_at));
     aside.push(card.build());
@@ -173,6 +180,23 @@ fn sidebar_row(label: &str, value: &str) -> Division {
                 .text(label.to_owned())
         })
         .division(|dd| dd.class("text-fg mt-0.5 break-all").text(value.to_owned()))
+        .build()
+}
+
+/// Render a sidebar row where the value is a link.
+fn sidebar_link_row(label: &str, text: &str, href: &str) -> Division {
+    Division::builder()
+        .division(|dt| {
+            dt.class("text-fg-muted text-xs uppercase tracking-wide")
+                .text(label.to_owned())
+        })
+        .division(|dd| {
+            dd.class("mt-0.5 break-all").anchor(|a| {
+                a.href(href.to_owned())
+                    .class("text-accent hover:underline")
+                    .text(text.to_owned())
+            })
+        })
         .build()
 }
 
