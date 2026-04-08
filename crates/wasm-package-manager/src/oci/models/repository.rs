@@ -47,14 +47,31 @@ impl OciRepository {
         wit_namespace: Option<&str>,
         wit_name: Option<&str>,
     ) -> anyhow::Result<i64> {
+        Self::upsert_full(conn, registry, repository, wit_namespace, wit_name, None)
+    }
+
+    /// Insert or update a repository with optional WIT namespace and kind,
+    /// returning its row id.
+    ///
+    /// When optional fields are `None`, existing values are preserved
+    /// (COALESCE).
+    pub(crate) fn upsert_full(
+        conn: &Connection,
+        registry: &str,
+        repository: &str,
+        wit_namespace: Option<&str>,
+        wit_name: Option<&str>,
+        kind: Option<&str>,
+    ) -> anyhow::Result<i64> {
         conn.execute(
-            "INSERT INTO oci_repository (registry, repository, wit_namespace, wit_name)
-             VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO oci_repository (registry, repository, wit_namespace, wit_name, kind)
+             VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(registry, repository) DO UPDATE SET
                  updated_at = CURRENT_TIMESTAMP,
                  wit_namespace = COALESCE(?3, oci_repository.wit_namespace),
-                 wit_name = COALESCE(?4, oci_repository.wit_name)",
-            rusqlite::params![registry, repository, wit_namespace, wit_name],
+                 wit_name = COALESCE(?4, oci_repository.wit_name),
+                 kind = COALESCE(?5, oci_repository.kind)",
+            rusqlite::params![registry, repository, wit_namespace, wit_name, kind],
         )?;
 
         let id: i64 = conn.query_row(

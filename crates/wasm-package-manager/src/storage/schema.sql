@@ -99,6 +99,10 @@ CREATE TABLE oci_repository (
     -- Optional WIT package name within the namespace, e.g. "http",
     -- "sample-wasi-http-rust".  NULL when wit_namespace is NULL.
     wit_name TEXT,
+    -- Package kind: "component" for a runnable Wasm component,
+    -- "interface" for a WIT interface type package.  NULL when
+    -- the kind has not been determined yet.
+    kind TEXT,
     UNIQUE(registry, repository)
 );
 

@@ -41,6 +41,7 @@ toml = { workspace = true }
 wasm-detector = { workspace = true }
 wasm-manifest = { workspace = true }
 wasm-meta-registry-client = { workspace = true }
+wasm-meta-registry-types = { workspace = true }
 wac-parser = { workspace = true, optional = true }
 wac-graph = { workspace = true, optional = true }
 wac-resolver = { workspace = true, optional = true }

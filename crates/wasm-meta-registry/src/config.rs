@@ -82,26 +82,8 @@ pub struct PackageSource {
     pub kind: PackageKind,
 }
 
-/// The kind of package: either a runnable component or a WIT interface type.
-///
-/// # Example
-///
-/// ```
-/// use wasm_meta_registry::config::PackageKind;
-///
-/// let kind = PackageKind::Component;
-/// assert_eq!(kind, PackageKind::Component);
-///
-/// let kind = PackageKind::Interface;
-/// assert_eq!(kind, PackageKind::Interface);
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageKind {
-    /// A runnable Wasm component.
-    Component,
-    /// A WIT interface type package.
-    Interface,
-}
+/// Re-export from the shared types crate.
+pub use wasm_meta_registry_types::PackageKind;
 
 impl Config {
     /// Load configuration from a registry directory.

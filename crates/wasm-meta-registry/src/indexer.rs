@@ -97,7 +97,12 @@ impl Indexer {
 
             match self
                 .manager
-                .index_package(&reference, Some(&source.namespace), Some(&source.name))
+                .index_package(
+                    &reference,
+                    Some(&source.namespace),
+                    Some(&source.name),
+                    Some(source.kind),
+                )
                 .await
             {
                 Ok(pkg) => {

@@ -184,6 +184,7 @@ mod tests {
         let pkg = KnownPackage {
             registry: "ghcr.io".to_string(),
             repository: "example/pkg".to_string(),
+            kind: None,
             description: None,
             tags: vec!["1.0.0".to_string()],
             signature_tags: vec![],

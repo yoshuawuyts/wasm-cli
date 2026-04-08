@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use super::config::StateInfo;
+use super::known_package::KnownPackageParams;
 use super::models::{Migrations, RawKnownPackage};
 use crate::components::{ComponentTarget, WasmComponent};
 use crate::oci::{
@@ -17,7 +18,7 @@ use crate::types::{
 };
 use futures_concurrency::prelude::*;
 use oci_client::{Reference, client::ImageData, manifest::OciImageManifest};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 /// Calculate the total size of a directory recursively
 async fn dir_size(path: &Path) -> u64 {
@@ -46,6 +47,41 @@ async fn dir_size(path: &Path) -> u64 {
 pub(crate) struct Store {
     pub(crate) state_info: StateInfo,
     conn: Connection,
+}
+
+/// A raw row from the `oci_manifest` table, used as an intermediate
+/// representation in [`Store::get_package_versions`].
+///
+/// This struct exists solely to avoid a 15-element tuple when collecting
+/// query results (clippy's `type_complexity` lint). Each field maps 1:1 to
+/// a column in `oci_manifest`. After collection, the loop enriches every
+/// row with tags, worlds, components, dependencies, and referrers to
+/// produce the final [`PackageVersion`] API type.
+///
+/// The `oci_*` fields correspond to the [OCI image annotation keys][spec].
+///
+/// [spec]: https://github.com/opencontainers/image-spec/blob/main/annotations.md
+struct ManifestRow {
+    /// Primary key (`oci_manifest.id`), used to join against child tables.
+    id: i64,
+    /// Content-addressable digest of the manifest (e.g. `sha256:abc…`).
+    digest: String,
+    /// Total size in bytes, if known.
+    size_bytes: Option<i64>,
+    /// ISO-8601 timestamp when the row was first inserted into the local DB.
+    synced_at: String,
+    // — OCI annotation columns ——————————————————————————
+    oci_created: Option<String>,
+    oci_authors: Option<String>,
+    oci_url: Option<String>,
+    oci_documentation: Option<String>,
+    oci_source: Option<String>,
+    oci_version: Option<String>,
+    oci_revision: Option<String>,
+    oci_vendor: Option<String>,
+    oci_licenses: Option<String>,
+    oci_title: Option<String>,
+    oci_description: Option<String>,
 }
 
 impl Store {
@@ -715,24 +751,11 @@ impl Store {
     }
 
     /// Add or update a known package with optional WIT namespace mapping.
-    pub(crate) fn add_known_package_with_wit(
+    pub(crate) fn add_known_package_with_params(
         &self,
-        registry: &str,
-        repository: &str,
-        tag: Option<&str>,
-        description: Option<&str>,
-        wit_namespace: Option<&str>,
-        wit_name: Option<&str>,
+        params: &KnownPackageParams<'_>,
     ) -> anyhow::Result<()> {
-        RawKnownPackage::upsert_with_wit(
-            &self.conn,
-            registry,
-            repository,
-            tag,
-            description,
-            wit_namespace,
-            wit_name,
-        )
+        RawKnownPackage::upsert_with_params(&self.conn, params)
     }
 
     /// Get all WIT packages.
@@ -808,7 +831,7 @@ impl Store {
         &self,
         registry: &str,
         repository: &str,
-    ) -> anyhow::Result<Vec<wasm_meta_registry_client::PackageDependencyRef>> {
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::PackageDependencyRef>> {
         let mut stmt = self.conn.prepare(
             "SELECT DISTINCT wpd.declared_package, wpd.declared_version
              FROM wit_package_dependency wpd
@@ -843,7 +866,7 @@ impl Store {
         let mut result = Vec::new();
         for row in rows {
             let (package, version) = row?;
-            result.push(wasm_meta_registry_client::PackageDependencyRef { package, version });
+            result.push(wasm_meta_registry_types::PackageDependencyRef { package, version });
         }
         Ok(result)
     }
@@ -866,7 +889,7 @@ impl Store {
         &self,
         package_name: &str,
         version: Option<&str>,
-    ) -> anyhow::Result<Vec<wasm_meta_registry_client::PackageDependencyRef>> {
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::PackageDependencyRef>> {
         let mut stmt = self.conn.prepare(
             "SELECT wpd.declared_package, wpd.declared_version
              FROM wit_package_dependency wpd
@@ -887,7 +910,7 @@ impl Store {
         let mut result = Vec::new();
         for row in rows {
             let (package, version) = row?;
-            result.push(wasm_meta_registry_client::PackageDependencyRef { package, version });
+            result.push(wasm_meta_registry_types::PackageDependencyRef { package, version });
         }
         Ok(result)
     }
@@ -966,7 +989,7 @@ impl Store {
         &self,
         package_name: &str,
         version: Option<&str>,
-        dependencies: &[wasm_meta_registry_client::PackageDependencyRef],
+        dependencies: &[wasm_meta_registry_types::PackageDependencyRef],
     ) -> anyhow::Result<()> {
         // Always create (or reuse) the wit_package stub so the resolver
         // can enumerate available versions even for leaf packages with no
@@ -991,6 +1014,433 @@ impl Store {
         }
 
         Ok(())
+    }
+
+    // ================================================================
+    // Rich query methods for the meta-registry API
+    // ================================================================
+
+    /// Return all versions of a package, identified by OCI registry and
+    /// repository.  Each version is a (tag, manifest) pair joined across
+    /// `oci_repository → oci_manifest → oci_tag`.
+    ///
+    /// Results are ordered by manifest insertion order (newest first).
+    // r[verify db.package-versions.list]
+    pub(crate) fn get_package_versions(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::PackageVersion>> {
+        use wasm_meta_registry_types::{OciAnnotations, PackageVersion};
+
+        // First, find the repository.
+        let repo_id: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT id FROM oci_repository
+                 WHERE registry = ?1 AND repository = ?2",
+                rusqlite::params![registry, repository],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(repo_id) = repo_id else {
+            return Ok(Vec::new());
+        };
+
+        // Fetch all manifests for this repository, newest first.
+        let mut manifest_stmt = self.conn.prepare(
+            "SELECT id, digest, size_bytes, created_at,
+                    oci_created, oci_authors, oci_url, oci_documentation,
+                    oci_source, oci_version, oci_revision, oci_vendor,
+                    oci_licenses, oci_title, oci_description
+             FROM oci_manifest
+             WHERE oci_repository_id = ?1
+             ORDER BY id DESC",
+        )?;
+
+        let manifests = manifest_stmt
+            .query_map([repo_id], |row| {
+                Ok(ManifestRow {
+                    id: row.get(0)?,
+                    digest: row.get(1)?,
+                    size_bytes: row.get(2)?,
+                    synced_at: row.get(3)?,
+                    oci_created: row.get(4)?,
+                    oci_authors: row.get(5)?,
+                    oci_url: row.get(6)?,
+                    oci_documentation: row.get(7)?,
+                    oci_source: row.get(8)?,
+                    oci_version: row.get(9)?,
+                    oci_revision: row.get(10)?,
+                    oci_vendor: row.get(11)?,
+                    oci_licenses: row.get(12)?,
+                    oci_title: row.get(13)?,
+                    oci_description: row.get(14)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut versions = Vec::with_capacity(manifests.len());
+        for m in manifests {
+            let manifest_created_at = m.oci_created.clone();
+
+            // Find tags pointing to this manifest.
+            let tag = self
+                .conn
+                .query_row(
+                    "SELECT tag FROM oci_tag
+                 WHERE oci_repository_id = ?1 AND manifest_digest = ?2
+                 ORDER BY id DESC LIMIT 1",
+                    rusqlite::params![repo_id, &m.digest],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+
+            // Collect custom annotations.
+            let custom = self.get_custom_annotations(m.id)?;
+
+            let has_annotations = m.oci_created.is_some()
+                || m.oci_authors.is_some()
+                || m.oci_url.is_some()
+                || m.oci_documentation.is_some()
+                || m.oci_source.is_some()
+                || m.oci_version.is_some()
+                || m.oci_revision.is_some()
+                || m.oci_vendor.is_some()
+                || m.oci_licenses.is_some()
+                || m.oci_title.is_some()
+                || m.oci_description.is_some()
+                || !custom.is_empty();
+
+            let annotations = if has_annotations {
+                Some(OciAnnotations {
+                    created: manifest_created_at.clone(),
+                    authors: m.oci_authors,
+                    url: m.oci_url,
+                    documentation: m.oci_documentation,
+                    source: m.oci_source,
+                    version: m.oci_version,
+                    revision: m.oci_revision,
+                    vendor: m.oci_vendor,
+                    licenses: m.oci_licenses,
+                    title: m.oci_title,
+                    description: m.oci_description,
+                    custom,
+                })
+            } else {
+                None
+            };
+
+            let worlds = self.get_wit_worlds_for_manifest(m.id)?;
+            let components = self.get_components_for_manifest(m.id)?;
+            let dependencies = self.get_dependencies_for_manifest(m.id)?;
+            let referrers = self.get_referrers_for_manifest(m.id)?;
+            let wit_text = self.get_wit_text_for_manifest(m.id)?;
+
+            versions.push(PackageVersion {
+                tag,
+                digest: m.digest,
+                size_bytes: m.size_bytes,
+                created_at: manifest_created_at,
+                synced_at: Some(m.synced_at),
+                annotations,
+                worlds,
+                components,
+                dependencies,
+                referrers,
+                wit_text,
+            });
+        }
+
+        Ok(versions)
+    }
+
+    /// Return a single version of a package by tag.
+    // r[verify db.package-versions.get]
+    pub(crate) fn get_package_version(
+        &self,
+        registry: &str,
+        repository: &str,
+        version_tag: &str,
+    ) -> anyhow::Result<Option<wasm_meta_registry_types::PackageVersion>> {
+        let all = self.get_package_versions(registry, repository)?;
+        Ok(all
+            .into_iter()
+            .find(|v| v.tag.as_deref() == Some(version_tag)))
+    }
+
+    /// Return all WIT worlds (with imports and exports) found in WIT packages
+    /// linked to the given OCI manifest.
+    fn get_wit_worlds_for_manifest(
+        &self,
+        manifest_id: i64,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::WitWorldSummary>> {
+        use wasm_meta_registry_types::WitWorldSummary;
+
+        // Find all wit_package rows for this manifest.
+        let mut pkg_stmt = self
+            .conn
+            .prepare("SELECT id FROM wit_package WHERE oci_manifest_id = ?1")?;
+        let pkg_ids: Vec<i64> = pkg_stmt
+            .query_map([manifest_id], |row| row.get(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut worlds = Vec::new();
+        for pkg_id in pkg_ids {
+            let db_worlds = WitWorld::list_by_type(&self.conn, pkg_id)?;
+            for w in db_worlds {
+                let imports = self.get_world_imports(w.id())?;
+                let exports = self.get_world_exports(w.id())?;
+                worlds.push(WitWorldSummary {
+                    name: w.name,
+                    description: w.description,
+                    imports,
+                    exports,
+                });
+            }
+        }
+
+        Ok(worlds)
+    }
+
+    /// Return all Wasm components (with targets) found in the given manifest.
+    fn get_components_for_manifest(
+        &self,
+        manifest_id: i64,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::ComponentSummary>> {
+        use wasm_meta_registry_types::{ComponentSummary, ComponentTargetRef};
+
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description FROM wasm_component
+             WHERE oci_manifest_id = ?1
+             ORDER BY name ASC",
+        )?;
+
+        let components: Vec<(i64, Option<String>, Option<String>)> = stmt
+            .query_map([manifest_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut result = Vec::new();
+        for (comp_id, name, description) in components {
+            let targets = ComponentTarget::list_by_component(&self.conn, comp_id)?;
+            result.push(ComponentSummary {
+                name,
+                description,
+                targets: targets
+                    .into_iter()
+                    .map(|t| ComponentTargetRef {
+                        package: t.declared_package,
+                        world: t.declared_world,
+                        version: t.declared_version,
+                    })
+                    .collect(),
+            });
+        }
+
+        Ok(result)
+    }
+
+    /// Return dependency refs for WIT packages linked to the given manifest.
+    fn get_dependencies_for_manifest(
+        &self,
+        manifest_id: i64,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::PackageDependencyRef>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT wpd.declared_package, wpd.declared_version
+             FROM wit_package_dependency wpd
+             JOIN wit_package wp ON wpd.dependent_id = wp.id
+             WHERE wp.oci_manifest_id = ?1
+             ORDER BY wpd.declared_package",
+        )?;
+
+        let rows = stmt.query_map([manifest_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            let (package, version) = row?;
+            result.push(wasm_meta_registry_types::PackageDependencyRef { package, version });
+        }
+        Ok(result)
+    }
+
+    /// Return referrers (signatures, SBOMs, attestations) for a manifest.
+    fn get_referrers_for_manifest(
+        &self,
+        manifest_id: i64,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::ReferrerSummary>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT r.artifact_type, m.digest
+             FROM oci_referrer r
+             JOIN oci_manifest m ON r.referrer_manifest_id = m.id
+             WHERE r.subject_manifest_id = ?1
+             ORDER BY r.created_at DESC",
+        )?;
+
+        let rows = stmt.query_map([manifest_id], |row| {
+            Ok(wasm_meta_registry_types::ReferrerSummary {
+                artifact_type: row.get(0)?,
+                digest: row.get(1)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Return the WIT source text for the first WIT package linked to a manifest.
+    fn get_wit_text_for_manifest(&self, manifest_id: i64) -> anyhow::Result<Option<String>> {
+        let result = self.conn.query_row(
+            "SELECT wit_text FROM wit_package
+             WHERE oci_manifest_id = ?1 AND wit_text IS NOT NULL
+             LIMIT 1",
+            [manifest_id],
+            |row| row.get::<_, String>(0),
+        );
+
+        match result {
+            Ok(text) => Ok(Some(text)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Return custom annotations (non-well-known) for a manifest.
+    fn get_custom_annotations(
+        &self,
+        manifest_id: i64,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::AnnotationEntry>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT `key`, `value` FROM oci_manifest_annotation
+             WHERE oci_manifest_id = ?1
+             ORDER BY `key` ASC",
+        )?;
+
+        let rows = stmt.query_map([manifest_id], |row| {
+            Ok(wasm_meta_registry_types::AnnotationEntry {
+                key: row.get(0)?,
+                value: row.get(1)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Return all imports for a WIT world.
+    fn get_world_imports(
+        &self,
+        world_id: i64,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::WitInterfaceRef>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT declared_package, declared_interface, declared_version
+             FROM wit_world_import
+             WHERE wit_world_id = ?1
+             ORDER BY declared_package ASC",
+        )?;
+
+        let rows = stmt.query_map([world_id], |row| {
+            Ok(wasm_meta_registry_types::WitInterfaceRef {
+                package: row.get(0)?,
+                interface: row.get(1)?,
+                version: row.get(2)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Return all exports for a WIT world.
+    fn get_world_exports(
+        &self,
+        world_id: i64,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::WitInterfaceRef>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT declared_package, declared_interface, declared_version
+             FROM wit_world_export
+             WHERE wit_world_id = ?1
+             ORDER BY declared_package ASC",
+        )?;
+
+        let rows = stmt.query_map([world_id], |row| {
+            Ok(wasm_meta_registry_types::WitInterfaceRef {
+                package: row.get(0)?,
+                interface: row.get(1)?,
+                version: row.get(2)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Build a full [`PackageDetail`] for a package identified by OCI
+    /// registry and repository.
+    // r[verify db.package-detail]
+    pub(crate) fn get_package_detail(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Option<wasm_meta_registry_types::PackageDetail>> {
+        // Look up the OCI repository row.
+        let row = self.conn.query_row(
+            "SELECT id, wit_namespace, wit_name, kind FROM oci_repository
+             WHERE registry = ?1 AND repository = ?2",
+            rusqlite::params![registry, repository],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                ))
+            },
+        );
+
+        let (_repo_id, wit_namespace, wit_name, kind_str) = match row {
+            Ok(r) => r,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
+
+        let kind = match kind_str.as_deref() {
+            Some("component") => Some(wasm_meta_registry_types::PackageKind::Component),
+            Some("interface") => Some(wasm_meta_registry_types::PackageKind::Interface),
+            _ => None,
+        };
+
+        // Get the description from the latest known-package entry.
+        let description = self
+            .get_known_package(registry, repository)?
+            .and_then(|pkg| pkg.description);
+
+        let versions = self.get_package_versions(registry, repository)?;
+
+        Ok(Some(wasm_meta_registry_types::PackageDetail {
+            registry: registry.to_string(),
+            repository: repository.to_string(),
+            kind,
+            description,
+            wit_namespace,
+            wit_name,
+            versions,
+        }))
     }
 }
 
@@ -1830,7 +2280,7 @@ mod tests {
     #[cfg(feature = "http-sync")]
     #[test]
     fn upsert_package_dependencies_from_sync_is_idempotent() {
-        use wasm_meta_registry_client::PackageDependencyRef;
+        use wasm_meta_registry_types::PackageDependencyRef;
 
         let conn = setup_test_db();
         let store = Store::from_conn(conn);
@@ -1863,5 +2313,96 @@ mod tests {
         assert_eq!(stored.len(), 2);
         assert_eq!(stored[0].package, "wasi:clocks");
         assert_eq!(stored[1].package, "wasi:io");
+    }
+
+    // r[verify db.package-versions.list]
+    // r[verify db.package-versions.get]
+    // r[verify db.package-detail]
+    #[test]
+    fn rich_package_queries_expose_manifest_created_and_synced_timestamps() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "test/pkg").unwrap();
+        let mut annotations = HashMap::new();
+        annotations.insert(
+            "org.opencontainers.image.created".to_string(),
+            "2025-01-01T00:00:00Z".to_string(),
+        );
+        let (manifest_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:abc123",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some("{}"),
+            Some(1024),
+            None,
+            None,
+            None,
+            &annotations,
+        )
+        .unwrap();
+        OciTag::upsert(&conn, repo_id, "0.1.0", "sha256:abc123").unwrap();
+
+        let store = Store::from_conn(conn);
+        let versions = store.get_package_versions("ghcr.io", "test/pkg").unwrap();
+        assert_eq!(versions.len(), 1);
+        let version = &versions[0];
+        assert_eq!(version.tag.as_deref(), Some("0.1.0"));
+        assert_eq!(version.created_at.as_deref(), Some("2025-01-01T00:00:00Z"));
+        assert!(
+            version.synced_at.is_some(),
+            "synced_at should be populated from local DB insertion time"
+        );
+        assert_eq!(
+            version
+                .annotations
+                .as_ref()
+                .and_then(|annotations| annotations.created.as_deref()),
+            Some("2025-01-01T00:00:00Z")
+        );
+
+        let single = store
+            .get_package_version("ghcr.io", "test/pkg", "0.1.0")
+            .unwrap()
+            .expect("expected tagged version");
+        assert_eq!(single.digest, "sha256:abc123");
+
+        let detail = store
+            .get_package_detail("ghcr.io", "test/pkg")
+            .unwrap()
+            .expect("expected package detail");
+        assert_eq!(detail.registry, "ghcr.io");
+        assert_eq!(detail.repository, "test/pkg");
+        assert_eq!(detail.versions.len(), 1);
+        assert_eq!(
+            detail.versions[0].created_at.as_deref(),
+            Some("2025-01-01T00:00:00Z")
+        );
+
+        // Keep `manifest_id` in scope to ensure migration/schema setup accepted row.
+        assert!(manifest_id > 0);
+    }
+
+    // r[verify db.package-versions.list]
+    // r[verify db.package-versions.get]
+    // r[verify db.package-detail]
+    #[test]
+    fn rich_package_queries_return_not_found_for_unknown_repository() {
+        let conn = setup_test_db();
+        let store = Store::from_conn(conn);
+
+        let versions = store
+            .get_package_versions("ghcr.io", "does/not/exist")
+            .unwrap();
+        assert!(versions.is_empty());
+
+        let version = store
+            .get_package_version("ghcr.io", "does/not/exist", "1.0.0")
+            .unwrap();
+        assert!(version.is_none());
+
+        let detail = store
+            .get_package_detail("ghcr.io", "does/not/exist")
+            .unwrap();
+        assert!(detail.is_none());
     }
 }

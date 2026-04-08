@@ -109,11 +109,31 @@ fn default_limit() -> u32 {
 /// # }
 /// ```
 pub fn router(state: AppState) -> Router {
+    // Routes with explicit suffixes must be registered before the catch-all
+    // wildcard `{*repository}` to avoid conflicts.  We achieve this by
+    // nesting the version/detail routes under a separate "prefix" router
+    // that axum matches first.
+    let package_detail_routes =
+        Router::new().route("/{registry}/{*repository}", get(get_package_detail_nested));
+
+    let package_versions_routes = Router::new().route(
+        "/{registry}/{*repository}",
+        get(get_package_versions_nested),
+    );
+
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/search", get(search))
+        .route("/v1/search/by-import", get(search_by_import))
+        .route("/v1/search/by-export", get(search_by_export))
         .route("/v1/packages", get(list_packages))
         .route("/v1/packages/recent", get(list_recent_packages))
+        .nest("/v1/packages/detail", package_detail_routes)
+        .nest("/v1/packages/versions", package_versions_routes)
+        .route(
+            "/v1/packages/version/{registry}/{version}/{*repository}",
+            get(get_package_version_reordered),
+        )
         .route("/v1/packages/{registry}/{*repository}", get(get_package))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -173,6 +193,95 @@ async fn get_package(
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     match manager.get_known_package(&registry, repository)? {
         Some(package) => Ok(Json(package).into_response()),
+        None => Ok(StatusCode::NOT_FOUND.into_response()),
+    }
+}
+
+/// Query parameters for interface-based search.
+#[derive(Debug, Deserialize)]
+pub struct InterfaceSearchParams {
+    /// The interface to search for (e.g. `"wasi:io/streams"`).
+    pub interface: String,
+    /// Pagination offset (default: 0).
+    #[serde(default)]
+    pub offset: u32,
+    /// Pagination limit (default: 20).
+    #[serde(default = "default_limit")]
+    pub limit: u32,
+}
+
+/// Search packages by imported interface.
+// r[verify server.search.by-import]
+async fn search_by_import(
+    State(manager): State<AppState>,
+    Query(params): Query<InterfaceSearchParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let manager = manager
+        .lock()
+        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
+    let packages =
+        manager.search_packages_by_import(&params.interface, params.offset, params.limit)?;
+    Ok(Json(packages))
+}
+
+/// Search packages by exported interface.
+// r[verify server.search.by-export]
+async fn search_by_export(
+    State(manager): State<AppState>,
+    Query(params): Query<InterfaceSearchParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let manager = manager
+        .lock()
+        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
+    let packages =
+        manager.search_packages_by_export(&params.interface, params.offset, params.limit)?;
+    Ok(Json(packages))
+}
+
+/// Get full package detail including all versions and metadata.
+// r[verify server.detail]
+async fn get_package_detail_nested(
+    State(manager): State<AppState>,
+    Path((registry, repository)): Path<(String, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let repository = repository.trim_start_matches('/');
+    let manager = manager
+        .lock()
+        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
+    match manager.get_package_detail(&registry, repository)? {
+        Some(detail) => Ok(Json(detail).into_response()),
+        None => Ok(StatusCode::NOT_FOUND.into_response()),
+    }
+}
+
+/// List all versions of a package.
+// r[verify server.versions.list]
+async fn get_package_versions_nested(
+    State(manager): State<AppState>,
+    Path((registry, repository)): Path<(String, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let repository = repository.trim_start_matches('/');
+    let manager = manager
+        .lock()
+        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
+    match manager.get_package_detail(&registry, repository)? {
+        Some(detail) => Ok(Json(detail.versions).into_response()),
+        None => Ok(StatusCode::NOT_FOUND.into_response()),
+    }
+}
+
+/// Get a specific version of a package by tag.
+// r[verify server.versions.get]
+async fn get_package_version_reordered(
+    State(manager): State<AppState>,
+    Path((registry, version, repository)): Path<(String, String, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let repository = repository.trim_start_matches('/');
+    let manager = manager
+        .lock()
+        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
+    match manager.get_package_version(&registry, repository, &version)? {
+        Some(ver) => Ok(Json(ver).into_response()),
         None => Ok(StatusCode::NOT_FOUND.into_response()),
     }
 }

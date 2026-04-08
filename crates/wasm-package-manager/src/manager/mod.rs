@@ -13,8 +13,9 @@ mod models;
 use crate::config::Config;
 use crate::oci::{Client, ImageEntry, InsertResult};
 use crate::progress::ProgressEvent;
-use crate::storage::{KnownPackage, StateInfo, Store};
+use crate::storage::{KnownPackage, KnownPackageParams, StateInfo, Store};
 use crate::types::WitPackage;
+use wasm_meta_registry_types::PackageKind;
 
 pub use errors::ManagerError;
 pub use logic::{
@@ -736,23 +737,11 @@ impl Manager {
     }
 
     /// Add or update a known package entry with WIT namespace mapping.
-    pub fn add_known_package_with_wit(
+    pub fn add_known_package_with_params(
         &self,
-        registry: &str,
-        repository: &str,
-        tag: Option<&str>,
-        description: Option<&str>,
-        wit_namespace: Option<&str>,
-        wit_name: Option<&str>,
+        params: &KnownPackageParams<'_>,
     ) -> anyhow::Result<()> {
-        self.store.add_known_package_with_wit(
-            registry,
-            repository,
-            tag,
-            description,
-            wit_namespace,
-            wit_name,
-        )
+        self.store.add_known_package_with_params(params)
     }
 
     /// List all tags for a given reference from the registry.
@@ -832,6 +821,7 @@ impl Manager {
         reference: &Reference,
         wit_namespace: Option<&str>,
         wit_name: Option<&str>,
+        kind: Option<PackageKind>,
     ) -> anyhow::Result<KnownPackage> {
         if self.offline {
             return Err(ManagerError::OfflineIndex.into());
@@ -874,14 +864,16 @@ impl Manager {
 
         // Store every discovered tag.
         for tag in &tags {
-            self.store.add_known_package_with_wit(
-                reference.registry(),
-                reference.repository(),
-                Some(tag),
-                description.as_deref(),
-                wit_namespace,
-                wit_name,
-            )?;
+            self.store
+                .add_known_package_with_params(&KnownPackageParams {
+                    registry: reference.registry(),
+                    repository: reference.repository(),
+                    tag: Some(tag),
+                    description: description.as_deref(),
+                    wit_namespace,
+                    wit_name,
+                    kind,
+                })?;
         }
 
         // Best-effort: pull the wasm layer for the latest stable tag so that
@@ -996,6 +988,43 @@ impl Manager {
         crate::resolver::resolve_all_from_db(&self.store, roots)
     }
 
+    // ================================================================
+    // Rich query methods for the meta-registry API
+    // ================================================================
+
+    /// Return all versions of a package with full per-version metadata.
+    ///
+    /// Each version includes OCI annotations, WIT worlds (with imports and
+    /// exports), Wasm components (with targets), dependencies, referrers,
+    /// and WIT source text.
+    pub fn get_package_versions(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::PackageVersion>> {
+        self.store.get_package_versions(registry, repository)
+    }
+
+    /// Return a single version of a package by its tag.
+    pub fn get_package_version(
+        &self,
+        registry: &str,
+        repository: &str,
+        version_tag: &str,
+    ) -> anyhow::Result<Option<wasm_meta_registry_types::PackageVersion>> {
+        self.store
+            .get_package_version(registry, repository, version_tag)
+    }
+
+    /// Return full package detail including all versions and metadata.
+    pub fn get_package_detail(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Option<wasm_meta_registry_types::PackageDetail>> {
+        self.store.get_package_detail(registry, repository)
+    }
+
     /// Sync the local package index from a meta-registry over HTTP.
     ///
     /// Checks the `_sync_meta` table for `last_synced_at` and skips the sync
@@ -1069,24 +1098,28 @@ impl Manager {
         // Bulk upsert all packages.
         for pkg in packages {
             let first_tag = pkg.tags.first().map(String::as_str);
-            self.store.add_known_package_with_wit(
-                &pkg.registry,
-                &pkg.repository,
-                first_tag,
-                pkg.description.as_deref(),
-                pkg.wit_namespace.as_deref(),
-                pkg.wit_name.as_deref(),
-            )?;
+            self.store
+                .add_known_package_with_params(&KnownPackageParams {
+                    registry: &pkg.registry,
+                    repository: &pkg.repository,
+                    tag: first_tag,
+                    description: pkg.description.as_deref(),
+                    wit_namespace: pkg.wit_namespace.as_deref(),
+                    wit_name: pkg.wit_name.as_deref(),
+                    kind: pkg.kind,
+                })?;
             // Also add remaining tags.
             for tag in pkg.tags.iter().skip(1) {
-                self.store.add_known_package_with_wit(
-                    &pkg.registry,
-                    &pkg.repository,
-                    Some(tag),
-                    pkg.description.as_deref(),
-                    pkg.wit_namespace.as_deref(),
-                    pkg.wit_name.as_deref(),
-                )?;
+                self.store
+                    .add_known_package_with_params(&KnownPackageParams {
+                        registry: &pkg.registry,
+                        repository: &pkg.repository,
+                        tag: Some(tag),
+                        description: pkg.description.as_deref(),
+                        wit_namespace: pkg.wit_namespace.as_deref(),
+                        wit_name: pkg.wit_name.as_deref(),
+                        kind: pkg.kind,
+                    })?;
             }
 
             // r[impl db.wit-package-dependency.populate-on-sync]

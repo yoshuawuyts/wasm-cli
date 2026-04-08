@@ -25,6 +25,11 @@ const MIGRATIONS: &[MigrationDef] = &[
         name: "add_wit_namespace",
         sql: include_str!("../migrations/03_add_wit_namespace.sql"),
     },
+    MigrationDef {
+        version: 4,
+        name: "add_kind_to_oci_repository",
+        sql: include_str!("../migrations/04_add_kind_to_oci_repository.sql"),
+    },
 ];
 
 /// Information about the current migration state.

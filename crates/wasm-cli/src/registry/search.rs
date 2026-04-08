@@ -155,6 +155,7 @@ mod tests {
             KnownPackage {
                 registry: "ghcr.io".into(),
                 repository: "example/http-server".into(),
+                kind: None,
                 description: Some("A simple HTTP server component".into()),
                 tags: vec!["0.1.0".into(), "0.2.0".into()],
                 signature_tags: vec![],
@@ -168,6 +169,7 @@ mod tests {
             KnownPackage {
                 registry: "ghcr.io".into(),
                 repository: "example/logger".into(),
+                kind: None,
                 description: None,
                 tags: vec![],
                 signature_tags: vec![],
@@ -210,6 +212,7 @@ mod tests {
             KnownPackage {
                 registry: "ghcr.io".into(),
                 repository: "example/http-server".into(),
+                kind: None,
                 description: Some("A server component".into()),
                 tags: vec![],
                 signature_tags: vec![],
@@ -223,6 +226,7 @@ mod tests {
             KnownPackage {
                 registry: "ghcr.io".into(),
                 repository: "example/logger".into(),
+                kind: None,
                 description: Some("A logging component".into()),
                 tags: vec![],
                 signature_tags: vec![],

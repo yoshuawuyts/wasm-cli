@@ -23,6 +23,7 @@ reqwest = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, optional = true }
+wasm-meta-registry-types = { workspace = true }
 
 [target.'cfg(all(target_os = "wasi", target_env = "p2"))'.dependencies]
 wstd = { workspace = true }

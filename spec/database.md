@@ -79,3 +79,21 @@ stored without an OCI manifest link) the dependencies are sourced by matching
 r[db.wit-package-dependency.upsert-idempotent]
 Upserting the same package dependency MUST be idempotent (inserting duplicate
 edges MUST be silently ignored).
+
+## Rich Query Methods
+
+r[db.package-versions.list]
+Given a registry and repository, the store MUST return all known versions of
+the package with per-version metadata including OCI annotations, WIT worlds
+(with imports and exports), Wasm components (with targets), dependencies,
+referrers, and WIT source text. Results MUST be ordered by insertion order
+(newest first).
+
+r[db.package-versions.get]
+Given a registry, repository, and version tag, the store MUST return the
+matching version's metadata, or `None` when no such tag exists.
+
+r[db.package-detail]
+Given a registry and repository, the store MUST return a `PackageDetail`
+containing the repository metadata and all known versions, or `None` when
+the repository does not exist.

@@ -203,6 +203,7 @@ mod tests {
         KnownPackage {
             registry: "ghcr.io".to_string(),
             repository: "example/no-wit".to_string(),
+            kind: None,
             description: Some("demo".to_string()),
             tags: vec!["1.0.0".to_string()],
             signature_tags: vec![],

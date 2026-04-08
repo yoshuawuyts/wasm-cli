@@ -45,3 +45,26 @@ r[client.fetch.server-error]
 
 r[client.fetch.client-error]
 `fetch_packages` MUST treat non-success, non-304 responses as errors.
+
+## Rich API Methods
+
+r[client.detail]
+`fetch_package_detail` MUST return a `PackageDetail` from the
+`/v1/packages/detail/{registry}/{*repo}` endpoint, or `None` on 404.
+
+r[client.versions.list]
+`fetch_package_versions` MUST return a `Vec<PackageVersion>` from the
+`/v1/packages/versions/{registry}/{*repo}` endpoint.
+
+r[client.versions.get]
+`fetch_package_version` MUST return a `PackageVersion` for a specific tag
+from the `/v1/packages/version/{registry}/{version}/{*repo}` endpoint,
+or `None` on 404.
+
+r[client.search.by-import]
+`search_packages_by_import` MUST return packages that import the given
+interface.
+
+r[client.search.by-export]
+`search_packages_by_export` MUST return packages that export the given
+interface.

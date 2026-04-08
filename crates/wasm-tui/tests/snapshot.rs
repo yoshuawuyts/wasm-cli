@@ -303,6 +303,7 @@ fn test_search_view_with_packages_snapshot() {
         KnownPackage {
             registry: "ghcr.io".to_string(),
             repository: "bytecode-alliance/wasi-http".to_string(),
+            kind: None,
             description: Some("WASI HTTP interface".to_string()),
             tags: vec!["v0.2.0".to_string(), "v0.1.0".to_string()],
             signature_tags: vec![],
@@ -316,6 +317,7 @@ fn test_search_view_with_packages_snapshot() {
         KnownPackage {
             registry: "ghcr.io".to_string(),
             repository: "user/my-component".to_string(),
+            kind: None,
             description: None,
             tags: vec!["latest".to_string()],
             signature_tags: vec![],
@@ -348,6 +350,7 @@ fn test_search_view_with_many_tags_snapshot() {
     let packages = vec![KnownPackage {
         registry: "ghcr.io".to_string(),
         repository: "project/component".to_string(),
+        kind: None,
         description: Some("A component with many tags".to_string()),
         tags: vec![
             "v3.0.0".to_string(),
@@ -378,6 +381,7 @@ fn test_known_package_detail_view_snapshot() {
     let package = KnownPackage {
         registry: "ghcr.io".to_string(),
         repository: "user/example-package".to_string(),
+        kind: None,
         description: Some("An example WASM component package".to_string()),
         tags: vec![
             "v1.0.0".to_string(),
@@ -402,6 +406,7 @@ fn test_known_package_detail_view_minimal_snapshot() {
     let package = KnownPackage {
         registry: "docker.io".to_string(),
         repository: "library/minimal".to_string(),
+        kind: None,
         description: None,
         tags: vec!["latest".to_string()],
         signature_tags: vec![],
