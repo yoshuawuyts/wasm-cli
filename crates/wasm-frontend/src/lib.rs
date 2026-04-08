@@ -7,6 +7,7 @@
 // Logging errors to stderr is the appropriate way to surface API failures
 // when running under wasmtime serve.
 #![allow(clippy::print_stderr)]
+#![recursion_limit = "512"]
 
 // r[impl frontend.server.wasi-http]
 

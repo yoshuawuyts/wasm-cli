@@ -2,6 +2,9 @@
 
 // r[impl frontend.pages.home]
 
+use html::content::Section;
+use html::inline_text::Anchor;
+use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
 use crate::api_client::ApiClient;
@@ -13,20 +16,28 @@ pub(crate) async fn render(client: &ApiClient) -> String {
 
     let (components, interfaces) = split_by_kind(&packages);
 
-    let mut body = String::new();
+    let mut body = Division::builder();
 
-    body.push_str(r#"<h1 class="text-3xl font-bold mb-8">WebAssembly Package Registry</h1>"#);
+    body.heading_1(|h1| {
+        h1.class("text-3xl font-bold mb-8")
+            .text("WebAssembly Package Registry")
+    });
 
-    body.push_str(&render_section("Recently Updated Interfaces", &interfaces));
-    body.push_str(&render_section("Recently Updated Components", &components));
-
-    if packages.is_empty() {
-        body.push_str(
-            r#"<p class="text-gray-500 mt-8">No packages found. The registry may still be syncing.</p>"#,
-        );
+    if let Some(section) = render_section("Recently Updated Interfaces", &interfaces) {
+        body.push(section);
+    }
+    if let Some(section) = render_section("Recently Updated Components", &components) {
+        body.push(section);
     }
 
-    layout::document("Home", &body)
+    if packages.is_empty() {
+        body.paragraph(|p| {
+            p.class("text-gray-500 mt-8")
+                .text("No packages found. The registry may still be syncing.")
+        });
+    }
+
+    layout::document("Home", &body.build().to_string())
 }
 
 /// Split packages into (components, interfaces) based on WIT metadata.
@@ -51,27 +62,30 @@ fn split_by_kind(packages: &[KnownPackage]) -> (Vec<&KnownPackage>, Vec<&KnownPa
 }
 
 /// Render a section with a heading and a grid of package cards.
-fn render_section(heading: &str, packages: &[&KnownPackage]) -> String {
+fn render_section(heading: &str, packages: &[&KnownPackage]) -> Option<Section> {
     if packages.is_empty() {
-        return String::new();
+        return None;
     }
 
-    let mut html = format!(
-        r#"<section class="mb-10">
-  <h2 class="text-xl font-semibold mb-4">{heading}</h2>
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">"#
-    );
+    let mut section = Section::builder();
+    section.class("mb-10");
+    section.heading_2(|h2| {
+        h2.class("text-xl font-semibold mb-4")
+            .text(heading.to_owned())
+    });
 
+    let mut grid = Division::builder();
+    grid.class("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4");
     for pkg in packages {
-        html.push_str(&render_card(pkg));
+        grid.push(render_card(pkg));
     }
+    section.push(grid.build());
 
-    html.push_str("  </div>\n</section>\n");
-    html
+    Some(section.build())
 }
 
 /// Render a single package card.
-fn render_card(pkg: &KnownPackage) -> String {
+fn render_card(pkg: &KnownPackage) -> Anchor {
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
@@ -89,12 +103,14 @@ fn render_card(pkg: &KnownPackage) -> String {
 
     let version = pkg.tags.first().map_or("—", String::as_str);
 
-    format!(
-        r#"    <a href="{href}" class="block border border-gray-200 rounded-lg p-4 hover:border-accent hover:shadow-sm transition-colors">
-      <h3 class="font-mono font-semibold text-accent">{display_name}</h3>
-      <p class="text-sm text-gray-500 mt-1">{version}</p>
-      <p class="text-sm text-gray-600 mt-2 line-clamp-2">{description}</p>
-    </a>
-"#
-    )
+    Anchor::builder()
+        .href(href)
+        .class("block border border-gray-200 rounded-lg p-4 hover:border-accent hover:shadow-sm transition-colors")
+        .span(|s| s.class("block font-mono font-semibold text-accent").text(display_name))
+        .span(|s| s.class("block text-sm text-gray-500 mt-1").text(version.to_owned()))
+        .span(|s| {
+            s.class("block text-sm text-gray-600 mt-2 line-clamp-2")
+                .text(description.to_owned())
+        })
+        .build()
 }
