@@ -51,7 +51,7 @@ fn render_error(err: &ApiError) -> String {
     layout::document("Home", &body.build().to_string())
 }
 
-/// Render the hero area with heading, search form, and quick-install hint.
+/// Render the hero area with heading, search form, CTA, and quick-install hint.
 fn render_hero(total: usize) -> Division {
     let placeholder = if total > 0 {
         format!("Search {total} packages\u{2026}")
@@ -60,42 +60,50 @@ fn render_hero(total: usize) -> Division {
     };
 
     let mut hero = Division::builder();
-    hero.class("pb-12 border-b border-border mb-12");
+    hero.class("pt-8 pb-16 mb-10");
+
+    // Title and hint — grouped tightly
     hero.heading_1(|h1| {
         h1.class("text-3xl font-bold tracking-tight")
             .text("WebAssembly Package Registry")
     });
-
-    // Search — the primary action
-    hero.form(|form| {
-        form.action("/search")
-            .method("get")
-            .class("mt-6 flex max-w-lg")
-            .input(|input| {
-                input
-                    .type_("search")
-                    .name("q")
-                    .placeholder(placeholder)
-                    .aria_label("Search packages")
-                    .autofocus(true)
-                    .class("flex-1 px-4 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none transition-colors")
-            })
-            .button(|btn| {
-                btn.type_("submit")
-                    .class("px-5 py-2.5 rounded-r-md text-sm font-medium bg-accent text-white hover:bg-accent-hover border border-accent transition-colors")
-                    .text("Search")
-            })
-    });
-
-    // Quick-install hint — communicates what this tool does
     hero.paragraph(|p| {
-        p.class("mt-4 text-sm text-fg-muted")
+        p.class("mt-2 text-sm text-fg-muted")
             .text("Get started: ")
             .code(|code| {
                 code.class(
                     "font-mono text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded text-xs",
                 )
                 .text("wasm install wasi:http")
+            })
+    });
+
+    // Search and CTA — grouped below with generous separation from title
+    hero.division(|row| {
+        row.class("mt-8 flex flex-col sm:flex-row gap-3 sm:items-center")
+            .form(|form| {
+                form.action("/search")
+                    .method("get")
+                    .class("flex flex-1 max-w-lg")
+                    .input(|input| {
+                        input
+                            .type_("search")
+                            .name("q")
+                            .placeholder(placeholder)
+                            .aria_label("Search packages")
+                            .autofocus(true)
+                            .class("flex-1 px-4 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none transition-colors")
+                    })
+                    .button(|btn| {
+                        btn.type_("submit")
+                            .class("px-5 py-2.5 rounded-r-md text-sm font-medium bg-accent text-white hover:bg-accent-hover border border-accent transition-colors")
+                            .text("Search")
+                    })
+            })
+            .anchor(|a| {
+                a.href("/docs")
+                    .class("text-sm text-fg-muted hover:text-accent transition-colors shrink-0")
+                    .text("Publish a component \u{2192}")
             })
     });
 
@@ -132,11 +140,11 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
     };
 
     let mut section = Section::builder();
-    section.class("mb-16");
+    section.class("mb-10");
 
     // Section header with icon, description, and count
     section.division(|div| {
-        div.class("mb-4")
+        div.class("mb-5")
             .division(|row| {
                 row.class("flex items-baseline justify-between")
                     .heading_2(|h2| {
