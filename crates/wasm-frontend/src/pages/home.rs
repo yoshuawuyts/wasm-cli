@@ -51,7 +51,7 @@ fn render_error(err: &ApiError) -> String {
     layout::document("Home", &body.build().to_string())
 }
 
-/// Render the hero area with heading, search form, CTA, and quick-install hint.
+/// Render the hero area with heading, search form, and quick-install hint.
 fn render_hero(total: usize) -> Division {
     let placeholder = if total > 0 {
         format!("Search {total} packages\u{2026}")
@@ -60,50 +60,41 @@ fn render_hero(total: usize) -> Division {
     };
 
     let mut hero = Division::builder();
-    hero.class("pt-8 pb-16 mb-10");
-
-    // Title and hint — grouped tightly
+    hero.class("pb-12 border-b border-border mb-12");
     hero.heading_1(|h1| {
         h1.class("text-3xl font-bold tracking-tight")
             .text("WebAssembly Package Registry")
     });
+
+    // Search — the primary action
+    hero.form(|form| {
+        form.action("/search")
+            .method("get")
+            .class("mt-6 flex max-w-lg")
+            .input(|input| {
+                input
+                    .type_("search")
+                    .name("q")
+                    .placeholder(placeholder)
+                    .aria_label("Search packages")
+                    .class("flex-1 px-4 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none transition-colors")
+            })
+            .button(|btn| {
+                btn.type_("submit")
+                    .class("px-5 py-2.5 rounded-r-md text-sm font-medium bg-accent text-white hover:bg-accent-hover border border-accent transition-colors")
+                    .text("Search")
+            })
+    });
+
+    // Quick-install hint — communicates what this tool does
     hero.paragraph(|p| {
-        p.class("mt-2 text-sm text-fg-muted")
+        p.class("mt-4 text-sm text-fg-muted")
             .text("Get started: ")
             .code(|code| {
                 code.class(
                     "font-mono text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded text-xs",
                 )
                 .text("wasm install wasi:http")
-            })
-    });
-
-    // Search and CTA — grouped below with generous separation from title
-    hero.division(|row| {
-        row.class("mt-8 flex flex-col sm:flex-row gap-3 sm:items-center")
-            .form(|form| {
-                form.action("/search")
-                    .method("get")
-                    .class("flex flex-1 max-w-lg")
-                    .input(|input| {
-                        input
-                            .type_("search")
-                            .name("q")
-                            .placeholder(placeholder)
-                            .aria_label("Search packages")
-                            .autofocus(true)
-                            .class("flex-1 px-4 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none transition-colors")
-                    })
-                    .button(|btn| {
-                        btn.type_("submit")
-                            .class("px-5 py-2.5 rounded-r-md text-sm font-medium bg-accent text-white hover:bg-accent-hover border border-accent transition-colors")
-                            .text("Search")
-                    })
-            })
-            .anchor(|a| {
-                a.href("/docs")
-                    .class("text-sm text-fg-muted hover:text-accent transition-colors shrink-0")
-                    .text("Publish a component \u{2192}")
             })
     });
 
@@ -140,11 +131,11 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
     };
 
     let mut section = Section::builder();
-    section.class("mb-10");
+    section.class("mb-16");
 
     // Section header with icon, description, and count
     section.division(|div| {
-        div.class("mb-5")
+        div.class("mb-4")
             .division(|row| {
                 row.class("flex items-baseline justify-between")
                     .heading_2(|h2| {
@@ -169,13 +160,13 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
                 .text(format!("No {heading} found yet."))
         });
     } else {
-        // Package grid — card layout
-        let mut grid = Division::builder();
-        grid.class("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4");
+        // Package list — compact rows instead of card grid
+        let mut list = Division::builder();
+        list.class("divide-y divide-border-light");
         for pkg in visible {
-            grid.push(render_card(pkg));
+            list.push(render_row(pkg));
         }
-        section.push(grid.build());
+        section.push(list.build());
 
         // "View all" link
         if has_more {
@@ -192,8 +183,8 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
     section.build()
 }
 
-/// Render a single package as a card.
-fn render_card(pkg: &KnownPackage) -> Division {
+/// Render a single package as a compact row.
+fn render_row(pkg: &KnownPackage) -> Division {
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
@@ -211,35 +202,35 @@ fn render_card(pkg: &KnownPackage) -> Division {
             .anchor(|a| {
                 a.href(format!("/{ns}/{name}"))
                     .class(
-                        "block border border-border rounded-lg p-4 hover:border-accent/40 hover:bg-surface transition-colors",
+                        "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
                     )
                     .span(|s| {
-                        s.class("block font-semibold text-accent truncate")
+                        s.class("font-semibold text-accent shrink-0")
                             .text(display_name)
                     })
                     .span(|s| {
-                        s.class("block text-sm text-fg-muted mt-1 line-clamp-2")
-                            .text(description.to_owned())
+                        s.class("text-sm text-fg-faint shrink-0")
+                            .text(version.to_owned())
                     })
                     .span(|s| {
-                        s.class("block text-xs text-fg-faint mt-3 font-mono")
-                            .text(version.to_owned())
+                        s.class("text-sm text-fg-muted truncate")
+                            .text(description.to_owned())
                     })
             })
             .build(),
         _ => Division::builder()
-            .class("border border-border rounded-lg p-4")
+            .class("flex items-baseline gap-3 py-3 -mx-2 px-2 rounded")
             .span(|s| {
-                s.class("block font-semibold text-fg truncate")
+                s.class("font-semibold text-fg shrink-0")
                     .text(display_name)
             })
             .span(|s| {
-                s.class("block text-sm text-fg-muted mt-1 line-clamp-2")
-                    .text(description.to_owned())
+                s.class("text-sm text-fg-faint shrink-0")
+                    .text(version.to_owned())
             })
             .span(|s| {
-                s.class("block text-xs text-fg-faint mt-3 font-mono")
-                    .text(version.to_owned())
+                s.class("text-sm text-fg-muted truncate")
+                    .text(description.to_owned())
             })
             .build(),
     }
