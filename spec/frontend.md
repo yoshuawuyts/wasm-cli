@@ -81,6 +81,10 @@ The layout MUST be responsive and mobile-first.
 r[frontend.styling.light-theme]
 The frontend MUST start with a light theme.
 
+r[frontend.styling.dark-mode]
+The frontend MUST support dark mode via `prefers-color-scheme: dark`,
+automatically switching themes based on the user's system preferences.
+
 ## Caching
 
 r[frontend.caching.static-pages]

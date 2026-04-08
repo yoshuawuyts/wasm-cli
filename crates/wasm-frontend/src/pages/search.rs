@@ -115,7 +115,7 @@ fn render_search_form(query: &str) -> Division {
                         .name("q")
                         .value(query.to_owned())
                         .placeholder("Search packages\u{2026}")
-                        .class("flex-1 px-3 py-2 rounded border border-border bg-white text-fg text-sm placeholder:text-fg-faint focus:border-accent focus:ring-1 focus:ring-accent outline-none")
+                        .class("flex-1 px-3 py-2 rounded border border-border bg-page text-fg text-sm placeholder:text-fg-faint focus:border-accent focus:ring-1 focus:ring-accent outline-none")
                 })
                 .button(|btn| {
                     btn.type_("submit")

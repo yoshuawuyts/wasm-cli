@@ -6,6 +6,7 @@
 // r[impl frontend.rendering.html-crate]
 // r[impl frontend.styling.tailwind]
 // r[impl frontend.styling.light-theme]
+// r[impl frontend.styling.dark-mode]
 // r[impl frontend.styling.accent-color]
 // r[impl frontend.styling.responsive]
 
@@ -46,22 +47,23 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       theme: {{
         extend: {{
           colors: {{
-            accent: '{ACCENT_COLOR}',
-            'accent-hover': '#6a4bf0',
-            // Violet-tinted neutrals (hue 260)
+            accent: 'var(--color-accent)',
+            'accent-hover': 'var(--color-accent-hover)',
+            page: 'var(--color-bg)',
+            // Violet-tinted neutrals driven by CSS custom properties
             surface: {{
-              DEFAULT: '#f8f7fb',  // faint violet tint for sections
-              muted:   '#f1eff6',  // slightly stronger for cards/wells
+              DEFAULT: 'var(--color-surface)',
+              muted:   'var(--color-surface-muted)',
             }},
             border: {{
-              DEFAULT: '#e4e0ed', // tinted border
-              light:   '#eeeaf5', // tinted divider
+              DEFAULT: 'var(--color-border)',
+              light:   'var(--color-border-light)',
             }},
             fg: {{
-              DEFAULT:   '#1a1625', // tinted near-black
-              secondary: '#534e63', // tinted gray-600
-              muted:     '#7c7691', // tinted gray-500
-              faint:     '#a9a3bc', // tinted gray-400
+              DEFAULT:   'var(--color-fg)',
+              secondary: 'var(--color-fg-secondary)',
+              muted:     'var(--color-fg-muted)',
+              faint:     'var(--color-fg-faint)',
             }},
           }},
           fontFamily: {{
@@ -73,11 +75,36 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
   </script>
   <style>
     :root {{
-      --accent: {ACCENT_COLOR};
+      --color-bg: #ffffff;
+      --color-accent: {ACCENT_COLOR};
+      --color-accent-hover: #6a4bf0;
+      --color-surface: #f8f7fb;
+      --color-surface-muted: #f1eff6;
+      --color-border: #e4e0ed;
+      --color-border-light: #eeeaf5;
+      --color-fg: #1a1625;
+      --color-fg-secondary: #534e63;
+      --color-fg-muted: #7c7691;
+      --color-fg-faint: #a9a3bc;
+    }}
+    @media (prefers-color-scheme: dark) {{
+      :root {{
+        --color-bg: #13111d;
+        --color-accent: #7c5df5;
+        --color-accent-hover: #9678ff;
+        --color-surface: #1e1b2e;
+        --color-surface-muted: #252238;
+        --color-border: #352f4a;
+        --color-border-light: #2d2842;
+        --color-fg: #eae8f0;
+        --color-fg-secondary: #b8b3c8;
+        --color-fg-muted: #8e88a3;
+        --color-fg-faint: #6b6580;
+      }}
     }}
     /* Consistent focus ring for keyboard navigation */
     :focus-visible {{
-      outline: 2px solid {ACCENT_COLOR};
+      outline: 2px solid var(--color-accent);
       outline-offset: 2px;
     }}
     /* Remove default outline when not keyboard-navigating */
@@ -86,7 +113,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     }}
   </style>
 </head>
-<body class="bg-white text-fg min-h-screen flex flex-col leading-relaxed">
+<body class="bg-page text-fg min-h-screen flex flex-col leading-relaxed">
   {nav}
   <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-10">
     {body_content}
@@ -124,6 +151,7 @@ mod tests {
     // r[verify frontend.rendering.html-crate]
     // r[verify frontend.styling.tailwind]
     // r[verify frontend.styling.light-theme]
+    // r[verify frontend.styling.dark-mode]
     // r[verify frontend.styling.accent-color]
     // r[verify frontend.styling.responsive]
     #[test]
@@ -133,6 +161,7 @@ mod tests {
         assert!(html.contains("https://cdn.tailwindcss.com"));
         assert!(html.contains(ACCENT_COLOR));
         assert!(html.contains("<meta name=\"viewport\""));
-        assert!(html.contains("bg-white text-fg"));
+        assert!(html.contains("bg-page text-fg"));
+        assert!(html.contains("prefers-color-scheme: dark"));
     }
 }
