@@ -1,8 +1,0 @@
-[namespace]
-name = "jcbhmr"
-registry = "ghcr.io/jcbhmr"
-
-# jcbhmr/vin-info-wasm
-[[component]]
-name = "vin-info"
-repository = "vin-info"

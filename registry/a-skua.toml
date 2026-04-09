@@ -16,12 +16,4 @@ repository = "koyomi"
 name = "koyomi"
 repository = "koyomi"
 
-# a-skua/example-cli-wasm
-[[component]]
-name = "example-cli-wasm"
-repository = "example-cli-wasm"
 
-# a-skua/gcloud-wasm
-[[component]]
-name = "gcloud-wasm"
-repository = "gcloud-wasm"

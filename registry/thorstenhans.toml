@@ -1,8 +1,0 @@
-[namespace]
-name = "thorstenhans"
-registry = "ghcr.io/thorstenhans"
-
-# ThorstenHans/actions-sample
-[[component]]
-name = "sample-spin-app"
-repository = "sample-spin-app"

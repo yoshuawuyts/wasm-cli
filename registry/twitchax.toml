@@ -2,11 +2,6 @@
 name = "twitchax"
 registry = "ghcr.io/twitchax"
 
-# twitchax/kord
-[[component]]
-name = "kord"
-repository = "kord"
-
 # twitchax/microralph
 [[component]]
 name = "microralph"

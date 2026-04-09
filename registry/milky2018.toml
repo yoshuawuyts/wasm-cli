@@ -1,8 +1,0 @@
-[namespace]
-name = "milky2018"
-registry = "ghcr.io/milky2018"
-
-# Milky2018/wasmoon
-[[component]]
-name = "wasmoon"
-repository = "wasmoon"

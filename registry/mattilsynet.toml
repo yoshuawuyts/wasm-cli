@@ -7,27 +7,10 @@ registry = "ghcr.io/mattilsynet"
 name = "map-me-gcp"
 repository = "map-me-gcp"
 
-# Mattilsynet/map-cronjob-provider-wc
-[[interface]]
-name = "map-cronjob-provider-wc"
-repository = "map-cronjob-provider-wc"
-
-# Mattilsynet/map-nats-kv
-[[interface]]
-name = "map-nats-kv"
-repository = "map-nats-kv"
-
-# Mattilsynet/map-me-gcp-cloudrunjob
-[[interface]]
-name = "map-me-gcp-cloudrunjob"
-repository = "map-me-gcp-cloudrunjob"
 
 # Mattilsynet/h8s-provider
 [[interface]]
 name = "h8s-provider"
 repository = "h8s-provider"
 
-# Mattilsynet/map-nats-jetstream
-[[interface]]
-name = "map-nats-jetstream"
-repository = "map-nats-jetstream"
+

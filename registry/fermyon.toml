@@ -7,17 +7,4 @@ registry = "ghcr.io/fermyon"
 name = "azure-client"
 repository = "wasm-pkg/fermyon-experimental/azure-client"
 
-# fermyon/actions - spin push e2e test apps
-[[component]]
-name = "actions"
-repository = "actions"
 
-# fermyon/bartholomew
-[[component]]
-name = "bartholomew"
-repository = "bartholomew"
-
-# fermyon/ai-examples
-[[component]]
-name = "ai-examples"
-repository = "ai-examples"

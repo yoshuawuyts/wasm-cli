@@ -1,8 +1,0 @@
-[namespace]
-name = "aburan28"
-registry = "ghcr.io/aburan28"
-
-# aburan28/adaptive-concurrency-wasm
-[[component]]
-name = "adaptive-concurrency-wasm"
-repository = "adaptive-concurrency-wasm"

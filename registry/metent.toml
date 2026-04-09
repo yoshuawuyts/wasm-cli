@@ -1,8 +1,0 @@
-[namespace]
-name = "metent"
-registry = "ghcr.io/metent"
-
-# metent/org-agent
-[[component]]
-name = "org-agent"
-repository = "org-agent"

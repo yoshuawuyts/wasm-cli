@@ -1,8 +1,0 @@
-[namespace]
-name = "dineshdb"
-registry = "ghcr.io/dineshdb"
-
-# dineshdb/wasi-components
-[[component]]
-name = "wasi-components"
-repository = "wasi-components"

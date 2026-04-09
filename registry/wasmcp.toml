@@ -6,6 +6,4 @@ registry = "ghcr.io/wasmcp"
 name = "mcp"
 repository = "mcp"
 
-[[component]]
-name = "compose-example"
-repository = "compose-example"
+

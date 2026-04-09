@@ -6,6 +6,4 @@ registry = "ghcr.io/yoshuawuyts"
 name = "fetch"
 repository = "fetch"
 
-[[component]]
-name = "wasi-io-test"
-repository = "wasi-io-test"
+

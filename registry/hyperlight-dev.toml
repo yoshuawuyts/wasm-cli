@@ -1,8 +1,0 @@
-[namespace]
-name = "hyperlight-dev"
-registry = "ghcr.io/hyperlight-dev"
-
-# hyperlight-dev/wasm-udp-echo-sample
-[[component]]
-name = "wasm-udp-echo-sample"
-repository = "wasm-udp-echo-sample"

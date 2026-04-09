@@ -1,8 +1,0 @@
-[namespace]
-name = "azure-samples"
-registry = "ghcr.io/azure-samples"
-
-# Azure-Samples/explore-iot-operations
-[[component]]
-name = "explore-iot-operations"
-repository = "explore-iot-operations"

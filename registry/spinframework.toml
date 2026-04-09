@@ -1,8 +1,0 @@
-[namespace]
-name = "spinframework"
-registry = "ghcr.io/spinframework"
-
-# spinframework/spin - environment definitions
-[[component]]
-name = "spin-up"
-repository = "environments/spin-up"

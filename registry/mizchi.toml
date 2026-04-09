@@ -1,7 +1,0 @@
-[namespace]
-name = "mizchi"
-registry = "ghcr.io/mizchi"
-
-[[component]]
-name = "hello-component"
-repository = "oci_wasm/hello-component"

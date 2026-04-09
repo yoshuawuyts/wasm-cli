@@ -1,8 +1,0 @@
-[namespace]
-name = "hyper-mcp-rs"
-registry = "ghcr.io/hyper-mcp-rs"
-
-# hyper-mcp-rs/gitlab-plugin
-[[component]]
-name = "gitlab-plugin"
-repository = "gitlab-plugin"

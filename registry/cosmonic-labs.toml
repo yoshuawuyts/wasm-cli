@@ -1,8 +1,0 @@
-[namespace]
-name = "cosmonic-labs"
-registry = "ghcr.io/cosmonic-labs"
-
-# cosmonic-labs/awesome-cosmonic
-[[component]]
-name = "xkcdgenerator"
-repository = "awesome-cosmonic/xkcdgenerator"

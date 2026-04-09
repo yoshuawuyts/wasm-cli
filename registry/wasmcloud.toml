@@ -7,7 +7,4 @@ registry = "ghcr.io/wasmcloud"
 name = "hello-world"
 repository = "components/hello-world"
 
-# wasmCloud/go - WIT interface
-[[interface]]
-name = "go-component-wit"
-repository = "go/component-wit"
+

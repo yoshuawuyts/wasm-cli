@@ -1,8 +1,0 @@
-[namespace]
-name = "controlmcp"
-registry = "ghcr.io/controlmcp"
-
-# controlmcp/mcp-server-template-ts
-[[component]]
-name = "mcp-server-template-ts"
-repository = "mcp-server-template-ts"

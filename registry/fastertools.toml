@@ -2,62 +2,7 @@
 name = "fastertools"
 registry = "ghcr.io/fastertools"
 
-# fastertools/ftl-mcp - gateway components
-[[component]]
-name = "ftl-auth-gateway"
-repository = "ftl-auth-gateway"
-
-[[component]]
-name = "ftl-mcp-gateway"
-repository = "ftl-mcp-gateway"
-
 # fastertools/ftl-tool-think
 [[component]]
 name = "ftl-tool-think"
 repository = "ftl-tool-think"
-
-# fastertools/core-tools - 84+ tool components
-# Each tool is published as ghcr.io/fastertools/ftl-tool-<name>
-[[component]]
-name = "ftl-tool-basic-math"
-repository = "ftl-tool-basic-math"
-
-[[component]]
-name = "ftl-tool-crypto"
-repository = "ftl-tool-crypto"
-
-[[component]]
-name = "ftl-tool-data-formats"
-repository = "ftl-tool-data-formats"
-
-[[component]]
-name = "ftl-tool-datetime"
-repository = "ftl-tool-datetime"
-
-[[component]]
-name = "ftl-tool-encoding"
-repository = "ftl-tool-encoding"
-
-[[component]]
-name = "ftl-tool-geospatial"
-repository = "ftl-tool-geospatial"
-
-[[component]]
-name = "ftl-tool-identifiers"
-repository = "ftl-tool-identifiers"
-
-[[component]]
-name = "ftl-tool-math3d"
-repository = "ftl-tool-math3d"
-
-[[component]]
-name = "ftl-tool-statistics"
-repository = "ftl-tool-statistics"
-
-[[component]]
-name = "ftl-tool-string"
-repository = "ftl-tool-string"
-
-[[component]]
-name = "ftl-tool-validation"
-repository = "ftl-tool-validation"
