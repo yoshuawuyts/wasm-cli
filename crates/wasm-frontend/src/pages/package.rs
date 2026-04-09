@@ -11,26 +11,19 @@ use crate::layout;
 
 /// Which tab is currently active on the package detail page.
 pub(crate) enum ActiveTab<'a> {
-    /// WIT definition and worlds.
+    /// WIT definition, worlds, and dependencies.
     Docs {
         version_detail: Option<&'a PackageVersion>,
     },
-    /// Forward dependencies of this package.
-    Dependencies,
-    /// Reverse dependencies: packages that import or export this interface.
-    Dependents {
-        importers: &'a [KnownPackage],
-        exporters: &'a [KnownPackage],
-    },
+    /// Packages that export/implement this interface.
+    Providers { exporters: &'a [KnownPackage] },
+    /// Packages that import/consume this interface.
+    Dependents { importers: &'a [KnownPackage] },
 }
 
 /// Render the package detail page for a given package and version.
 #[must_use]
-pub(crate) fn render(
-    pkg: &KnownPackage,
-    version: &str,
-    version_detail: Option<&PackageVersion>,
-) -> String {
+pub(crate) fn render(pkg: &KnownPackage, version: &str, tab: &ActiveTab<'_>) -> String {
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
@@ -68,25 +61,17 @@ pub(crate) fn render(
     };
     body.push(render_tab_bar(&url_base, tab));
 
-    // Grid layout: main content + sidebar (shared across all tabs)
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
-
-    // Main content column (varies by tab)
-    let mut main_col = Division::builder();
-    main_col.class("md:col-span-2 space-y-8");
-    if let Some(detail) = version_detail {
-        main_col.push(render_wit_content(detail));
+    match tab {
+        ActiveTab::Docs { version_detail } => {
+            body.push(render_docs_panel(pkg, version, &display_name, *version_detail));
+        }
+        ActiveTab::Providers { exporters } => {
+            body.push(render_package_list(exporters));
+        }
+        ActiveTab::Dependents { importers } => {
+            body.push(render_package_list(importers));
+        }
     }
-    if let Some(deps) = render_dependencies(pkg) {
-        main_col.push(deps);
-    }
-    grid.push(main_col.build());
-
-    // Sidebar
-    grid.push(render_sidebar(pkg, version, &display_name, version_detail));
-
-    body.push(grid.build());
 
     layout::document(&display_name, &body.build().to_string())
 }
@@ -273,6 +258,119 @@ fn render_dependencies(pkg: &KnownPackage) -> Option<Section> {
     section.push(ul.build());
 
     Some(section.build())
+}
+
+/// Render the tab bar with links to each tab route.
+fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
+    let active_class = "text-accent border-b-2 border-accent font-semibold";
+    let inactive_class = "text-fg-muted hover:text-fg";
+    let tab_base = "px-4 py-2 text-sm transition-colors inline-block";
+
+    let tabs: &[(&str, &str, bool)] = &[
+        ("Docs", url_base, matches!(active, ActiveTab::Docs { .. })),
+        (
+            "Providers",
+            &format!("{url_base}/providers"),
+            matches!(active, ActiveTab::Providers { .. }),
+        ),
+        (
+            "Dependents",
+            &format!("{url_base}/dependents"),
+            matches!(active, ActiveTab::Dependents { .. }),
+        ),
+    ];
+
+    Division::builder()
+        .class("flex border-b border-border mb-8")
+        .push({
+            let mut nav = Division::builder();
+            nav.class("flex");
+            for &(label, href, is_active) in tabs {
+                let style = if is_active { active_class } else { inactive_class };
+                nav.anchor(|a| {
+                    a.href(href.to_owned())
+                        .class(format!("{tab_base} {style}"))
+                        .text(label.to_owned())
+                });
+            }
+            nav.build()
+        })
+        .build()
+}
+
+/// Render the docs panel containing WIT content, dependencies, and sidebar.
+fn render_docs_panel(
+    pkg: &KnownPackage,
+    version: &str,
+    display_name: &str,
+    version_detail: Option<&PackageVersion>,
+) -> Division {
+    let mut panel = Division::builder();
+    panel.id("panel-docs");
+
+    let mut grid = Division::builder();
+    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
+
+    // Main content column
+    let mut main_col = Division::builder();
+    main_col.class("md:col-span-2 space-y-8");
+    if let Some(detail) = version_detail {
+        main_col.push(render_wit_content(detail));
+    }
+    if let Some(deps) = render_dependencies(pkg) {
+        main_col.push(deps);
+    }
+    grid.push(main_col.build());
+
+    // Sidebar
+    grid.push(render_sidebar(pkg, version, display_name, version_detail));
+
+    panel.push(grid.build());
+    panel.build()
+}
+
+/// Render a list of packages for the providers/dependents tabs.
+fn render_package_list(packages: &[KnownPackage]) -> Division {
+    let mut div = Division::builder();
+
+    if packages.is_empty() {
+        div.paragraph(|p| p.class("text-fg-muted text-sm italic").text("None found"));
+        return div.build();
+    }
+
+    let mut ul = UnorderedList::builder();
+    ul.class("space-y-2");
+    for pkg in packages {
+        let name = match (&pkg.wit_namespace, &pkg.wit_name) {
+            (Some(ns), Some(n)) => format!("{ns}:{n}"),
+            _ => pkg.repository.clone(),
+        };
+        let href = match (&pkg.wit_namespace, &pkg.wit_name) {
+            (Some(ns), Some(n)) => format!("/{ns}/{n}"),
+            _ => "#".to_string(),
+        };
+        let desc = pkg
+            .description
+            .as_deref()
+            .unwrap_or("No description available");
+
+        ul.list_item(|li| {
+            li.class("text-sm")
+                .anchor(|a| {
+                    a.href(href)
+                        .class("text-accent hover:underline font-medium")
+                        .text(name)
+                })
+                .push(
+                    Span::builder()
+                        .class("text-fg-secondary ml-2")
+                        .text(format!("— {desc}"))
+                        .build(),
+                )
+        });
+    }
+    div.push(ul.build());
+    div.build()
 }
 
 /// Render the sidebar with metadata and version selector.
