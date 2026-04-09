@@ -40,6 +40,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <meta name="description" content="Browse and discover WebAssembly components and WIT interfaces published to OCI registries.">
   <title>{escaped_title} — wasm registry</title>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -79,6 +80,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
        Neutrals use hue 290 for a violet tint. All text tokens
        pass WCAG AA (4.5:1) against bg. */
     :root {{
+      color-scheme: light dark;
       --color-bg: oklch(1 0 290);
       --color-accent: {ACCENT_COLOR};
       --color-accent-hover: oklch(0.42 0.257 280);
@@ -90,6 +92,10 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       --color-fg-secondary: oklch(0.40 0.03 290);
       --color-fg-muted: oklch(0.54 0.025 290);
       --color-fg-faint: oklch(0.56 0.02 290);
+    }}
+    html, body {{
+      background-color: var(--color-bg);
+      color: var(--color-fg);
     }}
     @media (prefers-color-scheme: dark) {{
       :root {{
@@ -178,7 +184,10 @@ mod tests {
         assert!(html.contains("https://cdn.tailwindcss.com"));
         assert!(html.contains(ACCENT_COLOR));
         assert!(html.contains("<meta name=\"viewport\""));
+        assert!(html.contains("<meta name=\"color-scheme\" content=\"light dark\">"));
         assert!(html.contains("bg-page text-fg"));
+        assert!(html.contains("html, body"));
+        assert!(html.contains("background-color: var(--color-bg);"));
         assert!(html.contains("prefers-color-scheme: dark"));
     }
 }
