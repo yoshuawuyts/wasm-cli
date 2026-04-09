@@ -244,7 +244,7 @@ fn render_interface_row(iface: &wasm_wit_doc::InterfaceDoc) -> ListItem {
     li.division(|left| {
         left.class("shrink-0 w-52").anchor(|a| {
             a.href(iface.url.clone())
-                .class("font-mono text-sm font-semibold text-accent hover:underline")
+                .class("font-mono text-sm font-semibold text-wit-iface hover:underline")
                 .text(iface.name.clone())
         })
     });
@@ -253,7 +253,7 @@ fn render_interface_row(iface: &wasm_wit_doc::InterfaceDoc) -> ListItem {
     if let Some(docs) = &iface.docs {
         li.division(|right| {
             right
-                .class("text-sm leading-relaxed text-fg-secondary line-clamp-2 min-w-0")
+                .class("text-sm leading-relaxed text-fg-secondary min-w-0")
                 .text(first_sentence(docs))
         });
     }
@@ -287,7 +287,7 @@ fn render_world_row(world: &wasm_wit_doc::WorldDoc) -> ListItem {
     li.division(|left| {
         left.class("shrink-0 w-52").anchor(|a| {
             a.href(world.url.clone())
-                .class("font-mono text-sm font-semibold text-accent hover:underline")
+                .class("font-mono text-sm font-semibold text-wit-world hover:underline")
                 .text(world.name.clone())
         })
     });
@@ -296,7 +296,7 @@ fn render_world_row(world: &wasm_wit_doc::WorldDoc) -> ListItem {
     if let Some(docs) = &world.docs {
         li.division(|right| {
             right
-                .class("text-sm leading-relaxed text-fg-secondary line-clamp-2 min-w-0")
+                .class("text-sm leading-relaxed text-fg-secondary min-w-0")
                 .text(first_sentence(docs))
         });
     }
@@ -413,7 +413,11 @@ fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
     let tab_base = "px-4 py-2 text-sm transition-colors inline-block";
 
     let tabs: &[(&str, &str, bool)] = &[
-        ("Docs", url_base, matches!(active, ActiveTab::Docs { .. })),
+        (
+            "Documentation",
+            url_base,
+            matches!(active, ActiveTab::Docs { .. }),
+        ),
         (
             "Dependencies",
             &format!("{url_base}/dependencies"),

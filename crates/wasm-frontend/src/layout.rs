@@ -72,6 +72,8 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
               enum:     'var(--color-wit-enum)',
               resource: 'var(--color-wit-resource)',
               func:     'var(--color-wit-func)',
+              world:    'var(--color-wit-world)',
+              iface:    'var(--color-wit-iface)',
             }},
           }},
           fontFamily: {{
@@ -102,6 +104,8 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       --color-wit-enum: oklch(0.45 0.14 180);
       --color-wit-resource: oklch(0.50 0.16 70);
       --color-wit-func: oklch(0.42 0.2 240);
+      --color-wit-world: oklch(0.48 0.18 330);
+      --color-wit-iface: oklch(0.45 0.16 210);
     }}
     @media (prefers-color-scheme: dark) {{
       :root {{
@@ -121,6 +125,8 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
         --color-wit-enum: oklch(0.72 0.12 180);
         --color-wit-resource: oklch(0.75 0.14 70);
         --color-wit-func: oklch(0.70 0.15 240);
+        --color-wit-world: oklch(0.75 0.14 330);
+        --color-wit-iface: oklch(0.72 0.13 210);
       }}
     }}
     /* Consistent focus ring for keyboard navigation */
