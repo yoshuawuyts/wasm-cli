@@ -110,7 +110,7 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
     );
 
     Division::builder()
-        .class("bg-surface border border-border rounded-lg p-5 space-y-2 text-sm group/install")
+        .class("max-w-lg group/install")
         .division(|div| {
             div.class(
                 "flex items-center gap-2 bg-surface-muted border border-border \
@@ -672,65 +672,143 @@ fn render_page_header(
         _ => pkg.repository.clone(),
     };
 
+    let annotations = version_detail.and_then(|d| d.annotations.as_ref());
+
     let mut header = Division::builder();
     header.class("flex flex-col md:flex-row md:items-start md:justify-between gap-6 mb-6");
 
-    // Left: title + description
+    // Left: title with inline version + description + install command
     header.division(|left| {
         left.class("flex-1 min-w-0")
-            .heading_1(|h1| {
-                h1.class("text-3xl font-bold tracking-tight text-accent")
-                    .text(display_name.to_owned())
+            .division(|title_row| {
+                title_row
+                    .class("flex items-baseline gap-2 flex-wrap")
+                    .heading_1(|h1| {
+                        h1.class("text-3xl font-bold tracking-tight text-accent")
+                            .text(display_name.to_owned())
+                    })
+                    .push(render_version_inline(pkg, current_version, &url_name))
             })
             .paragraph(|p| {
                 p.class("text-fg-secondary mt-1")
                     .text(description.to_owned())
             })
+            .division(|d| {
+                d.class("mt-4").push(render_install_command(display_name, current_version))
+            })
     });
 
-    // Right: install command + metadata
+    // Right: metadata rows
     header.division(|right| {
-        right.class("shrink-0 md:w-80 space-y-3");
+        right.class("shrink-0 md:w-72 space-y-3 text-sm");
 
-        // Install command
-        right.push(render_install_command(display_name, current_version));
-
-        // Metadata: version selector + inline details
+        // Metadata rows
         let mut meta = Division::builder();
-        meta.class("space-y-2");
+        meta.class("space-y-1.5 text-xs");
 
-        // Version selector (compact inline)
-        if !pkg.tags.is_empty() {
-            meta.push(render_version_select(pkg, current_version, &url_name));
+        // Source/repository
+        if let Some(source) = annotations.and_then(|a| a.source.as_deref()) {
+            meta.push(meta_link_row("Repository", &abbreviate_url(source), source));
+        } else {
+            let repo_url = format!("https://{}/{}", pkg.registry, pkg.repository);
+            let repo_display = format!("{}/{}", pkg.registry, pkg.repository);
+            meta.push(meta_link_row("Repository", &repo_display, &repo_url));
         }
 
-        // Inline metadata row
-        let mut details = Division::builder();
-        details.class("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted");
-
-        let repo_url = format!("https://{}/{}", pkg.registry, pkg.repository);
-        let repo_display = format!("{}/{}", pkg.registry, pkg.repository);
-        details.division(|d| {
-            d.anchor(|a| {
-                a.href(repo_url)
-                    .class("hover:text-accent transition-colors")
-                    .text(repo_display)
-            })
-        });
-
+        if let Some(license) = annotations.and_then(|a| a.licenses.as_deref()) {
+            meta.push(meta_row("License", license));
+        }
         if let Some(kind) = &pkg.kind {
-            details.division(|d| d.text(kind.to_string()));
+            meta.push(meta_row("Kind", &kind.to_string()));
         }
         if let Some(size) = version_detail.and_then(|d| d.size_bytes) {
-            details.division(|d| d.text(format_size(size)));
+            meta.push(meta_row("Size", &format_size(size)));
+        }
+        if let Some(created) = version_detail.and_then(|d| d.created_at.as_deref()) {
+            meta.push(meta_row("Published", &format_date(created)));
+        }
+        if let Some(docs_url) = annotations.and_then(|a| a.documentation.as_deref()) {
+            meta.push(meta_link_row("Docs", &abbreviate_url(docs_url), docs_url));
+        }
+        let source = annotations.and_then(|a| a.source.as_deref());
+        if let Some(url) = annotations.and_then(|a| a.url.as_deref())
+            && source != Some(url)
+        {
+            meta.push(meta_link_row("Homepage", &abbreviate_url(url), url));
         }
 
-        meta.push(details.build());
         right.push(meta.build());
         right
     });
 
     header.build()
+}
+
+/// Render a label: value metadata row.
+fn meta_row(label: &str, value: &str) -> Division {
+    Division::builder()
+        .class("flex gap-2")
+        .span(|s| {
+            s.class("text-fg-muted w-20 shrink-0")
+                .text(label.to_owned())
+        })
+        .span(|s| {
+            s.class("text-fg truncate")
+                .text(value.to_owned())
+        })
+        .build()
+}
+
+/// Render a label: linked-value metadata row.
+fn meta_link_row(label: &str, text: &str, href: &str) -> Division {
+    Division::builder()
+        .class("flex gap-2")
+        .span(|s| {
+            s.class("text-fg-muted w-20 shrink-0")
+                .text(label.to_owned())
+        })
+        .anchor(|a| {
+            a.href(href.to_owned())
+                .class("text-accent hover:underline truncate")
+                .text(text.to_owned())
+        })
+        .build()
+}
+
+/// Render the inline version selector: `@ <select>` next to the package title.
+fn render_version_inline(
+    pkg: &KnownPackage,
+    current_version: &str,
+    url_name: &str,
+) -> Division {
+    let mut select = html::forms::Select::builder();
+    select
+        .id("version-select")
+        .name("version")
+        .class("px-1.5 py-0.5 rounded border border-border bg-surface text-fg text-xl font-bold cursor-pointer");
+
+    for tag in &pkg.tags {
+        let is_current = tag == current_version;
+        if is_current {
+            select.option(|opt| opt.value(tag.clone()).text(tag.clone()).selected(true));
+        } else {
+            select.option(|opt| opt.value(tag.clone()).text(tag.clone()));
+        }
+    }
+
+    let script_body = format!(
+        "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/{url_name}/'+this.value}})"
+    );
+
+    Division::builder()
+        .class("flex items-baseline gap-1")
+        .span(|s| {
+            s.class("text-xl text-fg-muted font-bold")
+                .text("@")
+        })
+        .push(select.build())
+        .script(|s| s.text(script_body))
+        .build()
 }
 
 /// Render the version selector dropdown.
@@ -794,6 +872,24 @@ fn format_size(bytes: i64) -> String {
     } else {
         format!("{:.1} GiB", bytes / GIB)
     }
+}
+
+/// Abbreviate a URL for display (strip scheme and trailing slash).
+fn abbreviate_url(url: &str) -> String {
+    url.strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url)
+        .trim_end_matches('/')
+        .to_owned()
+}
+
+/// Format an ISO 8601 timestamp as a short date (YYYY-MM-DD).
+fn format_date(iso: &str) -> String {
+    // Take just the date portion of "2026-03-05T23:36:11Z"
+    iso.split('T')
+        .next()
+        .unwrap_or(iso)
+        .to_owned()
 }
 
 #[cfg(test)]
