@@ -176,7 +176,7 @@ fn render_breadcrumb(
 
 /// Render the WIT definition code block for a type.
 fn render_type_definition(ty: &TypeDoc) -> Division {
-    let wit = format_type_as_wit(ty);
+    let wit = escape_html(&format_type_as_wit(ty));
     Division::builder()
         .class("mb-6")
         .push(
@@ -190,7 +190,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
 
 /// Render the WIT definition code block for a function.
 fn render_function_definition(func: &FunctionDoc) -> Division {
-    let sig = format!(
+    let sig = escape_html(&format!(
         "{}: func({}){};",
         func.name,
         func.params
@@ -203,7 +203,7 @@ fn render_function_definition(func: &FunctionDoc) -> Division {
             .as_ref()
             .map(|r| format!(" -> {}", format_type_ref_short(r)))
             .unwrap_or_default()
-    );
+    ));
     Division::builder()
         .class("mb-6")
         .push(
@@ -550,17 +550,17 @@ fn render_type_ref(ty: &TypeRef) -> html::inline_text::Span {
             span.text(name.clone());
         }
         TypeRef::List { ty } => {
-            span.text("list<".to_owned())
+            span.text("list\u{200b}<".to_owned())
                 .push(render_type_ref(ty))
                 .text(">".to_owned());
         }
         TypeRef::Option { ty } => {
-            span.text("option<".to_owned())
+            span.text("option\u{200b}<".to_owned())
                 .push(render_type_ref(ty))
                 .text(">".to_owned());
         }
         TypeRef::Result { ok, err } => {
-            span.text("result<".to_owned());
+            span.text("result\u{200b}<".to_owned());
             if let Some(ok) = ok {
                 span.push(render_type_ref(ok));
             } else {
@@ -575,7 +575,7 @@ fn render_type_ref(ty: &TypeRef) -> html::inline_text::Span {
             span.text(">".to_owned());
         }
         TypeRef::Tuple { types } => {
-            span.text("tuple<".to_owned());
+            span.text("tuple\u{200b}<".to_owned());
             for (i, t) in types.iter().enumerate() {
                 if i > 0 {
                     span.text(", ".to_owned());
@@ -601,7 +601,7 @@ fn render_type_ref(ty: &TypeRef) -> html::inline_text::Span {
                 }
             }
             HandleKind::Borrow => {
-                span.text("borrow<".to_owned());
+                span.text("borrow\u{200b}<".to_owned());
                 if let Some(url) = resource_url {
                     span.anchor(|a| {
                         a.href(url.clone())
@@ -616,7 +616,7 @@ fn render_type_ref(ty: &TypeRef) -> html::inline_text::Span {
         },
         TypeRef::Future { ty } => match ty {
             Some(t) => {
-                span.text("future<".to_owned())
+                span.text("future\u{200b}<".to_owned())
                     .push(render_type_ref(t))
                     .text(">".to_owned());
             }
@@ -626,7 +626,7 @@ fn render_type_ref(ty: &TypeRef) -> html::inline_text::Span {
         },
         TypeRef::Stream { ty } => match ty {
             Some(t) => {
-                span.text("stream<".to_owned())
+                span.text("stream\u{200b}<".to_owned())
                     .push(render_type_ref(t))
                     .text(">".to_owned());
             }
@@ -688,4 +688,12 @@ fn format_type_ref_short(ty: &TypeRef) -> String {
             None => "stream".to_owned(),
         },
     }
+}
+
+/// Escape HTML special characters so angle brackets in WIT type syntax
+/// (e.g. `list<string>`) are not parsed as HTML tags.
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }

@@ -222,8 +222,8 @@ fn render_function_row(func: &FunctionDoc) -> ListItem {
                         .class("font-mono text-sm text-fg group-hover:text-accent transition-colors overflow-x-auto")
                         .code(|c| {
                             c.span(|s| s.class("text-accent font-semibold group-hover:underline").text(func.name.clone()))
-                             .text(format!("({})", format_params(func)))
-                             .text(format_return(func))
+                             .text(escape_html(&format!("({})", format_params(func))))
+                             .text(escape_html(&format_return(func)))
                         })
                         .build()
                 )
@@ -340,4 +340,11 @@ fn format_type_ref_short(ty: &wasm_wit_doc::TypeRef) -> String {
 fn first_sentence(text: &str) -> String {
     text.split_once(". ")
         .map_or_else(|| text.to_owned(), |(first, _)| format!("{first}."))
+}
+
+/// Escape HTML special characters in code text.
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
