@@ -749,6 +749,12 @@ fn render_version_inline(pkg: &KnownPackage, current_version: &str, url_name: &s
         "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/{url_name}/'+this.value}})"
     );
 
+    let version_count = pkg.tags.len();
+    let version_label = format!(
+        "{version_count} {}",
+        if version_count == 1 { "version" } else { "versions" }
+    );
+
     Division::builder()
         .class("flex items-baseline gap-1")
         .span(|s| s.class("text-xl text-fg-muted font-bold").text("@"))
