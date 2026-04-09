@@ -12,6 +12,7 @@ members = [
     "crates/wasm-package-manager",
     "crates/wasm-detector",
     "crates/wasm-tui",
+    "crates/wasm-wit-doc",
     "crates/xtask",
 ]
 
@@ -85,6 +86,7 @@ wasm-package-manager = { path = "crates/wasm-package-manager", version = "0.3.0"
 wasm-cli-internal-run = { path = "crates/wasm-cli-internal-run", version = "0.3.0" }
 wasm-detector = { path = "crates/wasm-detector", version = "0.3.0" }
 wasm-tui = { path = "crates/wasm-tui", version = "0.3.0" }
+wasm-wit-doc = { path = "crates/wasm-wit-doc", version = "0.3.0" }
 
 # shared dependencies
 anyhow = "1.0.100"
