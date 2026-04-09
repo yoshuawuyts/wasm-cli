@@ -399,7 +399,7 @@ fn render_world_row(world: &wasm_wit_doc::WorldDoc) -> ListItem {
 
     let mut li = ListItem::builder();
     li.class(
-        "border border-border rounded-lg p-4 \
+        "border border-border rounded-lg px-4 py-3 \
          hover:border-accent/50 transition-colors",
     );
 
