@@ -2,8 +2,9 @@
 
 use html::content::Navigation;
 use html::text_content::{Division, ListItem, UnorderedList};
-use wasm_wit_doc::{FunctionDoc, InterfaceDoc, TypeDoc, TypeKind};
+use wasm_wit_doc::{FunctionDoc, InterfaceDoc, TypeDoc, TypeKind, WitDocument};
 
+use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 use crate::layout;
 
 /// Render the interface detail page.
@@ -12,6 +13,7 @@ pub(crate) fn render(
     display_name: &str,
     version: &str,
     iface: &InterfaceDoc,
+    doc: &WitDocument,
 ) -> String {
     let title = format!("{display_name} — {}", iface.name);
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
@@ -24,7 +26,7 @@ pub(crate) fn render(
 
     // Header
     body.division(|div| {
-        div.class("mb-8")
+        div.class("mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-bold tracking-tight text-accent font-mono")
                     .text(iface.name.clone())
@@ -37,6 +39,10 @@ pub(crate) fn render(
         }
         div
     });
+
+    // Grid: main content + sidebar
+    let mut grid = Division::builder();
+    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
 
     // Group types by kind
     let resources: Vec<&TypeDoc> = iface
@@ -71,7 +77,7 @@ pub(crate) fn render(
         .collect();
 
     let mut content = Division::builder();
-    content.class("space-y-8");
+    content.class("md:col-span-2 space-y-8");
 
     if !resources.is_empty() {
         content.push(render_type_section("Resources", &resources));
@@ -95,7 +101,18 @@ pub(crate) fn render(
         content.push(render_function_section(&iface.functions));
     }
 
-    body.push(content.build());
+    grid.push(content.build());
+
+    // Sidebar
+    let sidebar_ctx = SidebarContext {
+        display_name,
+        version,
+        doc,
+        active: SidebarActive::Interface(&iface.name),
+    };
+    grid.push(render_sidebar(&sidebar_ctx));
+
+    body.push(grid.build());
 
     layout::document(&title, &body.build().to_string())
 }
@@ -116,7 +133,7 @@ fn render_breadcrumb(display_name: &str, pkg_url: &str, iface_name: &str) -> Nav
                 .text(display_name.to_owned())
         })
         .span(|s| s.class("mx-1").text("/"))
-        .span(|s| s.text(iface_name.to_owned()))
+        .span(|s| s.class("text-fg font-medium").text(iface_name.to_owned()))
         .build()
 }
 
@@ -158,7 +175,7 @@ fn render_type_row(ty: &TypeDoc) -> ListItem {
                         .text(ty.name.clone())
                     })
                     .span(|s| {
-                        s.class("text-xs text-fg-muted").text(summary)
+                        s.class("text-xs text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded").text(summary)
                     })
             });
         if let Some(docs) = &ty.docs {
@@ -188,10 +205,8 @@ fn render_function_section(functions: &[FunctionDoc]) -> Division {
     div.build()
 }
 
-/// Render a single function row.
+/// Render a single function row with its full signature visible.
 fn render_function_row(func: &FunctionDoc) -> ListItem {
-    let sig = format_function_signature(func);
-
     let mut li = ListItem::builder();
     li.class(
         "border border-border rounded-lg px-4 py-3 \
@@ -201,13 +216,16 @@ fn render_function_row(func: &FunctionDoc) -> ListItem {
         a.href(func.url.clone())
             .class("block group")
             .division(|div| {
-                div.code(|c| {
-                    c.class(
-                        "font-mono text-sm text-accent \
-                         group-hover:underline",
-                    )
-                    .text(sig)
-                })
+                div.push(
+                    html::text_content::PreformattedText::builder()
+                        .class("font-mono text-sm text-fg group-hover:text-accent transition-colors overflow-x-auto")
+                        .code(|c| {
+                            c.span(|s| s.class("text-accent font-semibold group-hover:underline").text(func.name.clone()))
+                             .text(format!("({})", format_params(func)))
+                             .text(format_return(func))
+                        })
+                        .build()
+                )
             });
         if let Some(docs) = &func.docs {
             a.paragraph(|p| {
@@ -256,20 +274,22 @@ fn type_kind_summary(kind: &TypeKind) -> String {
     }
 }
 
-/// Format a function signature like `name(a: string, b: u32) -> result`.
-fn format_function_signature(func: &FunctionDoc) -> String {
-    let params: Vec<String> = func
-        .params
+/// Format function parameters as a comma-separated string.
+fn format_params(func: &FunctionDoc) -> String {
+    func.params
         .iter()
         .filter(|p| p.name != "self")
         .map(|p| format!("{}: {}", p.name, format_type_ref_short(&p.ty)))
-        .collect();
-    let ret = func
-        .result
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Format the return type as ` -> type` or empty string.
+fn format_return(func: &FunctionDoc) -> String {
+    func.result
         .as_ref()
         .map(|r| format!(" -> {}", format_type_ref_short(r)))
-        .unwrap_or_default();
-    format!("{}({}){ret}", func.name, params.join(", "))
+        .unwrap_or_default()
 }
 
 /// Format a `TypeRef` as a short inline string.

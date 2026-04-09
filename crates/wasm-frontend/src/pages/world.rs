@@ -2,8 +2,9 @@
 
 use html::content::Navigation;
 use html::text_content::{Division, ListItem, UnorderedList};
-use wasm_wit_doc::{WorldDoc, WorldItemDoc};
+use wasm_wit_doc::{WitDocument, WorldDoc, WorldItemDoc};
 
+use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 use crate::layout;
 
 /// Render the world detail page.
@@ -12,6 +13,7 @@ pub(crate) fn render(
     display_name: &str,
     version: &str,
     world: &WorldDoc,
+    doc: &WitDocument,
 ) -> String {
     let title = format!("{display_name} — {}", world.name);
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
@@ -23,7 +25,7 @@ pub(crate) fn render(
 
     // Header
     body.division(|div| {
-        div.class("mb-8")
+        div.class("mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-bold tracking-tight font-mono")
                     .span(|s| s.class("text-fg-muted").text("world "))
@@ -38,8 +40,12 @@ pub(crate) fn render(
         div
     });
 
+    // Grid: main content + sidebar
+    let mut grid = Division::builder();
+    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
+
     let mut content = Division::builder();
-    content.class("space-y-8");
+    content.class("md:col-span-2 space-y-8");
 
     if !world.imports.is_empty() {
         content.push(render_item_section("Imports", &world.imports));
@@ -48,7 +54,18 @@ pub(crate) fn render(
         content.push(render_item_section("Exports", &world.exports));
     }
 
-    body.push(content.build());
+    grid.push(content.build());
+
+    // Sidebar
+    let sidebar_ctx = SidebarContext {
+        display_name,
+        version,
+        doc,
+        active: SidebarActive::World(&world.name),
+    };
+    grid.push(render_sidebar(&sidebar_ctx));
+
+    body.push(grid.build());
 
     layout::document(&title, &body.build().to_string())
 }
@@ -69,7 +86,7 @@ fn render_breadcrumb(display_name: &str, pkg_url: &str, world_name: &str) -> Nav
                 .text(display_name.to_owned())
         })
         .span(|s| s.class("mx-1").text("/"))
-        .span(|s| s.text(world_name.to_owned()))
+        .span(|s| s.class("text-fg font-medium").text(world_name.to_owned()))
         .build()
 }
 

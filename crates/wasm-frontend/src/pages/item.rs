@@ -4,9 +4,10 @@ use html::content::Navigation;
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
 use wasm_wit_doc::{
-    FunctionDoc, HandleKind, TypeDoc, TypeKind, TypeRef,
+    FunctionDoc, HandleKind, TypeDoc, TypeKind, TypeRef, WitDocument,
 };
 
+use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 use crate::layout;
 
 /// Render the item detail page for a type.
@@ -16,6 +17,7 @@ pub(crate) fn render_type(
     version: &str,
     iface_name: &str,
     ty: &TypeDoc,
+    doc: &WitDocument,
 ) -> String {
     let title = format!("{display_name} — {iface_name}::{}", ty.name);
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
@@ -34,7 +36,7 @@ pub(crate) fn render_type(
 
     // Header
     body.division(|div| {
-        div.class("mb-8")
+        div.class("mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-bold tracking-tight font-mono")
                     .span(|s| s.class("text-fg-muted").text(kind_label(&ty.kind)))
@@ -50,10 +52,24 @@ pub(crate) fn render_type(
         div
     });
 
+    // Grid: main content + sidebar
+    let mut grid = Division::builder();
+    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
+
     let mut content = Division::builder();
-    content.class("space-y-8");
+    content.class("md:col-span-2 space-y-8");
     content.push(render_type_body(&ty.kind));
-    body.push(content.build());
+    grid.push(content.build());
+
+    let sidebar_ctx = SidebarContext {
+        display_name,
+        version,
+        doc,
+        active: SidebarActive::Item(iface_name, &ty.name),
+    };
+    grid.push(render_sidebar(&sidebar_ctx));
+
+    body.push(grid.build());
 
     layout::document(&title, &body.build().to_string())
 }
@@ -65,6 +81,7 @@ pub(crate) fn render_function(
     version: &str,
     iface_name: &str,
     func: &FunctionDoc,
+    doc: &WitDocument,
 ) -> String {
     let title = format!("{display_name} — {iface_name}::{}", func.name);
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
@@ -82,7 +99,7 @@ pub(crate) fn render_function(
     ));
 
     body.division(|div| {
-        div.class("mb-8")
+        div.class("mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-bold tracking-tight font-mono")
                     .span(|s| s.class("text-fg-muted").text("function "))
@@ -97,10 +114,24 @@ pub(crate) fn render_function(
         div
     });
 
+    // Grid: main content + sidebar
+    let mut grid = Division::builder();
+    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
+
     let mut content = Division::builder();
-    content.class("space-y-8");
+    content.class("md:col-span-2 space-y-8");
     content.push(render_function_detail(func));
-    body.push(content.build());
+    grid.push(content.build());
+
+    let sidebar_ctx = SidebarContext {
+        display_name,
+        version,
+        doc,
+        active: SidebarActive::Item(iface_name, &func.name),
+    };
+    grid.push(render_sidebar(&sidebar_ctx));
+
+    body.push(grid.build());
 
     layout::document(&title, &body.build().to_string())
 }
@@ -133,7 +164,7 @@ fn render_breadcrumb(
                 .text(iface_name.to_owned())
         })
         .span(|s| s.class("mx-1").text("/"))
-        .span(|s| s.text(item_name.to_owned()))
+        .span(|s| s.class("text-fg font-medium").text(item_name.to_owned()))
         .build()
 }
 

@@ -168,11 +168,11 @@ fn render_wit_content(detail: &PackageVersion, url_base: &str) -> Section {
     let mut section = Section::builder();
 
     if let Some(doc) = try_parse_wit(detail, url_base) {
-        if !doc.interfaces.is_empty() {
-            section.push(render_interface_overview(&doc));
-        }
         if !doc.worlds.is_empty() {
             section.push(render_world_overview(&doc));
+        }
+        if !doc.interfaces.is_empty() {
+            section.push(render_interface_overview(&doc));
         }
     } else {
         // Fallback: show pre-extracted world summaries + raw WIT text.
@@ -251,7 +251,7 @@ fn render_interface_row(iface: &wasm_wit_doc::InterfaceDoc) -> ListItem {
                         .text(iface.name.clone())
                     })
                     .span(|s| {
-                        s.class("text-xs text-fg-muted")
+                        s.class("text-xs text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded")
                             .text(item_counts_label(type_count, func_count))
                     })
             });
@@ -308,7 +308,7 @@ fn render_world_row(world: &wasm_wit_doc::WorldDoc) -> ListItem {
                         .text(world.name.clone())
                     })
                     .span(|s| {
-                        s.class("text-xs text-fg-muted")
+                        s.class("text-xs text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded")
                             .text(world_counts_label(import_count, export_count))
                     })
             });

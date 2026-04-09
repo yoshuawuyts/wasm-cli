@@ -245,7 +245,7 @@ async fn interface_detail(
         return not_found_response();
     };
     let display_name = format!("{namespace}:{name}");
-    let html = pages::interface::render(&display_name, &version, iface_doc);
+    let html = pages::interface::render(&display_name, &version, iface_doc, &doc);
     with_cache_control(html, "public, max-age=300")
 }
 
@@ -273,11 +273,11 @@ async fn item_detail(
 
     // Try types first, then functions.
     if let Some(ty) = iface_doc.types.iter().find(|t| t.name == item_name) {
-        let html = pages::item::render_type(&display_name, &version, &iface, ty);
+        let html = pages::item::render_type(&display_name, &version, &iface, ty, &doc);
         return with_cache_control(html, "public, max-age=300");
     }
     if let Some(func) = iface_doc.functions.iter().find(|f| f.name == item_name) {
-        let html = pages::item::render_function(&display_name, &version, &iface, func);
+        let html = pages::item::render_function(&display_name, &version, &iface, func, &doc);
         return with_cache_control(html, "public, max-age=300");
     }
 
@@ -299,7 +299,7 @@ async fn world_detail(
         return not_found_response();
     };
     let display_name = format!("{namespace}:{name}");
-    let html = pages::world::render(&display_name, &version, world_doc);
+    let html = pages::world::render(&display_name, &version, world_doc, &doc);
     with_cache_control(html, "public, max-age=300")
 }
 
