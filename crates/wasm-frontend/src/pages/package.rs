@@ -422,7 +422,7 @@ fn render_world_row(world: &wasm_wit_doc::WorldDoc) -> ListItem {
             });
         if let Some(docs) = &world.docs {
             a.paragraph(|p| {
-                p.class("text-sm text-fg-secondary mt-1 line-clamp-2")
+                p.class("text-sm leading-relaxed text-fg-secondary mt-1 line-clamp-2")
                     .text(first_sentence(docs))
             });
         }
