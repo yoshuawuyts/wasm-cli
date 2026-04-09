@@ -23,9 +23,10 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Json, Router, routing::get};
 use serde::Deserialize;
 
-use wasm_meta_registry_client::RegistryClient;
+use wasm_meta_registry_client::{KnownPackage, RegistryClient};
 
 use crate::reserved::is_reserved;
+use pages::package::ActiveTab;
 
 /// Build the application router with all frontend routes.
 fn app() -> Router {
@@ -38,6 +39,14 @@ fn app() -> Router {
         .route("/health", get(health))
         .route("/{namespace}/{name}", get(package_redirect))
         .route("/{namespace}/{name}/{version}", get(package_detail))
+        .route(
+            "/{namespace}/{name}/{version}/providers",
+            get(package_providers),
+        )
+        .route(
+            "/{namespace}/{name}/{version}/dependents",
+            get(package_dependents),
+        )
         .fallback(not_found)
 }
 
@@ -155,32 +164,91 @@ async fn package_redirect(
 async fn package_detail(
     Path((namespace, name, version)): Path<(String, String, String)>,
 ) -> Response {
-    if is_reserved(&namespace) {
-        return not_found_response();
-    }
-
     let client = RegistryClient::from_env();
-    match client.fetch_package_by_wit(&namespace, &name).await {
+    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
+        return not_found_response();
+    };
+    let version_detail = client
+        .fetch_package_version(&pkg.registry, &pkg.repository, &version)
+        .await
+        .ok()
+        .flatten();
+    let tab = ActiveTab::Docs {
+        version_detail: version_detail.as_ref(),
+    };
+    let html = pages::package::render(&pkg, &version, &tab);
+    with_cache_control(html, "public, max-age=300")
+}
+
+/// Providers tab at `/<namespace>/<name>/<version>/providers`.
+async fn package_providers(
+    Path((namespace, name, version)): Path<(String, String, String)>,
+) -> Response {
+    let client = RegistryClient::from_env();
+    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
+        return not_found_response();
+    };
+    let display_name = format!("{namespace}:{name}");
+    let exporters = client
+        .search_packages_by_export(&display_name)
+        .await
+        .unwrap_or_default();
+    let tab = ActiveTab::Providers {
+        exporters: &exporters,
+    };
+    let html = pages::package::render(&pkg, &version, &tab);
+    with_cache_control(html, "public, max-age=300")
+}
+
+/// Dependents tab at `/<namespace>/<name>/<version>/dependents`.
+async fn package_dependents(
+    Path((namespace, name, version)): Path<(String, String, String)>,
+) -> Response {
+    let client = RegistryClient::from_env();
+    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
+        return not_found_response();
+    };
+    let display_name = format!("{namespace}:{name}");
+    let importers = client
+        .search_packages_by_import(&display_name)
+        .await
+        .unwrap_or_default();
+    let tab = ActiveTab::Dependents {
+        importers: &importers,
+    };
+    let html = pages::package::render(&pkg, &version, &tab);
+    with_cache_control(html, "public, max-age=300")
+}
+
+/// Fetch a package by WIT namespace/name, validating the version exists.
+///
+/// Returns `None` (and logs) if the namespace is reserved, the package is
+/// not found, or the version tag doesn't exist.
+async fn fetch_package_or_404(
+    client: &RegistryClient,
+    namespace: &str,
+    name: &str,
+    version: &str,
+) -> Option<KnownPackage> {
+    if is_reserved(namespace) {
+        return None;
+    }
+    match client.fetch_package_by_wit(namespace, name).await {
         Ok(Some(pkg)) => {
-            if !pkg.tags.iter().any(|tag| tag == &version) {
+            if pkg.tags.iter().any(|tag| tag == version) {
+                Some(pkg)
+            } else {
                 eprintln!("wasm-frontend: version not found for {namespace}/{name}: {version}");
-                return not_found_response();
+                None
             }
-            let version_detail = client
-                .fetch_package_version(&pkg.registry, &pkg.repository, &version)
-                .await
-                .ok()
-                .flatten();
-            let html = pages::package::render(&pkg, &version, version_detail.as_ref());
-            with_cache_control(html, "public, max-age=300")
         }
         Ok(None) => {
             eprintln!("wasm-frontend: package not found: {namespace}/{name}@{version}");
-            not_found_response()
+            None
         }
         Err(e) => {
             eprintln!("wasm-frontend: API error looking up {namespace}/{name}@{version}: {e}");
-            error_response(&e.to_string())
+            None
         }
     }
 }
