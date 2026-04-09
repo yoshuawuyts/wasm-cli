@@ -157,6 +157,99 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
         animation: none;
       }}
     }}
+    /* Card entrance stagger */
+    @keyframes card-in {{
+      from {{ opacity: 0; transform: translateY(4px); }}
+      to   {{ opacity: 1; transform: translateY(0); }}
+    }}
+    .card-enter {{
+      animation: card-in 0.25s cubic-bezier(0.25, 1, 0.5, 1) both;
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .card-enter {{ animation: none; }}
+    }}
+    /* Card hover — Linear-style: border + bg shift, no vertical lift */
+    .card-lift {{
+      transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s, color 0.15s;
+    }}
+    .card-lift:hover {{
+      box-shadow: 0 1px 3px oklch(0.20 0.03 290 / 0.06);
+    }}
+    @media (prefers-color-scheme: dark) {{
+      .card-lift:hover {{
+        box-shadow: 0 1px 3px oklch(0 0 0 / 0.2);
+      }}
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .card-lift {{ transition: none; }}
+    }}
+    /* Search focus ring — Linear-style */
+    .search-glow:focus {{
+      box-shadow: 0 0 0 3px oklch(0.49 0.257 280 / 0.12);
+    }}
+    @media (prefers-color-scheme: dark) {{
+      .search-glow:focus {{
+        box-shadow: 0 0 0 3px oklch(0.70 0.16 280 / 0.2);
+      }}
+    }}
+    /* Button press */
+    .btn-press:active {{
+      transform: translateY(1px);
+    }}
+    /* Copy hint */
+    .copy-hint {{
+      cursor: pointer;
+      position: relative;
+    }}
+    .copy-hint::after {{
+      content: 'click to copy';
+      position: absolute;
+      right: -0.25rem;
+      top: 50%;
+      transform: translateX(100%) translateY(-50%);
+      font-size: 0.65rem;
+      color: var(--color-fg-faint);
+      opacity: 0;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+      pointer-events: none;
+    }}
+    .copy-hint:hover::after {{
+      opacity: 1;
+    }}
+    .copy-hint.copied::after {{
+      content: 'copied!';
+      color: var(--color-accent);
+      opacity: 1;
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .copy-hint::after {{ transition: none; }}
+    }}
+    /* Keyboard shortcut badge — inside search input, Linear-style */
+    .search-kbd {{
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.25rem;
+      height: 1.25rem;
+      border: 1px solid var(--color-border);
+      border-radius: 0.25rem;
+      font-size: 0.7rem;
+      font-family: inherit;
+      color: var(--color-fg-faint);
+      background: var(--color-surface);
+      line-height: 1;
+      pointer-events: none;
+      transition: opacity 0.1s;
+    }}
+    .search-form:focus-within .search-kbd {{
+      opacity: 0;
+      pointer-events: none;
+    }}
   </style>
 </head>
 <body class="bg-page text-fg min-h-screen flex flex-col leading-relaxed">
@@ -165,6 +258,30 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     {body_content}
   </main>
   {footer}
+  <script>
+    // Focus search on / key (developer convention)
+    document.addEventListener('keydown', function(e) {{
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {{
+        var el = document.activeElement;
+        var tag = el && el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable)) return;
+        var search = document.getElementById('search-input');
+        if (search) {{ e.preventDefault(); search.focus(); }}
+      }}
+    }});
+    // Click-to-copy for install hint
+    document.addEventListener('click', function(e) {{
+      var el = e.target.closest('.copy-hint');
+      if (!el) return;
+      var text = el.textContent || '';
+      if (navigator.clipboard) {{
+        navigator.clipboard.writeText(text).then(function() {{
+          el.classList.add('copied');
+          setTimeout(function() {{ el.classList.remove('copied'); }}, 1200);
+        }});
+      }}
+    }});
+  </script>
 </body>
 </html>"#,
         escaped_title = escaped_title,

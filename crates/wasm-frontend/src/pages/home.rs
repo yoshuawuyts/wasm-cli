@@ -68,11 +68,11 @@ fn render_hero(total: usize) -> Division {
             .text("WebAssembly Package Registry")
     });
     hero.paragraph(|p| {
-        p.class("mt-2 text-sm text-fg-muted")
+        p.class("mt-2 text-sm text-fg-muted flex items-center gap-2 flex-wrap")
             .text("Get started: ")
             .code(|code| {
                 code.class(
-                    "font-mono text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded text-xs",
+                    "font-mono text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded text-xs copy-hint",
                 )
                 .text("wasm install wasi:http")
             })
@@ -84,19 +84,28 @@ fn render_hero(total: usize) -> Division {
             .form(|form| {
                 form.action("/search")
                     .method("get")
-                    .class("flex flex-1 max-w-lg")
-                    .input(|input| {
-                        input
-                            .type_("search")
-                            .name("q")
-                            .placeholder(placeholder)
-                            .aria_label("Search packages")
-                            .autofocus(true)
-                            .class("flex-1 px-4 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none transition-colors")
+                    .class("flex flex-1 max-w-lg search-form")
+                    .division(|wrapper| {
+                        wrapper.class("flex-1 relative")
+                            .input(|input| {
+                                input
+                                    .type_("search")
+                                    .name("q")
+                                    .id("search-input")
+                                    .placeholder(placeholder)
+                                    .aria_label("Search packages")
+                                    .autofocus(true)
+                                    .class("w-full px-4 pr-8 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none search-glow transition-colors")
+                            })
+                            .span(|kbd| {
+                                kbd.class("search-kbd")
+                                    .aria_hidden(true)
+                                    .text("/")
+                            })
                     })
                     .button(|btn| {
                         btn.type_("submit")
-                            .class("px-5 py-2.5 rounded-r-md text-sm font-medium bg-accent text-white hover:bg-accent-hover border border-accent transition-colors")
+                            .class("px-5 py-2.5 rounded-r-md text-sm font-medium bg-accent text-white hover:bg-accent-hover border border-accent btn-press transition-colors")
                             .text("Search")
                     })
             })
@@ -172,8 +181,8 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
         // Package grid — card layout
         let mut grid = Division::builder();
         grid.class("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4");
-        for pkg in visible {
-            grid.push(render_card(pkg));
+        for (i, pkg) in visible.iter().enumerate() {
+            grid.push(render_card(pkg, i));
         }
         section.push(grid.build());
 
@@ -193,7 +202,8 @@ fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
 }
 
 /// Render a single package as a card.
-fn render_card(pkg: &KnownPackage) -> Division {
+fn render_card(pkg: &KnownPackage, index: usize) -> Division {
+    let delay = format!("animation-delay:{}ms", index * 50);
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
@@ -208,10 +218,12 @@ fn render_card(pkg: &KnownPackage) -> Division {
 
     match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => Division::builder()
+            .class("card-enter")
+            .style(delay.clone())
             .anchor(|a| {
                 a.href(format!("/{ns}/{name}"))
                     .class(
-                        "block border border-border rounded-lg p-4 hover:border-accent/40 hover:bg-surface transition-colors",
+                        "block border border-border rounded-lg p-4 hover:border-accent/40 hover:bg-surface card-lift",
                     )
                     .span(|s| {
                         s.class("block font-semibold text-accent truncate")
@@ -228,7 +240,9 @@ fn render_card(pkg: &KnownPackage) -> Division {
             })
             .build(),
         _ => Division::builder()
-            .class("border border-border rounded-lg p-4")
+            .class("card-enter")
+            .style(delay)
+            .class("border border-border rounded-lg p-4 card-lift")
             .span(|s| {
                 s.class("block font-semibold text-fg truncate")
                     .text(display_name)
