@@ -7,8 +7,8 @@
 
 /// Namespaces reserved for application routes.
 const RESERVED_NAMESPACES: &[&str] = &[
-    "about", "admin", "all", "api", "assets", "docs", "explore", "health", "login", "logout",
-    "new", "register", "search", "settings", "signup", "static",
+    "about", "admin", "all", "api", "assets", "docs", "engines", "explore", "health", "login",
+    "logout", "new", "register", "search", "settings", "signup", "static",
 ];
 
 /// Returns `true` if the given string is a reserved namespace.
@@ -37,6 +37,12 @@ mod tests {
     #[test]
     fn health_is_reserved() {
         assert!(is_reserved("health"));
+    }
+
+    // r[verify frontend.routing.reserved-namespaces]
+    #[test]
+    fn engines_is_reserved() {
+        assert!(is_reserved("engines"));
     }
 
     // r[verify frontend.routing.reserved-namespaces]

@@ -12,27 +12,40 @@ use axum::{Json, Router, routing::get};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+use wasm_meta_registry_types::HostEngine;
 use wasm_package_manager::manager::Manager;
 
-/// Shared application state wrapping a `Manager` in a `std::sync::Mutex`.
+/// Shared application state.
 ///
-/// This is safe because all handler methods on `Manager` are synchronous
-/// (no `.await` while holding the lock).
+/// The manager is wrapped in a mutex because all manager calls in handlers
+/// are synchronous (no `.await` while holding the lock).
 ///
 /// # Example
 ///
 /// ```no_run
-/// use wasm_meta_registry::server::AppState;
+/// use wasm_meta_registry::server::{AppState, StateData};
 /// use wasm_package_manager::manager::Manager;
 /// use std::sync::{Arc, Mutex};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let manager = Manager::open().await?;
-/// let state: AppState = Arc::new(Mutex::new(manager));
+/// let state: AppState = Arc::new(StateData {
+///     manager: Mutex::new(manager),
+///     engines: vec![],
+/// });
 /// # Ok(())
 /// # }
 /// ```
-pub type AppState = Arc<std::sync::Mutex<Manager>>;
+#[derive(Debug)]
+pub struct StateData {
+    /// Package manager used by search and package endpoints.
+    pub manager: std::sync::Mutex<Manager>,
+    /// Host runtimes and the interfaces they support.
+    pub engines: Vec<HostEngine>,
+}
+
+/// Shared application state.
+pub type AppState = Arc<StateData>;
 
 /// Query parameters for search.
 ///
@@ -95,12 +108,16 @@ fn default_limit() -> u32 {
 ///
 /// ```no_run
 /// use wasm_meta_registry::router;
+/// use wasm_meta_registry::server::StateData;
 /// use wasm_package_manager::manager::Manager;
 /// use std::sync::{Arc, Mutex};
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let manager = Manager::open().await?;
-/// let state = Arc::new(Mutex::new(manager));
+/// let state = Arc::new(StateData {
+///     manager: Mutex::new(manager),
+///     engines: vec![],
+/// });
 /// let app = router(state);
 ///
 /// let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
@@ -128,6 +145,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/search/by-export", get(search_by_export))
         .route("/v1/packages", get(list_packages))
         .route("/v1/packages/recent", get(list_recent_packages))
+        .route("/v1/engines", get(list_engines))
         .nest("/v1/packages/detail", package_detail_routes)
         .nest("/v1/packages/versions", package_versions_routes)
         .route(
@@ -147,10 +165,11 @@ async fn health() -> impl IntoResponse {
 
 /// Search packages by query string.
 async fn search(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<SearchParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     let packages = manager.search_packages(&params.q, params.offset, params.limit)?;
@@ -159,10 +178,11 @@ async fn search(
 
 /// List all known packages.
 async fn list_packages(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<ListParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     let packages = manager.list_known_packages(params.offset, params.limit)?;
@@ -171,24 +191,31 @@ async fn list_packages(
 
 /// List recently updated known packages.
 async fn list_recent_packages(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<ListParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     let packages = manager.list_recent_known_packages(params.offset, params.limit)?;
     Ok(Json(packages))
 }
 
+/// List host runtimes and their declared interface support.
+async fn list_engines(State(state): State<AppState>) -> impl IntoResponse {
+    Json(state.engines.clone())
+}
+
 /// Get a specific package by registry and repository.
 async fn get_package(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Path((registry, repository)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     // Wildcard captures include a leading `/`; strip it.
     let repository = repository.trim_start_matches('/');
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     match manager.get_known_package(&registry, repository)? {
@@ -213,10 +240,11 @@ pub struct InterfaceSearchParams {
 /// Search packages by imported interface.
 // r[verify server.search.by-import]
 async fn search_by_import(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<InterfaceSearchParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     let packages =
@@ -227,10 +255,11 @@ async fn search_by_import(
 /// Search packages by exported interface.
 // r[verify server.search.by-export]
 async fn search_by_export(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Query(params): Query<InterfaceSearchParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     let packages =
@@ -241,11 +270,12 @@ async fn search_by_export(
 /// Get full package detail including all versions and metadata.
 // r[verify server.detail]
 async fn get_package_detail_nested(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Path((registry, repository)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let repository = repository.trim_start_matches('/');
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     match manager.get_package_detail(&registry, repository)? {
@@ -257,11 +287,12 @@ async fn get_package_detail_nested(
 /// List all versions of a package.
 // r[verify server.versions.list]
 async fn get_package_versions_nested(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Path((registry, repository)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let repository = repository.trim_start_matches('/');
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     match manager.get_package_detail(&registry, repository)? {
@@ -273,11 +304,12 @@ async fn get_package_versions_nested(
 /// Get a specific version of a package by tag.
 // r[verify server.versions.get]
 async fn get_package_version_reordered(
-    State(manager): State<AppState>,
+    State(state): State<AppState>,
     Path((registry, version, repository)): Path<(String, String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let repository = repository.trim_start_matches('/');
-    let manager = manager
+    let manager = state
+        .manager
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     match manager.get_package_version(&registry, repository, &version)? {
@@ -309,13 +341,20 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
 mod tests {
     use super::*;
     use std::sync::Arc;
+    use wasm_meta_registry_types::HostInterfaceSupport;
 
     // r[verify server.health]
     /// Verify the server starts, binds to a port, and responds to `/v1/health`.
     #[tokio::test]
     async fn server_starts_and_listens() {
-        let manager = Manager::open().await.expect("failed to open manager");
-        let state = Arc::new(std::sync::Mutex::new(manager));
+        let tempdir = tempfile::tempdir().expect("failed to create tempdir");
+        let manager = Manager::open_at(tempdir.path())
+            .await
+            .expect("failed to open manager");
+        let state = Arc::new(StateData {
+            manager: std::sync::Mutex::new(manager),
+            engines: vec![],
+        });
         let app = router(state);
 
         // Bind to port 0 so the OS assigns a random available port.
@@ -338,6 +377,45 @@ mod tests {
         assert_eq!(body, serde_json::json!({ "status": "ok" }));
 
         // Clean up.
+        server.abort();
+    }
+
+    // r[verify server.engines]
+    #[tokio::test]
+    async fn engines_endpoint_returns_configured_engines() {
+        let tempdir = tempfile::tempdir().expect("failed to create tempdir");
+        let manager = Manager::open_at(tempdir.path())
+            .await
+            .expect("failed to open manager");
+        let state = Arc::new(StateData {
+            manager: std::sync::Mutex::new(manager),
+            engines: vec![HostEngine {
+                name: "wasmtime".to_string(),
+                homepage: Some("https://wasmtime.dev".to_string()),
+                interfaces: vec![HostInterfaceSupport {
+                    interface: "wasi:http".to_string(),
+                    versions: vec!["0.2.0".to_string()],
+                }],
+            }],
+        });
+        let app = router(state);
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("failed to bind listener");
+        let addr = listener.local_addr().expect("failed to get local addr");
+
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("server error");
+        });
+
+        let url = format!("http://{addr}/v1/engines");
+        let resp = reqwest::get(&url).await.expect("request failed");
+        assert_eq!(resp.status(), 200);
+        let body: Vec<HostEngine> = resp.json().await.expect("invalid json");
+        assert_eq!(body.len(), 1);
+        assert_eq!(body[0].name, "wasmtime");
+
         server.abort();
     }
 }

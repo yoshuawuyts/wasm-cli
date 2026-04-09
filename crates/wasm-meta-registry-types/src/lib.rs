@@ -40,6 +40,59 @@ impl std::fmt::Display for PackageKind {
     }
 }
 
+/// A host runtime and the WIT interfaces it supports.
+///
+/// # Example
+///
+/// ```rust
+/// use wasm_meta_registry_types::{HostEngine, HostInterfaceSupport};
+///
+/// let engine = HostEngine {
+///     name: "wasmtime".into(),
+///     homepage: Some("https://wasmtime.dev".into()),
+///     interfaces: vec![HostInterfaceSupport {
+///         interface: "wasi:http".into(),
+///         versions: vec!["0.2.0".into()],
+///     }],
+/// };
+///
+/// assert_eq!(engine.name, "wasmtime");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct HostEngine {
+    /// Human-readable engine name.
+    pub name: String,
+    /// Optional project homepage URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub homepage: Option<String>,
+    /// Interface support entries for this engine.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub interfaces: Vec<HostInterfaceSupport>,
+}
+
+/// Declared support for a specific WIT interface and versions.
+///
+/// # Example
+///
+/// ```rust
+/// use wasm_meta_registry_types::HostInterfaceSupport;
+///
+/// let support = HostInterfaceSupport {
+///     interface: "wasi:cli".into(),
+///     versions: vec!["0.2.0".into()],
+/// };
+///
+/// assert_eq!(support.interface, "wasi:cli");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct HostInterfaceSupport {
+    /// WIT package identifier (e.g. `"wasi:http"`).
+    pub interface: String,
+    /// Supported versions for this interface.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub versions: Vec<String>,
+}
+
 /// A declared dependency on another WIT package, as returned in the
 /// `/v1/packages` response.
 ///

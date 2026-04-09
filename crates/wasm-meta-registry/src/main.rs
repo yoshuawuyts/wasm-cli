@@ -7,6 +7,7 @@ use clap::Parser;
 use tracing::{error, info};
 use wasm_package_manager::manager::Manager;
 
+use wasm_meta_registry::server::StateData;
 use wasm_meta_registry::{Config, Indexer, router};
 
 /// An HTTP server that indexes OCI registries for WebAssembly package
@@ -52,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
     info!(
         bind = %config.bind,
         packages = config.packages.len(),
+        engines = config.engines.len(),
         sync_interval = config.sync_interval,
         data_dir = %data_dir.display(),
         "Starting wasm-meta-registry"
@@ -59,7 +61,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Open the Manager for the HTTP server with its own data directory
     let server_manager = Manager::open_at(&data_dir).await?;
-    let state = Arc::new(std::sync::Mutex::new(server_manager));
+    let state = Arc::new(StateData {
+        manager: std::sync::Mutex::new(server_manager),
+        engines: config.engines.clone(),
+    });
 
     // Start background indexer on a dedicated thread (Manager is !Sync)
     let indexer_config = config.clone();

@@ -36,6 +36,7 @@ fn app() -> Router {
         .route("/search", get(search))
         .route("/about", get(about))
         .route("/docs", get(docs))
+        .route("/engines", get(engines))
         .route("/health", get(health))
         .route("/{namespace}/{name}", get(package_redirect))
         .route("/{namespace}/{name}/{version}", get(package_detail))
@@ -123,6 +124,13 @@ async fn about() -> Response {
 async fn docs() -> Response {
     let html = pages::docs::render();
     with_cache_control(html, "public, max-age=3600")
+}
+
+/// Host runtime support page.
+async fn engines() -> Response {
+    let client = RegistryClient::from_env();
+    let html = pages::engines::render(&client).await;
+    with_cache_control(html, "public, max-age=300")
 }
 
 // r[impl frontend.pages.package-redirect]

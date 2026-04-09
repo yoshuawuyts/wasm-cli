@@ -19,6 +19,7 @@ registry/
   ba.toml
   wasi.toml
   microsoft.toml
+  engines.toml
 ```
 
 Each file defines a `[namespace]` table and zero or more `[[component]]` and
@@ -58,6 +59,18 @@ repository = "sample-wasi-http-rust/sample-wasi-http-rust"
 
 The filename (without `.toml`) must match the `namespace.name` field inside.
 
+Optionally, add an `engines.toml` file to track host runtime support:
+
+```toml
+[[engine]]
+name = "wasmtime"
+homepage = "https://wasmtime.dev"
+
+[[engine.interfaces]]
+interface = "wasi:http"
+versions = ["0.2.0"]
+```
+
 ## Usage
 
 ```sh
@@ -70,6 +83,7 @@ wasm-meta-registry registry/ --sync-interval 3600 --bind 0.0.0.0:8080
 - `GET /v1/search?q={query}&offset={n}&limit={n}` — Search packages
 - `GET /v1/packages?offset={n}&limit={n}` — List all packages
 - `GET /v1/packages/{registry}/{repository}` — Get a specific package
+- `GET /v1/engines` — List host runtimes and supported interfaces
 
 ## License
 
