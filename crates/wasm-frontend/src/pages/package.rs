@@ -12,14 +12,17 @@ use crate::layout;
 
 /// Which tab is currently active on the package detail page.
 pub(crate) enum ActiveTab<'a> {
-    /// WIT definition, worlds, and dependencies.
+    /// WIT definition and worlds.
     Docs {
         version_detail: Option<&'a PackageVersion>,
     },
-    /// Packages that export/implement this interface.
-    Exporters { exporters: &'a [KnownPackage] },
-    /// Packages that import/consume this interface.
-    Importers { importers: &'a [KnownPackage] },
+    /// Forward dependencies of this package.
+    Dependencies,
+    /// Reverse dependencies: packages that import or export this interface.
+    Dependents {
+        importers: &'a [KnownPackage],
+        exporters: &'a [KnownPackage],
+    },
 }
 
 /// Render the package detail page for a given package and version.
@@ -563,6 +566,125 @@ fn render_dependents_panel(importers: &[KnownPackage], exporters: &[KnownPackage
 
 /// Render a filterable package list panel.
 fn render_filterable_package_list(id: &str, packages: &[&KnownPackage], visible: bool) -> Division {
+    let mut div = Division::builder();
+    div.id(id.to_owned());
+    if !visible {
+        div.style("display:none");
+    }
+
+    if pkg.dependencies.is_empty() {
+        div.paragraph(|p| {
+            p.class("text-fg-muted text-sm italic")
+                .text("No dependencies")
+        });
+        return div.build();
+    }
+
+    let mut ul = UnorderedList::builder();
+    ul.class("space-y-2");
+    for dep in &pkg.dependencies {
+        let mut li = ListItem::builder();
+        li.class("text-sm font-mono");
+        li.push(
+            Span::builder()
+                .class("text-accent")
+                .push(
+                    html::inline_text::Anchor::builder()
+                        .href(format!("/{}", dep.package.replace(':', "/")))
+                        .class("text-accent hover:underline font-medium")
+                        .text(dep.package.clone())
+                        .build(),
+                )
+                .build(),
+        );
+        if let Some(v) = &dep.version {
+            li.push(
+                Span::builder()
+                    .class("text-fg-faint ml-1")
+                    .text(format!("@ {v}"))
+                    .build(),
+            );
+        }
+        ul.push(li.build());
+    }
+    div.push(ul.build());
+    div.build()
+}
+
+/// Render the dependents panel with All / Importers / Exporters filter.
+fn render_dependents_panel(importers: &[KnownPackage], exporters: &[KnownPackage]) -> Division {
+    let active_class = "text-accent border-b-2 border-accent font-semibold";
+    let inactive_class = "text-fg-muted hover:text-fg";
+    let filter_base = "px-3 py-1.5 text-xs cursor-pointer transition-colors";
+
+    let mut container = Division::builder();
+
+    // Sub-filter bar
+    container.division(|div| {
+        div.class("flex border-b border-border mb-4")
+            .button(|btn| {
+                btn.id("filter-all")
+                    .class(format!("{filter_base} {active_class}"))
+                    .text(format!("All ({})", importers.len() + exporters.len()))
+            })
+            .button(|btn| {
+                btn.id("filter-importers")
+                    .class(format!("{filter_base} {inactive_class}"))
+                    .text(format!("Importers ({})", importers.len()))
+            })
+            .button(|btn| {
+                btn.id("filter-exporters")
+                    .class(format!("{filter_base} {inactive_class}"))
+                    .text(format!("Exporters ({})", exporters.len()))
+            })
+    });
+
+    // All panel
+    let mut all: Vec<&KnownPackage> = importers.iter().chain(exporters.iter()).collect();
+    all.sort_by(|a, b| a.repository.cmp(&b.repository));
+    all.dedup_by(|a, b| a.repository == b.repository);
+    container.push(render_filterable_package_list("list-all", &all, true));
+
+    // Importers panel
+    let importer_refs: Vec<&KnownPackage> = importers.iter().collect();
+    container.push(render_filterable_package_list(
+        "list-importers",
+        &importer_refs,
+        false,
+    ));
+
+    // Exporters panel
+    let exporter_refs: Vec<&KnownPackage> = exporters.iter().collect();
+    container.push(render_filterable_package_list(
+        "list-exporters",
+        &exporter_refs,
+        false,
+    ));
+
+    // Filter switching script
+    let script = format!(
+        "(function(){{\
+        var filters=[['filter-all','list-all'],['filter-importers','list-importers'],['filter-exporters','list-exporters']];\
+        var active='{active_class}',inactive='{inactive_class}',base='{filter_base}';\
+        filters.forEach(function(f){{\
+        document.getElementById(f[0]).addEventListener('click',function(){{\
+        filters.forEach(function(o){{\
+        document.getElementById(o[0]).className=base+' '+(o[0]===f[0]?active:inactive);\
+        document.getElementById(o[1]).style.display=o[0]===f[0]?'':'none'\
+        }})}})}})\
+        }})()"
+    );
+    container.script(|s| s.text(script));
+
+    container.build()
+}
+
+/// Render a filterable package list panel.
+fn render_filterable_package_list(
+    id: &str,
+    packages: &[&KnownPackage],
+    visible: bool,
+) -> Division {
     let mut div = Division::builder();
     div.id(id.to_owned());
     if !visible {

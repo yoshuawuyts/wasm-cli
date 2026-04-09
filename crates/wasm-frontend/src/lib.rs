@@ -41,12 +41,12 @@ fn app() -> Router {
         .route("/{namespace}/{name}", get(package_redirect))
         .route("/{namespace}/{name}/{version}", get(package_detail))
         .route(
-            "/{namespace}/{name}/{version}/exporters",
-            get(package_exporters),
+            "/{namespace}/{name}/{version}/dependencies",
+            get(package_dependencies),
         )
         .route(
-            "/{namespace}/{name}/{version}/importers",
-            get(package_importers),
+            "/{namespace}/{name}/{version}/dependents",
+            get(package_dependents),
         )
         .route(
             "/{namespace}/{name}/{version}/interface/{iface}",
@@ -195,8 +195,8 @@ async fn package_detail(
     with_cache_control(html, "public, max-age=300")
 }
 
-/// Exporters tab at `/<namespace>/<name>/<version>/exporters`.
-async fn package_exporters(
+/// Dependencies tab at `/<namespace>/<name>/<version>/dependencies`.
+async fn package_dependencies(
     Path((namespace, name, version)): Path<(String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -209,8 +209,8 @@ async fn package_exporters(
     with_cache_control(html, "public, max-age=300")
 }
 
-/// Importers tab at `/<namespace>/<name>/<version>/importers`.
-async fn package_importers(
+/// Dependents tab at `/<namespace>/<name>/<version>/dependents`.
+async fn package_dependents(
     Path((namespace, name, version)): Path<(String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -224,8 +224,13 @@ async fn package_importers(
         .search_packages_by_import(&display_name)
         .await
         .unwrap_or_default();
-    let tab = ActiveTab::Importers {
+    let exporters = client
+        .search_packages_by_export(&display_name)
+        .await
+        .unwrap_or_default();
+    let tab = ActiveTab::Dependents {
         importers: &importers,
+        exporters: &exporters,
     };
     let html = pages::package::render(&pkg, &version, &tab);
     with_cache_control(html, "public, max-age=300")
