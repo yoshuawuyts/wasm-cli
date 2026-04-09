@@ -644,7 +644,13 @@ impl Manager {
         self.store
             .search_known_packages(query, offset, limit)?
             .into_iter()
-            .map(|raw| self.with_dependencies(KnownPackage::from(raw)))
+            .map(|raw| {
+                let mut pkg = KnownPackage::from(raw);
+                pkg.dependencies = self
+                    .store
+                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
+                Ok(pkg)
+            })
             .collect()
     }
 
@@ -659,7 +665,13 @@ impl Manager {
         self.store
             .search_known_packages_by_import(interface, offset, limit)?
             .into_iter()
-            .map(|raw| self.with_dependencies(KnownPackage::from(raw)))
+            .map(|raw| {
+                let mut pkg = KnownPackage::from(raw);
+                pkg.dependencies = self
+                    .store
+                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
+                Ok(pkg)
+            })
             .collect()
     }
 
@@ -674,7 +686,13 @@ impl Manager {
         self.store
             .search_known_packages_by_export(interface, offset, limit)?
             .into_iter()
-            .map(|raw| self.with_dependencies(KnownPackage::from(raw)))
+            .map(|raw| {
+                let mut pkg = KnownPackage::from(raw);
+                pkg.dependencies = self
+                    .store
+                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
+                Ok(pkg)
+            })
             .collect()
     }
 
