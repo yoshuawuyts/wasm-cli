@@ -52,6 +52,9 @@ pub(crate) fn render_type(
         div
     });
 
+    // WIT definition block
+    body.push(render_type_definition(ty));
+
     // Grid: main content + sidebar
     let mut grid = Division::builder();
     grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
@@ -114,6 +117,9 @@ pub(crate) fn render_function(
         div
     });
 
+    // WIT definition block
+    body.push(render_function_definition(func));
+
     // Grid: main content + sidebar
     let mut grid = Division::builder();
     grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
@@ -166,6 +172,98 @@ fn render_breadcrumb(
         .span(|s| s.class("mx-1").text("/"))
         .span(|s| s.class("text-fg font-medium").text(item_name.to_owned()))
         .build()
+}
+
+/// Render the WIT definition code block for a type.
+fn render_type_definition(ty: &TypeDoc) -> Division {
+    let wit = format_type_as_wit(ty);
+    Division::builder()
+        .class("mb-6")
+        .push(
+            html::text_content::PreformattedText::builder()
+                .class("bg-surface-muted border border-border rounded-lg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
+                .code(|c| c.text(wit))
+                .build(),
+        )
+        .build()
+}
+
+/// Render the WIT definition code block for a function.
+fn render_function_definition(func: &FunctionDoc) -> Division {
+    let sig = format!(
+        "{}: func({}){};",
+        func.name,
+        func.params
+            .iter()
+            .filter(|p| p.name != "self")
+            .map(|p| format!("{}: {}", p.name, format_type_ref_short(&p.ty)))
+            .collect::<Vec<_>>()
+            .join(", "),
+        func.result
+            .as_ref()
+            .map(|r| format!(" -> {}", format_type_ref_short(r)))
+            .unwrap_or_default()
+    );
+    Division::builder()
+        .class("mb-6")
+        .push(
+            html::text_content::PreformattedText::builder()
+                .class("bg-surface-muted border border-border rounded-lg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
+                .code(|c| c.text(sig))
+                .build(),
+        )
+        .build()
+}
+
+/// Format a type definition as WIT source text.
+fn format_type_as_wit(ty: &TypeDoc) -> String {
+    use std::fmt::Write;
+
+    match &ty.kind {
+        TypeKind::Record { fields } => {
+            let mut s = format!("record {} {{\n", ty.name);
+            for f in fields {
+                let _ = writeln!(s, "    {}: {},", f.name, format_type_ref_short(&f.ty));
+            }
+            s.push('}');
+            s
+        }
+        TypeKind::Variant { cases } => {
+            let mut s = format!("variant {} {{\n", ty.name);
+            for c in cases {
+                match &c.ty {
+                    Some(t) => {
+                        let _ = writeln!(s, "    {}({}),", c.name, format_type_ref_short(t));
+                    }
+                    None => {
+                        let _ = writeln!(s, "    {},", c.name);
+                    }
+                }
+            }
+            s.push('}');
+            s
+        }
+        TypeKind::Enum { cases } => {
+            let mut s = format!("enum {} {{\n", ty.name);
+            for c in cases {
+                let _ = writeln!(s, "    {},", c.name);
+            }
+            s.push('}');
+            s
+        }
+        TypeKind::Flags { flags } => {
+            let mut s = format!("flags {} {{\n", ty.name);
+            for f in flags {
+                let _ = writeln!(s, "    {},", f.name);
+            }
+            s.push('}');
+            s
+        }
+        TypeKind::Resource { .. } => format!("resource {};", ty.name),
+        TypeKind::Alias(ty_ref) => {
+            format!("type {} = {};", ty.name, format_type_ref_short(ty_ref))
+        }
+    }
 }
 
 /// Render the body for a type based on its kind.
