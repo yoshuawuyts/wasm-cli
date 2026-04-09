@@ -422,7 +422,7 @@ fn render_world_row(world: &wasm_wit_doc::WorldDoc) -> ListItem {
 fn render_raw_wit(wit_text: &str) -> Division {
     Division::builder()
         .heading_2(|h2| {
-            h2.class("text-lg font-semibold mb-3")
+            h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
                 .text("WIT Definition")
         })
         .push(
@@ -438,19 +438,18 @@ fn render_raw_wit(wit_text: &str) -> Division {
 /// when the WIT text cannot be parsed into a rich document).
 fn render_world_summaries(detail: &PackageVersion) -> Division {
     let mut container = Division::builder();
-    container.class("space-y-6");
+    container.class("space-y-8");
 
     for world in &detail.worlds {
         container.division(|world_div| {
-            world_div.class("space-y-3");
             world_div.heading_2(|h2| {
-                h2.class("text-lg font-semibold")
+                h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
                     .text(format!("world {}", world.name))
             });
 
             if let Some(desc) = &world.description {
                 world_div.paragraph(|p| {
-                    p.class("text-fg-secondary text-sm").text(desc.clone())
+                    p.class("text-fg-secondary text-sm mb-3").text(desc.clone())
                 });
             }
 
@@ -473,18 +472,19 @@ fn render_iface_ref_list(
     interfaces: &[wasm_meta_registry_client::WitInterfaceRef],
 ) -> Division {
     let mut div = Division::builder();
+    div.class("mb-4");
     div.heading_3(|h3| {
-        h3.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-2")
+        h3.class("text-xs font-medium text-fg-muted mb-2")
             .text(label.to_owned())
     });
 
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-1 ml-1");
+    ul.class("divide-y divide-border/50");
     for iface in interfaces {
         let display = format_iface_ref(iface);
         ul.list_item(|li| {
-            li.class("text-sm font-mono")
-                .span(|s| s.class("text-accent").text(display))
+            li.class("py-1.5")
+                .span(|s| s.class("text-sm font-mono text-accent").text(display))
         });
     }
     div.push(ul.build());
