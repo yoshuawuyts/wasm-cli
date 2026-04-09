@@ -54,13 +54,7 @@ fn render_error(_err: &ApiError) -> String {
 }
 
 /// Render the hero area with heading, search form, CTA, and quick-install hint.
-fn render_hero(total: usize) -> Division {
-    let placeholder = if total > 0 {
-        format!("Search {total} components\u{2026}")
-    } else {
-        "Search components\u{2026}".to_owned()
-    };
-
+fn render_hero(_total: usize) -> Division {
     let mut hero = Division::builder();
     hero.class("pt-8 pb-6");
 
@@ -88,10 +82,24 @@ fn render_hero(total: usize) -> Division {
                                     .type_("search")
                                     .name("q")
                                     .id("search-input")
-                                    .placeholder(placeholder)
                                     .aria_label("Search components and interfaces")
                                     .autofocus(true)
-                                    .class("w-full px-4 pr-8 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none search-glow transition-colors")
+                                    .class("w-full px-4 pr-8 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg focus:border-accent focus:outline-none search-glow transition-colors")
+                            })
+                            // Carousel placeholder overlay
+                            .span(|overlay| {
+                                overlay
+                                    .id("search-carousel")
+                                    .class("search-carousel")
+                                    .aria_hidden(true)
+                                    .span(|prefix| {
+                                        prefix.text("Search ".to_owned())
+                                    })
+                                    .span(|word| {
+                                        word.id("carousel-word")
+                                            .class("carousel-word")
+                                            .text("components\u{2026}")
+                                    })
                             })
                             .span(|kbd| {
                                 kbd.class("search-kbd")
@@ -227,8 +235,24 @@ fn render_card_grid(container: &mut DivisionBuilder, packages: &[&KnownPackage])
 /// Icon for a package kind.
 fn kind_icon(kind: Option<wasm_meta_registry_client::PackageKind>) -> &'static str {
     match kind {
-        Some(wasm_meta_registry_client::PackageKind::Interface) => "⬡",
-        _ => "◈",
+        Some(wasm_meta_registry_client::PackageKind::Interface) => "\u{2b21}",
+        _ => "\u{25c8}",
+    }
+}
+
+/// CSS class for the kind-colored left border.
+fn kind_card_class(kind: Option<wasm_meta_registry_client::PackageKind>) -> &'static str {
+    match kind {
+        Some(wasm_meta_registry_client::PackageKind::Interface) => "card-interface",
+        _ => "card-component",
+    }
+}
+
+/// Tailwind color class for the kind badge icon.
+fn kind_icon_color(kind: Option<wasm_meta_registry_client::PackageKind>) -> &'static str {
+    match kind {
+        Some(wasm_meta_registry_client::PackageKind::Interface) => "text-wit-iface",
+        _ => "text-accent",
     }
 }
 
@@ -262,8 +286,15 @@ fn render_card(pkg: &KnownPackage, index: usize) -> Division {
                         s.class("flex items-start justify-between gap-2")
                             .span(|name_span| {
                                 name_span
-                                    .class("font-semibold text-accent truncate")
-                                    .text(display_name)
+                                    .class("font-semibold truncate")
+                                    .span(|ns_span| {
+                                        ns_span
+                                            .class("text-fg-muted")
+                                            .text(format!("{ns}:"))
+                                    })
+                                    .span(|pkg_span| {
+                                        pkg_span.class("text-accent").text(name.clone())
+                                    })
                             })
                             .span(|badge| {
                                 badge

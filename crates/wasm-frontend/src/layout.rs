@@ -174,6 +174,13 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     @media (prefers-reduced-motion: reduce) {{
       .card-lift {{ transition: none; }}
     }}
+    /* Card kind variants — thin left border for categorization */
+    .card-interface {{
+      border-left: 2px solid var(--color-wit-iface);
+    }}
+    .card-component {{
+      border-left: 2px solid var(--color-accent);
+    }}
     /* Search focus ring — Linear-style */
     .search-glow:focus {{
       box-shadow: 0 0 0 3px oklch(0.49 0.257 280 / 0.12);
@@ -240,6 +247,36 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     .search-form:focus-within .search-kbd {{
       opacity: 0;
       pointer-events: none;
+    }}
+    /* Search carousel placeholder */
+    .search-carousel {{
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      color: var(--color-fg-faint);
+      pointer-events: none;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 0.15s;
+    }}
+    .carousel-word {{
+      display: inline-block;
+      transition: opacity 0.3s, transform 0.3s;
+    }}
+    .carousel-word.out {{
+      opacity: 0;
+      transform: translateY(-0.5em);
+    }}
+    .carousel-word.in {{
+      opacity: 1;
+      transform: translateY(0);
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .carousel-word {{
+        transition: none;
+      }}
     }}
     /* Tab buttons */
     .tab-btn {{
@@ -313,6 +350,34 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
         }}
       }});
     }});
+    // Search placeholder carousel
+    (function() {{
+      var words = ['components\u2026', 'interfaces\u2026', 'libraries\u2026'];
+      var el = document.getElementById('carousel-word');
+      var overlay = document.getElementById('search-carousel');
+      var input = document.getElementById('search-input');
+      if (!el || !overlay || !input) return;
+      var idx = 0;
+      var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      function hide() {{ overlay.style.opacity = input.value ? '0' : ''; }}
+      input.addEventListener('input', hide);
+      input.addEventListener('focus', hide);
+      input.addEventListener('blur', hide);
+      hide();
+      setInterval(function() {{
+        if (input.value) return;
+        el.classList.remove('in');
+        el.classList.add('out');
+        var swapDelay = reducedMotion ? 0 : 300;
+        setTimeout(function() {{
+          idx = (idx + 1) % words.length;
+          el.textContent = words[idx];
+          el.classList.remove('out');
+          el.classList.add('in');
+        }}, swapDelay);
+      }}, 3000);
+      el.classList.add('in');
+    }})();
   </script>
 </body>
 </html>"#,
