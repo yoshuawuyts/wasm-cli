@@ -21,14 +21,7 @@ versions = ["0.2.0"]
 [[engine]]
 name = "wasmer"
 homepage = "https://wasmer.io"
-
-[[engine.interfaces]]
-interface = "wasi:cli"
-versions = ["0.2.0"]
-
-[[engine.interfaces]]
-interface = "wasi:http"
-versions = ["0.2.0"]
+notes = "Does not currently support components."
 
 [[engine]]
 name = "jco"
