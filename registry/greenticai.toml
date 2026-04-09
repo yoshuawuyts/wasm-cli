@@ -1,0 +1,11 @@
+[namespace]
+name = "greenticai"
+registry = "ghcr.io/greenticai"
+
+[[component]]
+name = "component-templates"
+repository = "components/templates"
+
+[[component]]
+name = "greentic-mcp-adapter"
+repository = "greentic-mcp-adapter"

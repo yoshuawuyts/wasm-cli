@@ -1,0 +1,148 @@
+[namespace]
+name = "componentized"
+registry = "ghcr.io/componentized"
+
+# componentized/valkey - WIT interface
+[[interface]]
+name = "valkey"
+repository = "valkey/interface"
+
+# componentized/services - WIT interface
+[[interface]]
+name = "services"
+repository = "services/interface"
+
+# componentized/valkey - components
+[[component]]
+name = "valkey-cli"
+repository = "valkey/cli"
+
+[[component]]
+name = "valkey-ops"
+repository = "valkey/valkey-ops"
+
+[[component]]
+name = "valkey-client"
+repository = "valkey/valkey-client"
+
+[[component]]
+name = "keyvalue-to-valkey"
+repository = "valkey/keyvalue-to-valkey"
+
+[[component]]
+name = "sample-http-incrementor"
+repository = "valkey/sample-http-incrementor"
+
+# componentized/logging - components
+[[component]]
+name = "logging-levels"
+repository = "logging/levels"
+
+[[component]]
+name = "logging-to-stdout"
+repository = "logging/to-stdout"
+
+# componentized/filesystem - components
+[[component]]
+name = "filesystem-chroot"
+repository = "filesystem/chroot"
+
+[[component]]
+name = "filesystem-readonly"
+repository = "filesystem/readonly"
+
+[[component]]
+name = "filesystem-tracing"
+repository = "filesystem/tracing"
+
+# componentized/cli - components
+[[component]]
+name = "cli-stderr-to-stdout"
+repository = "cli/stderr-to-stdout"
+
+[[component]]
+name = "cli-stdout-to-stderr"
+repository = "cli/stdout-to-stderr"
+
+# componentized/config - components
+[[component]]
+name = "config-defaults"
+repository = "config/defaults"
+
+[[component]]
+name = "config-empty"
+repository = "config/empty"
+
+[[component]]
+name = "config-from-environment"
+repository = "config/from-environment"
+
+[[component]]
+name = "config-overlay"
+repository = "config/overlay"
+
+[[component]]
+name = "config-remap"
+repository = "config/remap"
+
+[[component]]
+name = "config-scope"
+repository = "config/scope"
+
+# componentized/static-config - component
+[[component]]
+name = "static-config-factory"
+repository = "static-config/factory"
+
+# componentized/services - components
+[[component]]
+name = "services-credential-config"
+repository = "services/credential-config"
+
+[[component]]
+name = "services-keyvalue-credential-admin"
+repository = "services/keyvalue-credential-admin"
+
+[[component]]
+name = "services-keyvalue-credential-store"
+repository = "services/keyvalue-credential-store"
+
+[[component]]
+name = "services-lifecycle-host-cli"
+repository = "services/lifecycle-host-cli"
+
+[[component]]
+name = "services-lifecycle-host-http"
+repository = "services/lifecycle-host-http"
+
+[[component]]
+name = "services-filesystem-lifecycle"
+repository = "services/filesystem-lifecycle"
+
+[[component]]
+name = "services-filesystem-credential-store"
+repository = "services/filesystem-credential-store"
+
+[[component]]
+name = "services-filesystem-credential-admin"
+repository = "services/filesystem-credential-admin"
+
+[[component]]
+name = "services-valkey-lifecycle"
+repository = "services/valkey-lifecycle"
+
+[[component]]
+name = "services-valkey-credential-store"
+repository = "services/valkey-credential-store"
+
+[[component]]
+name = "services-valkey-credential-admin"
+repository = "services/valkey-credential-admin"
+
+[[component]]
+name = "services-webhook-credential-admin"
+repository = "services/webhook-credential-admin"
+
+[[component]]
+name = "services-webhook-credential-store"
+repository = "services/webhook-credential-store"
