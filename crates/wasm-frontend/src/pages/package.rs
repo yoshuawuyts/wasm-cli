@@ -798,6 +798,24 @@ fn format_date(iso: &str) -> String {
     iso.split('T').next().unwrap_or(iso).to_owned()
 }
 
+/// Format a byte count as a human-readable size string.
+fn format_size(bytes: i64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+
+    let bytes = bytes as f64;
+    if bytes < KIB {
+        format!("{bytes} B")
+    } else if bytes < MIB {
+        format!("{:.1} KiB", bytes / KIB)
+    } else if bytes < GIB {
+        format!("{:.1} MiB", bytes / MIB)
+    } else {
+        format!("{:.1} GiB", bytes / GIB)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
