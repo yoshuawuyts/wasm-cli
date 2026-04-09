@@ -20,6 +20,7 @@ html = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 semver = { workspace = true }
+wasm-wit-doc = { workspace = true }
 wstd = { workspace = true }
 wstd-axum = { workspace = true }
 
