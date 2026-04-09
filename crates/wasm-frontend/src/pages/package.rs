@@ -438,10 +438,16 @@ fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &s
         "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/{url_name}/'+this.value}})"
     );
 
+    let version_count = pkg.tags.len();
+    let version_label = format!(
+        "{version_count} {}",
+        if version_count == 1 { "version" } else { "versions" }
+    );
+
     Division::builder()
         .division(|dt| {
             dt.class("text-fg-muted text-xs uppercase tracking-wide")
-                .text("Version")
+                .text(version_label)
         })
         .division(|dd| {
             dd.class("mt-0.5")
