@@ -253,3 +253,10 @@ fn first_sentence(text: &str) -> String {
     text.split_once(". ")
         .map_or_else(|| text.to_owned(), |(first, _)| format!("{first}."))
 }
+
+/// Escape HTML special characters in code text.
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}

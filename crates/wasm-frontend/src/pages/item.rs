@@ -712,3 +712,11 @@ fn format_type_ref_short(ty: &TypeRef) -> String {
         },
     }
 }
+
+/// Escape HTML special characters so angle brackets in WIT type syntax
+/// (e.g. `list<string>`) are not parsed as HTML tags.
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
