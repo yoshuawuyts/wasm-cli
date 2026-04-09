@@ -392,6 +392,7 @@ mod tests {
             engines: vec![HostEngine {
                 name: "wasmtime".to_string(),
                 homepage: Some("https://wasmtime.dev".to_string()),
+                notes: None,
                 interfaces: vec![HostInterfaceSupport {
                     interface: "wasi:http".to_string(),
                     versions: vec!["0.2.0".to_string()],

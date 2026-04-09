@@ -45,3 +45,12 @@ homepage = "https://www.fermyon.com/spin"
 [[engine.interfaces]]
 interface = "wasi:http"
 versions = ["0.2.0"]
+
+[[engine]]
+name = "wassette"
+homepage = "https://github.com/yoshuawuyts/wassette"
+notes = "Can run components that do not operate on resources. Provides CLI access by default."
+
+[[engine.interfaces]]
+interface = "wasi:cli"
+versions = ["0.2.0"]

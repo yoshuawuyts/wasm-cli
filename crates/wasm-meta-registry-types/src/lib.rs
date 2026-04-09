@@ -50,6 +50,7 @@ impl std::fmt::Display for PackageKind {
 /// let engine = HostEngine {
 ///     name: "wasmtime".into(),
 ///     homepage: Some("https://wasmtime.dev".into()),
+///     notes: None,
 ///     interfaces: vec![HostInterfaceSupport {
 ///         interface: "wasi:http".into(),
 ///         versions: vec!["0.2.0".into()],
@@ -65,6 +66,9 @@ pub struct HostEngine {
     /// Optional project homepage URL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homepage: Option<String>,
+    /// Optional notes about runtime behavior or caveats.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
     /// Interface support entries for this engine.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub interfaces: Vec<HostInterfaceSupport>,

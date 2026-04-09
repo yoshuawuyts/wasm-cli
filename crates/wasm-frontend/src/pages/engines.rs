@@ -59,6 +59,9 @@ fn render_engine(engine: &HostEngine) -> Division {
         }
         div
     });
+    if let Some(notes) = &engine.notes {
+        card.paragraph(|p| p.class("mt-2 text-sm text-fg-muted").text(notes.clone()));
+    }
 
     if engine.interfaces.is_empty() {
         card.paragraph(|p| {
@@ -114,6 +117,7 @@ mod tests {
         let html = render_engines(&[HostEngine {
             name: "wasmtime".to_string(),
             homepage: Some("https://wasmtime.dev".to_string()),
+            notes: Some("Supports WASI HTTP".to_string()),
             interfaces: vec![HostInterfaceSupport {
                 interface: "wasi:http".to_string(),
                 versions: vec!["0.2.0".to_string()],
@@ -122,6 +126,7 @@ mod tests {
 
         assert!(html.contains("Host Engines"));
         assert!(html.contains("wasmtime"));
+        assert!(html.contains("Supports WASI HTTP"));
         assert!(html.contains("wasi:http"));
         assert!(html.contains("0.2.0"));
     }

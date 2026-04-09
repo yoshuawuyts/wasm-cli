@@ -457,6 +457,7 @@ versions = ["0.2.0", "0.3.0"]
         assert!(config.packages.is_empty());
         assert_eq!(config.engines.len(), 1);
         assert_eq!(config.engines[0].name, "wasmtime");
+        assert_eq!(config.engines[0].notes, None);
         assert_eq!(config.engines[0].interfaces.len(), 1);
         assert_eq!(config.engines[0].interfaces[0].interface, "wasi:http");
     }
