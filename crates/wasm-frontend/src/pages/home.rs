@@ -43,7 +43,7 @@ fn render_error(_err: &ApiError) -> String {
         div.class("py-16 text-center")
             .paragraph(|p| {
                 p.class("text-fg font-semibold")
-                    .text("Could not load packages")
+                    .text("Could not load components")
             })
             .paragraph(|p| {
                 p.class("text-sm text-fg-muted mt-2")
@@ -89,7 +89,7 @@ fn render_hero(total: usize) -> Division {
                                     .name("q")
                                     .id("search-input")
                                     .placeholder(placeholder)
-                                    .aria_label("Search packages")
+                                    .aria_label("Search components and interfaces")
                                     .autofocus(true)
                                     .class("w-full px-4 pr-8 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none search-glow transition-colors")
                             })
@@ -161,9 +161,7 @@ fn render_tabs(
                 .data("tab", id)
                 .aria_selected(selected)
                 .aria_controls_elements(format!("panel-{id}"))
-                .span(|s: &mut html::inline_text::builders::SpanBuilder| {
-                    s.text(label.to_owned())
-                })
+                .span(|s: &mut html::inline_text::builders::SpanBuilder| s.text(label.to_owned()))
                 .span(|s: &mut html::inline_text::builders::SpanBuilder| {
                     s.class("ml-1.5 text-xs text-fg-faint")
                         .text(format!("{count}"))
@@ -243,8 +241,12 @@ fn render_card(pkg: &KnownPackage, index: usize) -> Division {
     };
 
     let description = pkg.description.as_deref().unwrap_or("No description");
-    let version = crate::pick_redirect_version(&pkg.tags)
-        .unwrap_or_else(|| pkg.tags.first().cloned().unwrap_or_else(|| "\u{2014}".to_owned()));
+    let version = crate::pick_redirect_version(&pkg.tags).unwrap_or_else(|| {
+        pkg.tags
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "\u{2014}".to_owned())
+    });
     let icon = kind_icon(pkg.kind);
 
     match (&pkg.wit_namespace, &pkg.wit_name) {
@@ -303,10 +305,6 @@ fn render_card(pkg: &KnownPackage, index: usize) -> Division {
             .span(|s| {
                 s.class("block text-xs text-fg-faint mt-3 font-mono")
                     .text(version.to_owned())
-            })
-            .build(),
-                            .text(format!("{icon} {label}"))
-                    })
             })
             .build(),
     }

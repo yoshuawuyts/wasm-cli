@@ -30,7 +30,7 @@ fn render_results(query: &str, packages: &[KnownPackage]) -> String {
             })
             .paragraph(|p| {
                 p.class("text-sm text-fg-faint mt-2").text(format!(
-                    "{} package{} found",
+                    "{} result{} found",
                     packages.len(),
                     if packages.len() == 1 { "" } else { "s" }
                 ))
@@ -45,13 +45,13 @@ fn render_results(query: &str, packages: &[KnownPackage]) -> String {
             div.class("py-16 text-center")
                 .paragraph(|p| {
                     p.class("text-fg-muted")
-                        .text("No packages matched your query.")
+                        .text("No results matched your query.")
                 })
                 .paragraph(|p| {
                     p.class("mt-4").anchor(|a| {
                         a.href("/all")
                             .class("text-sm text-accent hover:underline")
-                            .text("Browse all packages →")
+                            .text("Browse all →")
                     })
                 })
         });
@@ -59,7 +59,7 @@ fn render_results(query: &str, packages: &[KnownPackage]) -> String {
         // Table-style header
         body.division(|div| {
             div.class("hidden sm:flex items-baseline gap-3 px-2 pb-2 text-xs text-fg-faint uppercase tracking-wide")
-                .span(|s| s.class("w-48 shrink-0").text("Package"))
+                .span(|s| s.class("w-48 shrink-0").text("Name"))
                 .span(|s| s.class("w-20 shrink-0").text("Version"))
                 .span(|s| s.text("Description"))
         });
@@ -91,10 +91,7 @@ fn render_error(query: &str, err: &ApiError) -> String {
 
     body.division(|div| {
         div.class("py-16 text-center")
-            .paragraph(|p| {
-                p.class("text-fg font-semibold")
-                    .text("Unable to search packages")
-            })
+            .paragraph(|p| p.class("text-fg font-semibold").text("Unable to search"))
             .paragraph(|p| p.class("text-sm text-fg-muted mt-2").text(err.to_string()))
     });
 
@@ -114,7 +111,7 @@ fn render_search_form(query: &str) -> Division {
                         .type_("search")
                         .name("q")
                         .value(query.to_owned())
-                        .placeholder("Search packages\u{2026}")
+                        .placeholder("Search\u{2026}")
                         .class("flex-1 px-3 py-2 rounded border border-border bg-page text-fg text-sm placeholder:text-fg-faint focus:border-accent focus:ring-1 focus:ring-accent outline-none")
                 })
                 .button(|btn| {

@@ -13,7 +13,6 @@
 
 mod footer;
 mod layout;
-mod nav;
 mod pages;
 mod reserved;
 mod wit_doc;

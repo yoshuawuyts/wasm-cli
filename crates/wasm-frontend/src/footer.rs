@@ -22,7 +22,7 @@ pub(crate) fn render() -> String {
                                 .anchor(|a| {
                                     a.href("/all")
                                         .class("text-fg-muted hover:text-fg transition-colors")
-                                        .text("Packages")
+                                        .text("Browse")
                                 })
                                 .anchor(|a| {
                                     a.href("/docs")
