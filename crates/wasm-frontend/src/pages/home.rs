@@ -292,7 +292,7 @@ fn render_card(pkg: &KnownPackage, index: usize) -> Division {
                     })
                     .span(|s| {
                         s.class("block text-xs text-fg-faint mt-3 font-mono")
-                            .text(version.to_owned())
+                            .text(version.clone())
                     })
             })
             .build(),
@@ -319,7 +319,7 @@ fn render_card(pkg: &KnownPackage, index: usize) -> Division {
             })
             .span(|s| {
                 s.class("block text-xs text-fg-faint mt-3 font-mono")
-                    .text(version.to_owned())
+                    .text(version.clone())
             })
             .build(),
     }

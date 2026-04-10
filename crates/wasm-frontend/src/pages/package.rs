@@ -9,61 +9,20 @@ use html::text_content::{Division, ListItem, UnorderedList};
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 use wasm_wit_doc::WitDocument;
 
-use crate::layout;
-
-/// Which tab is currently active on the package detail page.
-pub(crate) enum ActiveTab<'a> {
-    /// WIT definition and worlds.
-    Docs {
-        version_detail: Option<&'a PackageVersion>,
-    },
-    /// Forward dependencies of this package.
-    Dependencies,
-    /// Reverse dependencies: packages that import or export this interface.
-    Dependents {
-        importers: &'a [KnownPackage],
-        exporters: &'a [KnownPackage],
-    },
-}
+use super::package_shell;
+pub(crate) use super::package_shell::ActiveTab;
 
 /// Render the package detail page for a given package and version.
 #[must_use]
 pub(crate) fn render(pkg: &KnownPackage, version: &str, tab: &ActiveTab<'_>) -> String {
-    let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => format!("{ns}:{name}"),
-        _ => pkg.repository.clone(),
-    };
+    let display_name = package_shell::display_name_for(pkg);
 
-    let description = pkg
-        .description
-        .as_deref()
-        .unwrap_or("No description available");
-
-    let mut body = Division::builder();
-
-    body.class("pt-8");
-
-    // Header: title + description on left, metadata on right
+    // Parse WIT doc early so we can show the nav sidebar.
     let version_detail = match tab {
         ActiveTab::Docs { version_detail } => *version_detail,
         _ => None,
     };
-    body.push(render_page_header(
-        pkg,
-        &display_name,
-        description,
-        version,
-        version_detail,
-    ));
-
-    // Tab bar + active panel
-    let url_base = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => format!("/{ns}/{name}/{version}"),
-        _ => format!("/{}/{version}", pkg.repository),
-    };
-    body.push(render_tab_bar(&url_base, tab));
-
-    // Parse WIT doc early so we can show the nav sidebar.
+    let url_base = package_shell::url_base_for(pkg, version);
     let wit_doc = version_detail.and_then(|d| try_parse_wit(d, &url_base));
 
     // Grid: main content + optional sidebar
@@ -523,52 +482,6 @@ fn is_lossy_wit(text: &str) -> bool {
         || text.contains(": \"record\"")
         || text.contains(": \"variant\"")
         || text.contains("interface-Id {")
-}
-
-/// Render the tab bar with links to each tab route.
-fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
-    let active_class = "text-accent border-b-2 border-accent font-semibold";
-    let inactive_class = "text-fg-muted hover:text-fg";
-    let tab_base = "px-4 py-2 text-sm transition-colors inline-block";
-
-    let tabs: &[(&str, &str, bool)] = &[
-        (
-            "Documentation",
-            url_base,
-            matches!(active, ActiveTab::Docs { .. }),
-        ),
-        (
-            "Dependencies",
-            &format!("{url_base}/dependencies"),
-            matches!(active, ActiveTab::Dependencies),
-        ),
-        (
-            "Dependents",
-            &format!("{url_base}/dependents"),
-            matches!(active, ActiveTab::Dependents { .. }),
-        ),
-    ];
-
-    Division::builder()
-        .class("flex border-b border-border mb-8")
-        .push({
-            let mut nav = Division::builder();
-            nav.class("flex");
-            for &(label, href, is_active) in tabs {
-                let style = if is_active {
-                    active_class
-                } else {
-                    inactive_class
-                };
-                nav.anchor(|a| {
-                    a.href(href.to_owned())
-                        .class(format!("{tab_base} {style}"))
-                        .text(label.to_owned())
-                });
-            }
-            nav.build()
-        })
-        .build()
 }
 
 /// Render the dependencies panel showing forward dependencies.

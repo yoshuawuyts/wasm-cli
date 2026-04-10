@@ -4,24 +4,25 @@ use crate::wit_doc::{WitDocument, WorldDoc, WorldItemDoc};
 use html::content::Navigation;
 use html::text_content::{Division, ListItem, UnorderedList};
 
+use super::package_shell::{self, ActiveTab};
 use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
-use crate::layout;
 
 /// Render the world detail page.
 #[must_use]
 pub(crate) fn render(
-    display_name: &str,
+    pkg: &KnownPackage,
     version: &str,
+    version_detail: Option<&PackageVersion>,
     world: &WorldDoc,
     doc: &WitDocument,
 ) -> String {
+    let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} — {}", world.name);
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
 
-    let mut body = Division::builder();
-    body.class("pt-8");
+    let mut outer = Division::builder();
 
-    body.push(render_breadcrumb(display_name, &pkg_url, &world.name));
+    outer.push(render_breadcrumb(&display_name, &pkg_url, &world.name));
 
     // Header
     body.division(|div| {
@@ -55,16 +56,17 @@ pub(crate) fn render(
 
     // Sidebar
     let sidebar_ctx = SidebarContext {
-        display_name,
+        display_name: &display_name,
         version,
         doc,
         active: SidebarActive::World(&world.name),
     };
     grid.push(render_sidebar(&sidebar_ctx));
 
-    body.push(grid.build());
+    outer.push(grid.build());
 
-    layout::document(&title, &body.build().to_string())
+    let tab = ActiveTab::Docs { version_detail };
+    package_shell::render_page(pkg, version, &tab, &title, outer.build())
 }
 
 /// Breadcrumb: Home / package / world

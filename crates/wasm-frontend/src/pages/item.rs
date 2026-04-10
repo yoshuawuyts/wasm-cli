@@ -5,27 +5,28 @@ use html::content::Navigation;
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
 
+use super::package_shell::{self, ActiveTab};
 use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
-use crate::layout;
 
 /// Render the item detail page for a type.
 #[must_use]
 pub(crate) fn render_type(
-    display_name: &str,
+    pkg: &KnownPackage,
     version: &str,
+    version_detail: Option<&PackageVersion>,
     iface_name: &str,
     ty: &TypeDoc,
     doc: &WitDocument,
 ) -> String {
+    let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} — {iface_name}::{}", ty.name);
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
     let iface_url = format!("{pkg_url}/interface/{iface_name}");
 
-    let mut body = Division::builder();
-    body.class("pt-8");
+    let mut outer = Division::builder();
 
-    body.push(render_breadcrumb(
-        display_name,
+    outer.push(render_breadcrumb(
+        &display_name,
         &pkg_url,
         iface_name,
         &iface_url,
@@ -47,7 +48,7 @@ pub(crate) fn render_type(
     });
 
     // WIT definition block
-    body.push(render_type_definition(ty));
+    outer.push(render_type_definition(ty));
 
     // Grid: main content + sidebar
     let mut grid = Division::builder();
@@ -59,36 +60,38 @@ pub(crate) fn render_type(
     grid.push(content.build());
 
     let sidebar_ctx = SidebarContext {
-        display_name,
+        display_name: &display_name,
         version,
         doc,
         active: SidebarActive::Item(iface_name, &ty.name),
     };
     grid.push(render_sidebar(&sidebar_ctx));
 
-    body.push(grid.build());
+    outer.push(grid.build());
 
-    layout::document(&title, &body.build().to_string())
+    let tab = ActiveTab::Docs { version_detail };
+    package_shell::render_page(pkg, version, &tab, &title, outer.build())
 }
 
 /// Render the item detail page for a freestanding function.
 #[must_use]
 pub(crate) fn render_function(
-    display_name: &str,
+    pkg: &KnownPackage,
     version: &str,
+    version_detail: Option<&PackageVersion>,
     iface_name: &str,
     func: &FunctionDoc,
     doc: &WitDocument,
 ) -> String {
+    let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} — {iface_name}::{}", func.name);
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
     let iface_url = format!("{pkg_url}/interface/{iface_name}");
 
-    let mut body = Division::builder();
-    body.class("pt-8");
+    let mut outer = Division::builder();
 
-    body.push(render_breadcrumb(
-        display_name,
+    outer.push(render_breadcrumb(
+        &display_name,
         &pkg_url,
         iface_name,
         &iface_url,
@@ -108,7 +111,7 @@ pub(crate) fn render_function(
     });
 
     // WIT definition block
-    body.push(render_function_definition(func));
+    outer.push(render_function_definition(func));
 
     // Grid: main content + sidebar
     let mut grid = Division::builder();
@@ -120,16 +123,17 @@ pub(crate) fn render_function(
     grid.push(content.build());
 
     let sidebar_ctx = SidebarContext {
-        display_name,
+        display_name: &display_name,
         version,
         doc,
         active: SidebarActive::Item(iface_name, &func.name),
     };
     grid.push(render_sidebar(&sidebar_ctx));
 
-    body.push(grid.build());
+    outer.push(grid.build());
 
-    layout::document(&title, &body.build().to_string())
+    let tab = ActiveTab::Docs { version_detail };
+    package_shell::render_page(pkg, version, &tab, &title, outer.build())
 }
 
 /// Breadcrumb: Home / package / interface / item

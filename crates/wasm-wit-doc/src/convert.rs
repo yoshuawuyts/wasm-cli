@@ -4,8 +4,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use wit_parser::{
-    FunctionKind, Handle, InterfaceId, Resolve, TypeDefKind, TypeId, TypeOwner,
-    Type as WitType, WorldItem, WorldKey,
+    FunctionKind, Handle, InterfaceId, Resolve, Type as WitType, TypeDefKind, TypeId, TypeOwner,
+    WorldItem, WorldKey,
 };
 
 use crate::types::{
@@ -323,11 +323,7 @@ impl Converter<'_> {
     /// Resolve a `TypeId` into a `TypeRef`, following aliases, looking up
     /// URLs, and handling anonymous composite types.
     fn convert_type_id(&self, id: TypeId) -> TypeRef {
-        let type_def = self
-            .resolve
-            .types
-            .get(id)
-            .expect("type id should be valid");
+        let type_def = self.resolve.types.get(id).expect("type id should be valid");
 
         // Named type in our package — link to it.
         if let Some((url, name)) = self.type_urls.get(&id) {
@@ -432,10 +428,7 @@ impl Converter<'_> {
     /// Convert a function.
     fn convert_function(&self, func: &wit_parser::Function, iface_name: &str) -> FunctionDoc {
         let display_name = func.item_name().to_owned();
-        let url = format!(
-            "{}/interface/{iface_name}/{}",
-            self.url_base, display_name
-        );
+        let url = format!("{}/interface/{iface_name}/{}", self.url_base, display_name);
 
         FunctionDoc {
             name: display_name,

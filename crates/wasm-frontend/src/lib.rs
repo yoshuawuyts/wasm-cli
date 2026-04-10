@@ -26,7 +26,7 @@ use serde::Deserialize;
 use wasm_meta_registry_client::{KnownPackage, RegistryClient};
 
 use crate::reserved::is_reserved;
-use pages::package::ActiveTab;
+use pages::package_shell::ActiveTab;
 
 /// Build the application router with all frontend routes.
 fn app() -> Router {
@@ -245,14 +245,13 @@ async fn interface_detail(
         Ok(None) => return not_found_response(),
         Err(response) => return response,
     };
-    let Some(doc) = fetch_wit_doc(&client, &pkg, &version).await else {
+    let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
     };
     let Some(iface_doc) = doc.interfaces.iter().find(|i| i.name == iface) else {
         return not_found_response();
     };
-    let display_name = format!("{namespace}:{name}");
-    let html = pages::interface::render(&display_name, &version, iface_doc, &doc);
+    let html = pages::interface::render(&pkg, &version, Some(&version_detail), iface_doc, &doc);
     with_cache_control(html, "public, max-age=300")
 }
 
@@ -272,21 +271,22 @@ async fn item_detail(
         Ok(None) => return not_found_response(),
         Err(response) => return response,
     };
-    let Some(doc) = fetch_wit_doc(&client, &pkg, &version).await else {
+    let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
     };
     let Some(iface_doc) = doc.interfaces.iter().find(|i| i.name == iface) else {
         return not_found_response();
     };
-    let display_name = format!("{namespace}:{name}");
 
     // Try types first, then functions.
     if let Some(ty) = iface_doc.types.iter().find(|t| t.name == item_name) {
-        let html = pages::item::render_type(&display_name, &version, &iface, ty, &doc);
+        let html =
+            pages::item::render_type(&pkg, &version, Some(&version_detail), &iface, ty, &doc);
         return with_cache_control(html, "public, max-age=300");
     }
     if let Some(func) = iface_doc.functions.iter().find(|f| f.name == item_name) {
-        let html = pages::item::render_function(&display_name, &version, &iface, func, &doc);
+        let html =
+            pages::item::render_function(&pkg, &version, Some(&version_detail), &iface, func, &doc);
         return with_cache_control(html, "public, max-age=300");
     }
 
@@ -303,18 +303,18 @@ async fn world_detail(
         Ok(None) => return not_found_response(),
         Err(response) => return response,
     };
-    let Some(doc) = fetch_wit_doc(&client, &pkg, &version).await else {
+    let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
     };
     let Some(world_doc) = doc.worlds.iter().find(|w| w.name == world_name) else {
         return not_found_response();
     };
-    let display_name = format!("{namespace}:{name}");
-    let html = pages::world::render(&display_name, &version, world_doc, &doc);
+    let html = pages::world::render(&pkg, &version, Some(&version_detail), world_doc, &doc);
     with_cache_control(html, "public, max-age=300")
 }
 
-/// Fetch and parse the WIT document for a package version.
+/// Fetch and parse the WIT document for a package version, returning
+/// both the parsed document and the version detail.
 async fn fetch_wit_doc(
     client: &RegistryClient,
     pkg: &KnownPackage,

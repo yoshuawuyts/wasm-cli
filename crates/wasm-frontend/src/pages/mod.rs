@@ -9,6 +9,7 @@ pub(crate) mod interface;
 pub(crate) mod item;
 pub(crate) mod not_found;
 pub(crate) mod package;
+pub(crate) mod package_shell;
 pub(crate) mod search;
 pub(crate) mod sidebar;
 pub(crate) mod world;
