@@ -74,7 +74,8 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
             display: '-0.06em',
           }},
           fontSize: {{
-            sm: ['1rem', {{ lineHeight: '1.5rem' }}],
+            xs: ['0.75rem', {{ lineHeight: '1.125rem' }}],
+            sm: ['0.875rem', {{ lineHeight: '1.375rem' }}],
             lg: ['1.125rem', {{ lineHeight: '1.625rem' }}],
           }},
         }}
@@ -162,10 +163,11 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     /* Card hover — pop out with scale, shadow, and strong border */
     .card-lift {{
       transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+      transform-origin: center center;
     }}
     .card-lift:hover {{
-      transform: scale(1.03);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      transform: scale(1.06);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
       z-index: 1;
       position: relative;
       outline: 2px solid var(--color-fg);
