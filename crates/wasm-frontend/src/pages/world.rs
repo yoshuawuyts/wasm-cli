@@ -20,14 +20,6 @@ pub(crate) fn render(
 
     let mut outer = Division::builder();
 
-    // Docs
-    if let Some(docs) = &world.docs {
-        outer.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-6 max-w-[65ch]")
-                .text(docs.clone())
-        });
-    }
-
     let mut content = Division::builder();
     content.class("space-y-10");
 
@@ -46,6 +38,7 @@ pub(crate) fn render(
         version_detail,
         importers: &[],
         exporters: &[],
+        description_override: world.docs.as_deref(),
     };
     let extra = vec![crate::nav::Crumb {
         label: world.name.clone(),
@@ -88,7 +81,7 @@ fn strip_version(name: &str) -> &str {
 /// Render a single world item row.
 fn render_world_item_row(item: &WorldItemDoc, link_color: &str) -> ListItem {
     let mut li = ListItem::builder();
-    li.class("py-2.5 px-2 hover:bg-surface-muted transition-colors");
+    li.class("py-3 px-2");
 
     match item {
         WorldItemDoc::Interface {

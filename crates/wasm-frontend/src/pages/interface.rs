@@ -18,16 +18,8 @@ pub(crate) fn render(
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} — {}", iface.name);
 
-    // Interface header + content grid
+    // Interface content
     let mut outer = Division::builder();
-
-    // Docs
-    if let Some(docs) = &iface.docs {
-        outer.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-6 max-w-[65ch]")
-                .text(docs.clone())
-        });
-    }
 
     // Grid: main content
     let mut content = Division::builder();
@@ -96,6 +88,7 @@ pub(crate) fn render(
         version_detail,
         importers: &[],
         exporters: &[],
+        description_override: Some(iface.docs.as_deref().unwrap_or("")),
     };
     let extra = vec![crate::nav::Crumb {
         label: iface.name.clone(),

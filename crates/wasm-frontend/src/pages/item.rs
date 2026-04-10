@@ -22,14 +22,6 @@ pub(crate) fn render_type(
 
     let mut outer = Division::builder();
 
-    // Docs
-    if let Some(docs) = &ty.docs {
-        outer.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-6 max-w-[65ch]")
-                .text(docs.clone())
-        });
-    }
-
     // WIT definition block
     outer.push(render_type_definition(ty));
 
@@ -42,6 +34,7 @@ pub(crate) fn render_type(
         version_detail,
         importers: &[],
         exporters: &[],
+        description_override: Some(""),
     };
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
     let extra = vec![
@@ -72,14 +65,6 @@ pub(crate) fn render_function(
 
     let mut outer = Division::builder();
 
-    // Docs
-    if let Some(docs) = &func.docs {
-        outer.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-6 max-w-[65ch]")
-                .text(docs.clone())
-        });
-    }
-
     // WIT definition block
     outer.push(render_function_definition(func));
 
@@ -92,6 +77,7 @@ pub(crate) fn render_function(
         version_detail,
         importers: &[],
         exporters: &[],
+        description_override: Some(""),
     };
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
     let extra = vec![
@@ -109,8 +95,7 @@ pub(crate) fn render_function(
 
 /// Render the WIT definition code block for a type, with linked type refs.
 fn render_type_definition(ty: &TypeDoc) -> Division {
-    let pre_class =
-        "bg-surface-muted border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
+    let pre_class = "border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
 
     Division::builder()
         .class("mb-6")
@@ -119,7 +104,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 let mut pre = html::text_content::PreformattedText::builder();
                 pre.class(pre_class);
                 pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("record "))
+                    c.span(|s| s.class("text-wit-struct").text("record "))
                         .span(|s| s.class("font-medium").text(ty.name.clone()))
                         .text(" {\n".to_owned());
                     for f in fields {
@@ -136,7 +121,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 let mut pre = html::text_content::PreformattedText::builder();
                 pre.class(pre_class);
                 pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("variant "))
+                    c.span(|s| s.class("text-wit-struct").text("variant "))
                         .span(|s| s.class("font-medium").text(ty.name.clone()))
                         .text(" {\n".to_owned());
                     for case in cases {
@@ -156,7 +141,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 let mut pre = html::text_content::PreformattedText::builder();
                 pre.class(pre_class);
                 pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("enum "))
+                    c.span(|s| s.class("text-wit-enum").text("enum "))
                         .span(|s| s.class("font-medium").text(ty.name.clone()))
                         .text(" {\n".to_owned());
                     for case in cases {
@@ -170,7 +155,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 let mut pre = html::text_content::PreformattedText::builder();
                 pre.class(pre_class);
                 pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("flags "))
+                    c.span(|s| s.class("text-wit-enum").text("flags "))
                         .span(|s| s.class("font-medium").text(ty.name.clone()))
                         .text(" {\n".to_owned());
                     for f in flags {
@@ -183,7 +168,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
             TypeKind::Resource { .. } => html::text_content::PreformattedText::builder()
                 .class(pre_class)
                 .code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("resource "))
+                    c.span(|s| s.class("text-wit-resource").text("resource "))
                         .span(|s| s.class("font-medium").text(ty.name.clone()))
                         .text(";".to_owned())
                 })
@@ -191,7 +176,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
             TypeKind::Alias(type_ref) => html::text_content::PreformattedText::builder()
                 .class(pre_class)
                 .code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("type "))
+                    c.span(|s| s.class("text-accent").text("type "))
                         .span(|s| s.class("font-medium").text(ty.name.clone()))
                         .text(" = ".to_owned())
                         .push(render_type_ref(type_ref))
@@ -204,8 +189,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
 
 /// Render the WIT definition code block for a function, with linked type refs.
 fn render_function_definition(func: &FunctionDoc) -> Division {
-    let pre_class =
-        "bg-surface-muted border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
+    let pre_class = "border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
 
     Division::builder()
         .class("mb-6")
@@ -215,7 +199,7 @@ fn render_function_definition(func: &FunctionDoc) -> Division {
                 .code(|c| {
                     c.span(|s| s.class("font-medium").text(func.name.clone()))
                         .text(": ".to_owned())
-                        .span(|s| s.class("text-fg-muted").text("func"))
+                        .span(|s| s.class("text-wit-func").text("func"))
                         .text("(".to_owned());
                     let visible_params: Vec<_> =
                         func.params.iter().filter(|p| p.name != "self").collect();

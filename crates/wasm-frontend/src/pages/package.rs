@@ -24,7 +24,7 @@ pub(crate) fn render(
 
     // Main content: WIT documentation
     let mut main_col = Division::builder();
-    main_col.class("space-y-8");
+    main_col.class("space-y-10");
 
     if let Some(detail) = version_detail {
         main_col.push(render_wit_content_with_doc(
@@ -40,6 +40,7 @@ pub(crate) fn render(
         version_detail,
         importers,
         exporters,
+        description_override: None,
     };
     package_shell::render_page(&shell_ctx, &display_name, main_col.build())
 }
@@ -107,7 +108,7 @@ fn build_dep_urls(
 /// Render the interfaces overview section.
 fn render_interface_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
-    container.class("space-y-1 mt-10");
+    container.class("space-y-1");
     container.heading_2(|h2| {
         h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
             .text("Interfaces")
@@ -150,7 +151,7 @@ fn render_interface_row(iface: &crate::wit_doc::InterfaceDoc) -> ListItem {
 /// Render the worlds overview section.
 fn render_world_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
-    container.class("space-y-1 mt-10");
+    container.class("space-y-1");
     container.heading_2(|h2| {
         h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
             .text("Worlds")
@@ -199,7 +200,7 @@ fn render_raw_wit(wit_text: &str) -> Division {
         })
         .push(
             html::text_content::PreformattedText::builder()
-                .class("bg-surface-muted border-2 border-fg p-4 overflow-x-auto text-sm leading-relaxed")
+                .class("border-2 border-fg p-4 overflow-x-auto text-sm leading-relaxed")
                 .code(|code| code.class("text-fg").text(wit_text.to_owned()))
                 .build(),
         )

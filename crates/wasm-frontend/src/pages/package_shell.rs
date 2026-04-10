@@ -22,6 +22,8 @@ pub(crate) struct SidebarContext<'a> {
     pub importers: &'a [KnownPackage],
     /// Packages that export this one.
     pub exporters: &'a [KnownPackage],
+    /// Override the description shown at the top (uses pkg.description if None).
+    pub description_override: Option<&'a str>,
 }
 
 /// Render the shared page shell: two-column layout with sidebar,
@@ -51,28 +53,30 @@ fn render_page_inner(
 ) -> String {
     let pkg = ctx.pkg;
     let display_name = display_name_for(pkg);
-    let description = pkg
-        .description
-        .as_deref()
-        .unwrap_or("No description available");
+    let description = match ctx.description_override {
+        Some(d) => d,
+        None => pkg.description.as_deref().unwrap_or(""),
+    };
 
     let mut body = Division::builder();
     body.class("pt-6");
 
-    // Description
-    body.paragraph(|p| {
-        p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
-            .text(description.to_owned())
-    });
-
     // Two-column grid: content + sidebar
     let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-[1fr_280px] gap-8");
+    grid.class("grid grid-cols-1 md:grid-cols-[1fr_280px] gap-8 items-start");
 
-    // Left: main content
-    grid.push(body_content);
+    // Left: description + main content
+    let mut left = Division::builder();
+    if !description.is_empty() {
+        left.paragraph(|p| {
+            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
+                .text(description.to_owned())
+        });
+    }
+    left.push(body_content);
+    grid.push(left.build());
 
-    // Right: sidebar
+    // Right: sidebar (always starts at top)
     grid.push(render_sidebar(ctx, &display_name));
 
     body.push(grid.build());
@@ -313,7 +317,7 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
     Division::builder()
         .division(|div| {
             div.class(
-                "flex items-center gap-2 bg-surface-muted border-2 border-fg \
+                "flex items-center gap-2 border-2 border-fg \
                  px-3 py-2 font-mono text-sm text-fg",
             )
             .code(|code| {

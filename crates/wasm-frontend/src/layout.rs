@@ -154,7 +154,7 @@ fn document_inner(title: &str, body_content: &str, nav: &str) -> String {
       --color-wit-struct: #4338ca;
       --color-wit-enum: #0d7377;
       --color-wit-resource: #b45309;
-      --color-wit-func: #1d4ed8;
+      --color-wit-func: #15803d;
       --color-wit-world: #9333ea;
       --color-wit-iface: #0369a1;
       --color-wit-import: #b91c1c;

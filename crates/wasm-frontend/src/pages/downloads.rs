@@ -30,7 +30,7 @@ pub(crate) fn render() -> String {
                         })
                         .push(
                             html::text_content::PreformattedText::builder()
-                                .class("bg-surface-muted border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
+                                .class("border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
                                 .code(|c| {
                                     c.text("curl -fsSL https://raw.githubusercontent.com/yoshuawuyts/wasm-cli/main/scripts/install.sh | sh")
                                 })
@@ -44,7 +44,7 @@ pub(crate) fn render() -> String {
                         })
                         .push(
                             html::text_content::PreformattedText::builder()
-                                .class("bg-surface-muted border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
+                                .class("border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
                                 .code(|c| {
                                     c.text("irm https://raw.githubusercontent.com/yoshuawuyts/wasm-cli/main/scripts/install.ps1 | iex")
                                 })
@@ -58,7 +58,7 @@ pub(crate) fn render() -> String {
         })
         .push(
             html::text_content::PreformattedText::builder()
-                .class("bg-surface-muted border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
+                .class("border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
                 .code(|c| c.text("cargo install wasm-cli"))
                 .build(),
         )
