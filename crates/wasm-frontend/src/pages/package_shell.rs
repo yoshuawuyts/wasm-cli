@@ -71,8 +71,12 @@ pub(crate) fn render_page(
         label: ns.clone(),
         href: Some(format!("/{ns}")),
     });
+    let pkg_label = pkg
+        .wit_name
+        .as_deref()
+        .unwrap_or(&display_name);
     let pkg_crumb = crate::nav::Crumb {
-        label: display_name.clone(),
+        label: pkg_label.to_owned(),
         href: None,
     };
     let crumbs: Vec<crate::nav::Crumb> = ns_crumb
