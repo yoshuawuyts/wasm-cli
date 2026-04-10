@@ -1,0 +1,49 @@
+[[engine]]
+name = "wasmtime"
+homepage = "https://wasmtime.dev"
+
+[[engine.interfaces]]
+interface = "wasi:cli"
+versions = ["0.2.0"]
+
+[[engine.interfaces]]
+interface = "wasi:clocks"
+versions = ["0.2.0"]
+
+[[engine.interfaces]]
+interface = "wasi:filesystem"
+versions = ["0.2.0"]
+
+[[engine.interfaces]]
+interface = "wasi:http"
+versions = ["0.2.0"]
+
+[[engine]]
+name = "wasmer"
+homepage = "https://wasmer.io"
+notes = "Does not currently support components."
+
+[[engine]]
+name = "jco"
+homepage = "https://github.com/bytecodealliance/jco"
+
+[[engine.interfaces]]
+interface = "wasi:http"
+versions = ["0.2.0"]
+
+[[engine]]
+name = "spin"
+homepage = "https://www.fermyon.com/spin"
+
+[[engine.interfaces]]
+interface = "wasi:http"
+versions = ["0.2.0"]
+
+[[engine]]
+name = "wassette"
+homepage = "https://github.com/yoshuawuyts/wassette"
+notes = "Can run components that do not operate on resources. Provides CLI access by default."
+
+[[engine.interfaces]]
+interface = "wasi:cli"
+versions = ["0.2.0"]

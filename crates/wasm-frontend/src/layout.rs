@@ -30,6 +30,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
         "All Packages" => "/all",
         "About" => "/about",
         "Docs" => "/docs",
+        "Engines" => "/engines",
         "Search" => "/search",
         _ => "",
     };

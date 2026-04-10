@@ -9,7 +9,7 @@
 use std::fmt;
 
 use crate::KnownPackage;
-use wasm_meta_registry_types::{PackageDetail, PackageVersion};
+use wasm_meta_registry_types::{HostEngine, PackageDetail, PackageVersion};
 
 /// Default API base URL when no environment variable is set.
 const DEFAULT_API_BASE_URL: &str = "http://localhost:8081";
@@ -263,6 +263,12 @@ impl RegistryClient {
         let encoded = percent_encode_query_component(interface);
         let url = format!("{}/v1/search/by-export?interface={encoded}", self.base_url);
         self.fetch_packages_from(&url).await
+    }
+
+    /// Fetch host runtimes and their declared interface support.
+    pub async fn fetch_engines(&self) -> Result<Vec<HostEngine>, ApiError> {
+        let url = format!("{}/v1/engines", self.base_url);
+        self.fetch_list(&url).await
     }
 
     /// Fetch and deserialize a list of packages from the given URL.

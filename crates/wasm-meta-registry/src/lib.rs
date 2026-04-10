@@ -13,6 +13,7 @@
 //! registry/
 //!   wasi.toml
 //!   ba.toml
+//!   engines.toml
 //! ```
 //!
 //! Each file defines a `[namespace]` table and `[[component]]`/`[[interface]]`
@@ -28,10 +29,22 @@
 //! repository = "wasi/io"
 //! ```
 //!
+//! `engines.toml` can optionally declare host runtime support data:
+//!
+//! ```toml
+//! [[engine]]
+//! name = "wasmtime"
+//!
+//! [[engine.interfaces]]
+//! interface = "wasi:http"
+//! versions = ["0.2.0"]
+//! ```
+//!
 //! # Example
 //!
 //! ```no_run
 //! use wasm_meta_registry::{Config, Indexer, router};
+//! use wasm_meta_registry::server::StateData;
 //! use wasm_package_manager::manager::Manager;
 //! use std::sync::{Arc, Mutex};
 //! use std::path::Path;
@@ -47,7 +60,10 @@
 //!
 //!     // Create the HTTP router backed by a package manager with its own data directory
 //!     let manager = Manager::open_at("/tmp/wasm-registry").await?;
-//!     let state = Arc::new(Mutex::new(manager));
+//!     let state = Arc::new(StateData {
+//!         manager: Mutex::new(manager),
+//!         engines: vec![],
+//!     });
 //!     let app = router(state);
 //!
 //!     // Start the server

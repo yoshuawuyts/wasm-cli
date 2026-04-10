@@ -3,13 +3,15 @@
 //! The registry is configured as a directory of TOML files, one per WIT
 //! namespace. Each file contains a `[namespace]` table mapping the namespace
 //! to an OCI registry base path, plus `[[component]]` and `[[interface]]`
-//! entries for individual packages.
+//! entries for individual packages. An optional `engines.toml` file can define
+//! host runtime interface support information.
 //!
 //! Server settings (`sync_interval`, `bind`) are provided via CLI arguments.
 
 use std::path::Path;
 
 use crate::registry_file::RegistryFile;
+use serde::Deserialize;
 
 /// Top-level configuration for the meta-registry server.
 ///
@@ -31,6 +33,7 @@ use crate::registry_file::RegistryFile;
 ///         name: "io".to_string(),
 ///         kind: PackageKind::Interface,
 ///     }],
+///     engines: vec![],
 /// };
 ///
 /// assert_eq!(config.sync_interval, 3600);
@@ -47,6 +50,9 @@ pub struct Config {
 
     /// List of OCI packages to index, expanded from registry files.
     pub packages: Vec<PackageSource>,
+
+    /// Host runtimes and the interfaces they support.
+    pub engines: Vec<HostEngine>,
 }
 
 /// A single OCI package source to index.
@@ -83,7 +89,13 @@ pub struct PackageSource {
 }
 
 /// Re-export from the shared types crate.
-pub use wasm_meta_registry_types::PackageKind;
+pub use wasm_meta_registry_types::{HostEngine, PackageKind};
+
+#[derive(Debug, Deserialize)]
+struct EnginesFile {
+    #[serde(default)]
+    engine: Vec<HostEngine>,
+}
 
 impl Config {
     /// Load configuration from a registry directory.
@@ -116,6 +128,7 @@ impl Config {
     /// ```
     pub fn from_registry_dir(dir: &Path, sync_interval: u64, bind: String) -> anyhow::Result<Self> {
         let mut packages = Vec::new();
+        let mut engines = Vec::new();
 
         let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<Vec<_>, _>>()?;
         entries.sort_by_key(std::fs::DirEntry::file_name);
@@ -124,11 +137,17 @@ impl Config {
             let path = entry.path();
             if path.extension().is_some_and(|ext| ext == "toml") {
                 let content = std::fs::read_to_string(&path)?;
-                let registry_file = RegistryFile::from_toml(&content)?;
-
                 let stem = path.file_stem().and_then(|s| s.to_str()).ok_or_else(|| {
                     anyhow::anyhow!("registry filename is not valid UTF-8: {}", path.display())
                 })?;
+
+                if stem == "engines" {
+                    let engines_file: EnginesFile = toml::from_str(&content)?;
+                    engines.extend(engines_file.engine);
+                    continue;
+                }
+
+                let registry_file = RegistryFile::from_toml(&content)?;
                 if stem != registry_file.namespace.name {
                     anyhow::bail!(
                         "filename '{stem}.toml' does not match namespace name '{}'",
@@ -144,6 +163,7 @@ impl Config {
             sync_interval,
             bind,
             packages,
+            engines,
         })
     }
 }
@@ -352,6 +372,7 @@ repository = "sample-wasi-http-rust/sample-wasi-http-rust"
         assert_eq!(config.sync_interval, 1800);
         assert_eq!(config.bind, "127.0.0.1:9090");
         assert_eq!(config.packages.len(), 2);
+        assert!(config.engines.is_empty());
     }
 
     // r[verify registry.dir.filename-match]
@@ -382,6 +403,7 @@ registry = "ghcr.io/webassembly"
         let config =
             Config::from_registry_dir(dir.path(), 3600, "0.0.0.0:8080".to_string()).unwrap();
         assert!(config.packages.is_empty());
+        assert!(config.engines.is_empty());
     }
 
     // r[verify registry.dir.ignore-non-toml]
@@ -408,5 +430,35 @@ repository = "wasi/io"
         let config =
             Config::from_registry_dir(dir.path(), 3600, "0.0.0.0:8080".to_string()).unwrap();
         assert_eq!(config.packages.len(), 1);
+        assert!(config.engines.is_empty());
+    }
+
+    // r[verify registry.engines.load]
+    #[test]
+    fn test_from_registry_dir_loads_engines_file() {
+        let dir = tempfile::tempdir().unwrap();
+
+        fs::write(
+            dir.path().join("engines.toml"),
+            r#"
+[[engine]]
+name = "wasmtime"
+homepage = "https://wasmtime.dev"
+
+[[engine.interfaces]]
+interface = "wasi:http"
+versions = ["0.2.0", "0.3.0"]
+"#,
+        )
+        .unwrap();
+
+        let config =
+            Config::from_registry_dir(dir.path(), 3600, "0.0.0.0:8080".to_string()).unwrap();
+        assert!(config.packages.is_empty());
+        assert_eq!(config.engines.len(), 1);
+        assert_eq!(config.engines[0].name, "wasmtime");
+        assert_eq!(config.engines[0].notes, None);
+        assert_eq!(config.engines[0].interfaces.len(), 1);
+        assert_eq!(config.engines[0].interfaces[0].interface, "wasi:http");
     }
 }

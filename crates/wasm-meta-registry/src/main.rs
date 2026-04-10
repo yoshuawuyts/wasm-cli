@@ -7,6 +7,7 @@ use clap::Parser;
 use tracing::{error, info, warn};
 use wasm_package_manager::manager::Manager;
 
+use wasm_meta_registry::server::StateData;
 use wasm_meta_registry::{Config, Indexer, router};
 
 /// An HTTP server that indexes OCI registries for WebAssembly package
@@ -58,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
     info!(
         bind = %config.bind,
         packages = config.packages.len(),
+        engines = config.engines.len(),
         sync_interval = config.sync_interval,
         data_dir = %data_dir.display(),
         "Starting wasm-meta-registry"
@@ -79,7 +81,10 @@ async fn main() -> anyhow::Result<()> {
         info!("Skipping WIT re-index at startup (use --reindex-wit-on-startup to enable)");
     }
 
-    let state = Arc::new(std::sync::Mutex::new(server_manager));
+    let state = Arc::new(StateData {
+        manager: std::sync::Mutex::new(server_manager),
+        engines: config.engines.clone(),
+    });
 
     // Start background indexer on a dedicated thread (Manager is !Sync)
     let indexer_config = config.clone();
