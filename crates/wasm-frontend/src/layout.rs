@@ -363,7 +363,40 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     }});
     // Search placeholder carousel
     (function() {{
-      var words = ['components\u2026', 'interfaces\u2026', 'libraries\u2026', 'plugins\u2026', 'servers\u2026', 'tools\u2026', 'apps\u2026', 'extensions\u2026', 'handlers\u2026', 'services\u2026', 'applets\u2026', 'clients\u2026'];
+      var words = [
+        'components\u2026',
+        'interfaces\u2026',
+        'libraries\u2026',
+        'plugins\u2026',
+        'servers\u2026',
+        'tools\u2026',
+        'apps\u2026',
+        'extensions\u2026',
+        'handlers\u2026',
+        'services\u2026',
+        'applets\u2026',
+        'clients\u2026',
+        'addons\u2026',
+        'modules\u2026',
+        'packages\u2026',
+        'widgets\u2026',
+        'expansions\u2026',
+        'augmentations\u2026',
+        'supplements\u2026',
+        'accessories\u2026',
+        'middleware\u2026',
+        'hooks\u2026',
+        'mods\u2026',
+        'bundles\u2026',
+        'toolkits\u2026',
+        'SDKs\u2026',
+        'adapters\u2026',
+        'drivers\u2026',
+        'providers\u2026',
+        'connectors\u2026',
+        'shims\u2026',
+        'polyfills\u2026',
+      ];
       var el = document.getElementById('carousel-word');
       var overlay = document.getElementById('search-carousel');
       var input = document.getElementById('search-input');
