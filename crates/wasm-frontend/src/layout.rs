@@ -47,7 +47,7 @@ fn document_inner(title: &str, body_content: &str, nav: &str) -> String {
 
     format!(
         r#"<!DOCTYPE html>
-<html lang="en" style="view-transition-name:root">
+<html lang="en" style="view-transition-name:root;background:#d9d9d9">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -173,9 +173,11 @@ fn document_inner(title: &str, body_content: &str, nav: &str) -> String {
     @view-transition {{
       navigation: auto;
     }}
-    ::view-transition-old(root),
+    ::view-transition-old(root) {{
+      animation: none;
+    }}
     ::view-transition-new(root) {{
-      animation-duration: 0s;
+      animation: none;
     }}
     @media (prefers-reduced-motion: reduce) {{
       ::view-transition-old(root),
