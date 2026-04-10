@@ -48,7 +48,7 @@ pub(crate) fn render(crumbs: &[Crumb]) -> String {
     <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
     <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
     <form action="/search" method="get" class="relative flex">
-      <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-48 px-3 pr-12 py-1.5 text-sm border-2 border-fg bg-page text-fg focus:border-accent focus:outline-none" id="search-input">
+      <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-48 px-3 pr-12 py-1.5 text-sm border-2 border-fg bg-page text-fg-muted focus:text-fg focus:outline-none" id="search-input">
       <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-mono pointer-events-none opacity-30" aria-hidden="true">[ / ]</span>
     </form>
   </div>
