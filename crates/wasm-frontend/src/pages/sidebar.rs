@@ -73,7 +73,7 @@ fn render_nav_card(ctx: &SidebarContext<'_>, pkg_url: &str) -> Division {
                     SidebarActive::World(name) if name == world.name
                 );
                 let style = if is_active {
-                    "block px-2 py-1 rounded text-accent bg-accent/10 font-medium text-sm font-mono truncate"
+                    "block px-2 py-1 rounded text-fg bg-fg/10 font-medium text-sm font-mono truncate"
                 } else {
                     "block px-2 py-1 rounded text-fg hover:text-accent hover:bg-surface-muted text-sm font-mono truncate transition-colors"
                 };
@@ -109,7 +109,7 @@ fn render_nav_card(ctx: &SidebarContext<'_>, pkg_url: &str) -> Division {
                     SidebarActive::Item(iface_name, _) if iface_name == iface.name
                 );
                 let style = if is_active {
-                    "block px-2 py-1 rounded text-accent bg-accent/10 font-medium text-sm font-mono truncate"
+                    "block px-2 py-1 rounded text-fg bg-fg/10 font-medium text-sm font-mono truncate"
                 } else {
                     "block px-2 py-1 rounded text-fg hover:text-accent hover:bg-surface-muted text-sm font-mono truncate transition-colors"
                 };

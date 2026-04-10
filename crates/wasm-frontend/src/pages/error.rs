@@ -19,7 +19,7 @@ pub(crate) fn render(message: &str) -> String {
         })
         .anchor(|a| {
             a.href("/")
-                .class("inline-block mt-8 px-6 py-3 bg-accent text-white rounded-lg font-medium hover:bg-accent-hover transition-colors")
+                .class("inline-block mt-8 px-6 py-3 bg-fg text-page rounded-lg font-medium hover:bg-fg-secondary transition-colors")
                 .text("Go to Home")
         })
         .build();

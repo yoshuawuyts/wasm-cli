@@ -28,8 +28,8 @@ pub(crate) fn render() -> String {
                 .anchor(|a| {
                     a.href("/")
                         .class(
-                            "px-4 py-2 bg-accent text-white rounded-md \
-                             font-medium hover:bg-accent-hover transition-colors",
+                            "px-4 py-2 bg-fg text-page rounded-md \
+                             font-medium hover:bg-fg-secondary transition-colors",
                         )
                         .text("Browse packages")
                 })

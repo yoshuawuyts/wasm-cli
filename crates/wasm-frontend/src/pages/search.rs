@@ -116,7 +116,7 @@ fn render_search_form(query: &str) -> Division {
                 })
                 .button(|btn| {
                     btn.type_("submit")
-                        .class("px-4 py-2 rounded bg-accent text-white text-sm font-normal hover:bg-accent-hover transition-colors")
+                        .class("px-4 py-2 rounded bg-fg text-page text-sm font-normal hover:bg-fg-secondary transition-colors")
                         .text("Search")
                 })
         })
