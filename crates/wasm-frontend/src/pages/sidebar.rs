@@ -62,7 +62,7 @@ fn render_nav_card(ctx: &SidebarContext<'_>, pkg_url: &str) -> Division {
             d.class("mb-3")
                 .division(|label| {
                     label
-                        .class("text-fg-muted text-sm uppercase tracking-wide mb-1.5")
+                        .class("text-fg-muted text-sm mb-1.5")
                         .text("Worlds")
                 });
             let mut ul = UnorderedList::builder();
@@ -95,7 +95,7 @@ fn render_nav_card(ctx: &SidebarContext<'_>, pkg_url: &str) -> Division {
         card.division(|d| {
             d.division(|label| {
                     label
-                        .class("text-fg-muted text-sm uppercase tracking-wide mb-1.5")
+                        .class("text-fg-muted text-sm mb-1.5")
                         .text("Interfaces")
                 });
             let mut ul = UnorderedList::builder();

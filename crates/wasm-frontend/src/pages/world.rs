@@ -81,7 +81,7 @@ pub(crate) fn render(
 fn render_item_section(heading: &str, items: &[WorldItemDoc], is_import: bool) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-base font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
+        h2.class("text-base font-medium text-fg-muted mb-3 pb-2 border-b border-border")
             .text(heading.to_owned())
     });
 

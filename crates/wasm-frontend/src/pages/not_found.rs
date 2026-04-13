@@ -12,7 +12,7 @@ pub(crate) fn render() -> String {
     let body = Division::builder()
         .class("pt-16 pb-20 max-w-lg")
         .heading_1(|h1| {
-            h1.class("text-4xl font-normal tracking-display text-accent")
+            h1.class("text-4xl font-light tracking-display text-accent")
                 .text("Page not found")
         })
         .paragraph(|p| {

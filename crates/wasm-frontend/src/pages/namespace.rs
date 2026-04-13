@@ -32,7 +32,7 @@ fn render_packages(
     body.division(|div| {
         div.class("pt-8 pb-8")
             .heading_1(|h1| {
-                h1.class("text-3xl font-normal tracking-display")
+                h1.class("text-3xl font-light tracking-display")
                     .text(namespace.to_owned())
             })
             .paragraph(|p| {

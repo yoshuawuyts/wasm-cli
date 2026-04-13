@@ -24,7 +24,7 @@ fn render_packages(packages: &[KnownPackage], offset: u32, limit: u32) -> String
     body.division(|div| {
         div.class("pt-8 flex items-baseline justify-between pb-6 border-b-2 border-fg mb-6")
             .heading_1(|h1| {
-                h1.class("text-3xl font-normal tracking-display")
+                h1.class("text-3xl font-light tracking-display")
                     .text("All Packages")
             })
             .span(|s| {
@@ -43,7 +43,7 @@ fn render_packages(packages: &[KnownPackage], offset: u32, limit: u32) -> String
     } else {
         // Table-style header
         body.division(|div| {
-            div.class("hidden sm:flex items-baseline gap-3 px-2 pb-2 text-sm text-fg-faint uppercase tracking-wide")
+            div.class("hidden sm:flex items-baseline gap-3 px-2 pb-2 text-sm text-fg-faint")
                 .span(|s| s.class("w-48 shrink-0").text("Package"))
                 .span(|s| s.class("w-20 shrink-0").text("Version"))
                 .span(|s| s.text("Description"))
@@ -69,7 +69,7 @@ fn render_error(err: &ApiError, offset: u32, limit: u32) -> String {
     body.division(|div| {
         div.class("pt-8 pb-6 border-b-2 border-fg mb-6")
             .heading_1(|h1| {
-                h1.class("text-3xl font-normal tracking-display")
+                h1.class("text-3xl font-light tracking-display")
                     .text("All Packages")
             })
     });

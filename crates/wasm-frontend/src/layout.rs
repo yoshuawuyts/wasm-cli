@@ -104,7 +104,6 @@ fn document_inner(
             display: '-0.06em',
           }},
           fontSize: {{
-            xs: ['0.75rem', {{ lineHeight: '1.125rem' }}],
             sm: ['0.875rem', {{ lineHeight: '1.375rem' }}],
             lg: ['1.125rem', {{ lineHeight: '1.625rem' }}],
           }},
@@ -153,8 +152,8 @@ fn document_inner(
       --color-border: rgba(35, 44, 244, 0.25);
       --color-border-light: rgba(35, 44, 244, 0.12);
       --color-fg: {ACCENT_COLOR};
-      --color-fg-secondary: rgba(35, 44, 244, 0.75);
-      --color-fg-muted: rgba(35, 44, 244, 0.55);
+      --color-fg-secondary: rgba(35, 44, 244, 0.85);
+      --color-fg-muted: rgba(35, 44, 244, 0.70);
       --color-fg-faint: rgba(35, 44, 244, 0.4);
       /* WIT item kind colors */
       --color-wit-struct: #4338ca;

@@ -10,7 +10,7 @@ pub(crate) fn render(message: &str) -> String {
     let body = Division::builder()
         .class("text-center py-20")
         .heading_1(|h1| {
-            h1.class("text-3xl font-normal tracking-display text-fg")
+            h1.class("text-3xl font-light tracking-display text-fg")
                 .text("Something went wrong")
         })
         .paragraph(|p| {

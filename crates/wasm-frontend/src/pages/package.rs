@@ -148,7 +148,7 @@ fn render_interface_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
     container.class("space-y-1");
     container.heading_2(|h2| {
-        h2.class("text-base font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
+        h2.class("text-base font-medium text-fg-muted mb-3 pb-2 border-b border-border")
             .text("Interfaces")
     });
 
@@ -191,7 +191,7 @@ fn render_world_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
     container.class("space-y-1");
     container.heading_2(|h2| {
-        h2.class("text-base font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
+        h2.class("text-base font-medium text-fg-muted mb-3 pb-2 border-b border-border")
             .text("Worlds")
     });
 
@@ -233,7 +233,7 @@ fn render_world_row(world: &crate::wit_doc::WorldDoc) -> ListItem {
 fn render_raw_wit(wit_text: &str) -> Division {
     Division::builder()
         .heading_2(|h2| {
-            h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3")
+            h2.class("text-base font-medium text-fg-muted mb-3")
                 .text("WIT Definition")
         })
         .push(
@@ -254,7 +254,7 @@ fn render_world_summaries(detail: &PackageVersion) -> Division {
     for world in &detail.worlds {
         container.division(|world_div| {
             world_div.heading_2(|h2| {
-                h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3")
+                h2.class("text-base font-medium text-fg-muted mb-3")
                     .text(format!("world {}", world.name))
             });
 

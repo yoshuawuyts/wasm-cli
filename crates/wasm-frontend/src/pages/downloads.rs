@@ -10,7 +10,7 @@ pub(crate) fn render() -> String {
     let body = Division::builder()
         .class("pt-8 max-w-[65ch]")
         .heading_1(|h1| {
-            h1.class("text-3xl font-normal tracking-display mb-6")
+            h1.class("text-3xl font-light tracking-display mb-6")
                 .text("Downloads")
         })
         .paragraph(|p| {
@@ -18,7 +18,7 @@ pub(crate) fn render() -> String {
                 .text("Install the wasm CLI to manage WebAssembly components from your terminal.")
         })
         .heading_2(|h2| {
-            h2.class("text-2xl font-normal tracking-display mt-10 mb-4")
+            h2.class("text-2xl font-light tracking-display mt-10 mb-4")
                 .text("Quick install")
         })
         .division(|d| {
@@ -53,7 +53,7 @@ pub(crate) fn render() -> String {
                 })
         })
         .heading_2(|h2| {
-            h2.class("text-2xl font-normal tracking-display mt-10 mb-4")
+            h2.class("text-2xl font-light tracking-display mt-10 mb-4")
                 .text("From source")
         })
         .push(
