@@ -88,7 +88,7 @@ fn render_card(pkg: &wasm_meta_registry_client::KnownPackage) -> Division {
                             })
                             .span(|right| {
                                 right
-                                    .class("text-xs text-fg-faint font-mono shrink-0")
+                                    .class("text-sm text-fg-faint font-mono shrink-0")
                                     .text(version.clone())
                             })
                     })
@@ -109,7 +109,7 @@ fn render_card(pkg: &wasm_meta_registry_client::KnownPackage) -> Division {
                     })
                     .span(|right| {
                         right
-                            .class("text-xs text-fg-faint font-mono shrink-0")
+                            .class("text-sm text-fg-faint font-mono shrink-0")
                             .text(version.clone())
                     })
             })

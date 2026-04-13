@@ -108,7 +108,7 @@ fn render_type_section(heading: &str, types: &[&TypeDoc]) -> Division {
     let mut div = Division::builder();
     div.class("pt-6 first:pt-0");
     div.heading_2(|h2| {
-        h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
+        h2.class("text-base font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
             .text(heading.to_owned())
     });
 
@@ -156,7 +156,7 @@ fn render_function_section(functions: &[FunctionDoc]) -> Division {
     let mut div = Division::builder();
     div.class("pt-6 first:pt-0");
     div.heading_2(|h2| {
-        h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
+        h2.class("text-base font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
             .text("Functions")
     });
 

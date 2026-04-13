@@ -250,11 +250,11 @@ fn render_card(pkg: &KnownPackage) -> Division {
                     .span(|s| {
                         s.class("flex justify-between items-start")
                             .span(|left| {
-                                left.class("text-xs text-fg-faint leading-tight")
+                                left.class("text-sm text-fg-faint leading-tight")
                                     .text(ns.clone())
                             })
                             .span(|right| {
-                                right.class("text-xs text-fg-faint font-mono shrink-0")
+                                right.class("text-sm text-fg-faint font-mono shrink-0")
                                     .text(version.clone())
                             })
                     })
@@ -278,7 +278,7 @@ fn render_card(pkg: &KnownPackage) -> Division {
                             .text(display_name)
                     })
                     .span(|right| {
-                        right.class("text-xs text-fg-faint font-mono shrink-0 mt-1")
+                        right.class("text-sm text-fg-faint font-mono shrink-0 mt-1")
                             .text(version.clone())
                     })
             })

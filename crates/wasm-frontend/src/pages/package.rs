@@ -129,7 +129,7 @@ fn render_interface_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
     container.class("space-y-1");
     container.heading_2(|h2| {
-        h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
+        h2.class("text-base font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
             .text("Interfaces")
     });
 
@@ -172,7 +172,7 @@ fn render_world_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
     container.class("space-y-1");
     container.heading_2(|h2| {
-        h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
+        h2.class("text-base font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
             .text("Worlds")
     });
 

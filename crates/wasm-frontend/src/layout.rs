@@ -344,6 +344,7 @@ fn document_inner(
         var tag = el && el.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable)) return;
         var search = document.getElementById('search-input');
+        if (search && search.offsetParent === null) search = document.getElementById('search-input-lg');
         if (search) {{ e.preventDefault(); search.focus(); }}
       }}
     }});
