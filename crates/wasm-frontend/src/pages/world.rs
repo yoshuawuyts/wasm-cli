@@ -90,7 +90,6 @@ fn render_item_section(heading: &str, items: &[WorldItemDoc], is_import: bool) -
     };
 
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-0.5");
     for item in items {
         ul.push(render_world_item_row(item, link_color));
     }
@@ -109,7 +108,7 @@ fn strip_version(name: &str) -> &str {
 /// Render a single world item row.
 fn render_world_item_row(item: &WorldItemDoc, link_color: &str) -> ListItem {
     let mut li = ListItem::builder();
-    li.class("py-3 px-2");
+    li.class("py-1");
 
     match item {
         WorldItemDoc::Interface {

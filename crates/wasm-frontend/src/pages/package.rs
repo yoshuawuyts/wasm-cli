@@ -69,7 +69,7 @@ pub(crate) fn render(
         String::new()
     };
 
-    let body_html = format!("{header}<div class=\"space-y-10 max-w-3xl\">{wit_content}</div>");
+    let body_html = format!("{header}<div class=\"space-y-10 max-w-3xl pt-4\">{wit_content}</div>");
 
     let shell_ctx = package_shell::SidebarContext {
         pkg,
@@ -92,6 +92,7 @@ fn render_wit_content_with_doc(
     doc: Option<&WitDocument>,
 ) -> Section {
     let mut section = Section::builder();
+    section.class("space-y-10");
 
     if let Some(doc) = doc {
         if !doc.worlds.is_empty() {
@@ -146,12 +147,12 @@ fn render_interface_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
     container.class("space-y-1");
     container.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+        h2.class("text-lg font-medium text-fg-muted mb-2 pb-2 border-b border-border")
             .text("Interfaces")
     });
 
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-0.5");
+    ul.class("");
     for iface in &doc.interfaces {
         ul.push(render_interface_row(iface));
     }
@@ -162,10 +163,10 @@ fn render_interface_overview(doc: &WitDocument) -> Division {
 /// Render a single interface row: linked name + doc excerpt.
 fn render_interface_row(iface: &crate::wit_doc::InterfaceDoc) -> ListItem {
     let mut li = ListItem::builder();
-    li.class("py-3 flex gap-6");
+    li.class("py-2 flex gap-4");
 
     li.division(|left| {
-        left.class("shrink-0 w-52").anchor(|a| {
+        left.class("shrink-0 w-44").anchor(|a| {
             a.href(iface.url.clone())
                 .class("font-mono text-base font-medium text-wit-iface hover:underline")
                 .text(iface.name.clone())
@@ -189,12 +190,12 @@ fn render_world_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
     container.class("space-y-1");
     container.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+        h2.class("text-lg font-medium text-fg-muted mb-2 pb-2 border-b border-border")
             .text("Worlds")
     });
 
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-0.5");
+    ul.class("");
     for world in &doc.worlds {
         ul.push(render_world_row(world));
     }
@@ -205,10 +206,10 @@ fn render_world_overview(doc: &WitDocument) -> Division {
 /// Render a single world row: linked name + doc excerpt.
 fn render_world_row(world: &crate::wit_doc::WorldDoc) -> ListItem {
     let mut li = ListItem::builder();
-    li.class("py-3 flex gap-6");
+    li.class("py-1 flex gap-4");
 
     li.division(|left| {
-        left.class("shrink-0 w-52").anchor(|a| {
+        left.class("shrink-0 w-44").anchor(|a| {
             a.href(world.url.clone())
                 .class("font-mono text-base font-medium text-wit-world hover:underline")
                 .text(world.name.clone())
