@@ -140,7 +140,7 @@ cacache = { version = "13.1.0", features = [
     "tokio-runtime",
     "tokio-stream",
 ], default-features = false }
-pubgrub = "0.3"
+pubgrub = "0.4"
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 semver = { version = "1.0.27", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
@@ -151,7 +151,7 @@ wit-parser = "0.246"
 
 # frontend dependencies
 html = "0.6"
-pulldown-cmark = { version = "0.12", default-features = false, features = [
+pulldown-cmark = { version = "0.13", default-features = false, features = [
     "html",
 ] }
 wstd = "0.6"

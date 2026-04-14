@@ -8,7 +8,7 @@ publish = false
 clap = { workspace = true }
 anyhow = { workspace = true }
 ctrlc = "3"
-notify = "7"
+notify = "8"
 rusqlite = { workspace = true }
 tempfile = { workspace = true }
 
