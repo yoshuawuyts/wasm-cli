@@ -91,9 +91,8 @@ pub(crate) fn run_serve() -> Result<()> {
         }
 
         // Reload on Enter or file change (with debounce).
-        if reload.swap(false, Ordering::SeqCst)
-            && last_rebuild.elapsed() > Duration::from_millis(500)
-        {
+        if reload.load(Ordering::SeqCst) && last_rebuild.elapsed() > Duration::from_millis(500) {
+            reload.store(false, Ordering::SeqCst);
             eprintln!("\n:: Rebuilding frontend…");
             if build_frontend(&root).is_ok() {
                 kill_child(&mut wasmtime_child, "wasmtime serve");

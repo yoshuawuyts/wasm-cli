@@ -19,7 +19,7 @@ pub(crate) fn render_type(
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", ty.name);
-    let fqn = format!("{display_name}/{iface_name}");
+    let fqn = format!("{display_name}/{iface_name}/{}", ty.name);
 
     let kind_label = type_kind_label(&ty.kind);
 
@@ -101,7 +101,7 @@ pub(crate) fn render_function(
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", func.name);
-    let fqn = format!("{display_name}/{iface_name}");
+    let fqn = format!("{display_name}/{iface_name}/{}", func.name);
 
     // Code block
     let code_block = render_function_definition(func).to_string();

@@ -203,8 +203,10 @@ async fn package_detail(
     Path((namespace, name, version)): Path<(String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
-    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
-        return not_found_response();
+    let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
+        Ok(Some(pkg)) => pkg,
+        Ok(None) => return not_found_response(),
+        Err(resp) => return resp,
     };
     let version_detail = client
         .fetch_package_version(&pkg.registry, &pkg.repository, &version)
@@ -249,8 +251,10 @@ async fn interface_detail(
     Path((namespace, name, version, iface)): Path<(String, String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
-    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
-        return not_found_response();
+    let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
+        Ok(Some(pkg)) => pkg,
+        Ok(None) => return not_found_response(),
+        Err(resp) => return resp,
     };
     let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
@@ -273,8 +277,10 @@ async fn item_detail(
     )>,
 ) -> Response {
     let client = RegistryClient::from_env();
-    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
-        return not_found_response();
+    let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
+        Ok(Some(pkg)) => pkg,
+        Ok(None) => return not_found_response(),
+        Err(resp) => return resp,
     };
     let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
@@ -303,8 +309,10 @@ async fn world_detail(
     Path((namespace, name, version, world_name)): Path<(String, String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
-    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
-        return not_found_response();
+    let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
+        Ok(Some(pkg)) => pkg,
+        Ok(None) => return not_found_response(),
+        Err(resp) => return resp,
     };
     let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
@@ -353,33 +361,35 @@ async fn fetch_wit_doc(
 
 /// Fetch a package by WIT namespace/name, validating the version exists.
 ///
-/// Returns `None` (and logs) if the namespace is reserved, the package is
-/// not found, or the version tag doesn't exist.
+/// Returns `Ok(None)` (and logs) if the namespace is reserved, the package is
+/// not found, or the version tag doesn't exist. Returns `Err(Response)` with
+/// a `502 Bad Gateway` response when the upstream API call fails, so that
+/// registry outages are surfaced correctly instead of being masked as 404s.
 async fn fetch_package_or_404(
     client: &RegistryClient,
     namespace: &str,
     name: &str,
     version: &str,
-) -> Option<KnownPackage> {
+) -> Result<Option<KnownPackage>, Response> {
     if is_reserved(namespace) {
-        return None;
+        return Ok(None);
     }
     match client.fetch_package_by_wit(namespace, name).await {
         Ok(Some(pkg)) => {
             if pkg.tags.iter().any(|tag| tag == version) {
-                Some(pkg)
+                Ok(Some(pkg))
             } else {
                 eprintln!("wasm-frontend: version not found for {namespace}/{name}: {version}");
-                None
+                Ok(None)
             }
         }
         Ok(None) => {
             eprintln!("wasm-frontend: package not found: {namespace}/{name}@{version}");
-            None
+            Ok(None)
         }
         Err(e) => {
             eprintln!("wasm-frontend: API error looking up {namespace}/{name}@{version}: {e}");
-            None
+            Err(error_response(&e.to_string()))
         }
     }
 }
@@ -564,7 +574,8 @@ mod tests {
     }
 
     /// Verify the package redirect handler works with valid path parameters
-    /// and doesn't panic — it should either redirect or return not-found.
+    /// and doesn't panic — it should either redirect, return not-found, or
+    /// return bad-gateway when the registry API is unreachable.
     #[tokio::test]
     async fn package_redirect_handles_trailing_slash_path() {
         let result = package_redirect(Path(("wasi".to_string(), "random".to_string()))).await;
@@ -574,7 +585,11 @@ mod tests {
                 assert!(resp.status().is_redirection());
             }
             Err(resp) => {
-                assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+                let status = resp.status();
+                assert!(
+                    status == StatusCode::NOT_FOUND || status == StatusCode::BAD_GATEWAY,
+                    "expected 404 or 502, got {status}"
+                );
             }
         }
     }
