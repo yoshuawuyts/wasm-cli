@@ -183,10 +183,21 @@ impl RegistryClient {
         namespace: &str,
         name: &str,
     ) -> Result<Option<KnownPackage>, ApiError> {
-        let packages = self.search_packages(&format!("{namespace}/{name}")).await?;
-        Ok(packages.into_iter().find(|pkg| {
+        let is_match = |pkg: &KnownPackage| {
             pkg.wit_namespace.as_deref() == Some(namespace) && pkg.wit_name.as_deref() == Some(name)
-        }))
+        };
+
+        // Try searching by "namespace/name" first (matches repository paths
+        // like "webassembly/wasi/io"). Fall back to just the name for repos
+        // whose path doesn't contain the WIT namespace (e.g.
+        // "bytecodealliance/sample-wasi-http-rust/…" with namespace "ba").
+        let packages = self.search_packages(&format!("{namespace}/{name}")).await?;
+        if let Some(pkg) = packages.into_iter().find(|p| is_match(p)) {
+            return Ok(Some(pkg));
+        }
+
+        let packages = self.search_packages(name).await?;
+        Ok(packages.into_iter().find(|p| is_match(p)))
     }
 
     // ================================================================

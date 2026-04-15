@@ -432,7 +432,7 @@ fn render_resource_body(
             if let Some(docs) = &ctor.docs {
                 d.text(crate::markdown::render_block(
                     docs,
-                    "text-sm text-fg-secondary leading-relaxed prose-doc",
+                    "text-base text-fg-secondary leading-relaxed prose-doc",
                 ));
             }
             d
@@ -451,7 +451,7 @@ fn render_resource_body(
                     if let Some(docs) = &func.docs {
                         m.text(crate::markdown::render_block(
                             docs,
-                            "text-sm text-fg-secondary leading-relaxed prose-doc",
+                            "text-base text-fg-secondary leading-relaxed prose-doc",
                         ));
                     }
                     m
@@ -473,7 +473,7 @@ fn render_resource_body(
                     if let Some(docs) = &func.docs {
                         m.text(crate::markdown::render_block(
                             docs,
-                            "text-sm text-fg-secondary leading-relaxed prose-doc",
+                            "text-base text-fg-secondary leading-relaxed prose-doc",
                         ));
                     }
                     m
@@ -486,16 +486,7 @@ fn render_resource_body(
     div.build()
 }
 
-/// Render a type alias.
-fn render_alias(type_ref: &TypeRef) -> Division {
-    Division::builder()
-        .heading_2(|h2| {
-            h2.class("text-lg font-medium text-fg-muted mb-3")
-                .text("Definition")
-        })
-        .paragraph(|p| {
-            p.class("font-mono text-fg")
-                .push(super::wit_render::render_type_ref(type_ref))
-        })
-        .build()
+/// Render a type alias (no-op — the code block already shows the definition).
+fn render_alias(_type_ref: &TypeRef) -> Division {
+    Division::builder().build()
 }
