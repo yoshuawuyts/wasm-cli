@@ -390,17 +390,23 @@ fn collect_imports_exports(
     let mut export_idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
     for world in &detail.worlds {
-        let world_entry = (
-            world.name.clone(),
-            format!("{url_base}/world/{}", world.name),
-        );
+        let world_entry = if world.name == "root" {
+            None
+        } else {
+            Some((
+                world.name.clone(),
+                format!("{url_base}/world/{}", world.name),
+            ))
+        };
         for iface in &world.imports {
             if iface.package == display_name {
                 let iface_name = iface.interface.as_deref().unwrap_or(&iface.package);
                 let key = iface_name.to_string();
                 if let Some(&idx) = import_idx.get(&key) {
                     if let Some(item) = imports.get_mut(idx) {
-                        item.worlds.push(world_entry.clone());
+                        if let Some(we) = &world_entry {
+                            item.worlds.push(we.clone());
+                        }
                     }
                 } else {
                     import_idx.insert(key, imports.len());
@@ -408,7 +414,7 @@ fn collect_imports_exports(
                         label: iface_name.to_string(),
                         href: format!("{url_base}/interface/{iface_name}"),
                         version: None,
-                        worlds: vec![world_entry.clone()],
+                        worlds: world_entry.clone().into_iter().collect(),
                         is_internal: true,
                     });
                 }
@@ -440,7 +446,9 @@ fn collect_imports_exports(
                 let key = iface_name.to_string();
                 if let Some(&idx) = export_idx.get(&key) {
                     if let Some(item) = exports.get_mut(idx) {
-                        item.worlds.push(world_entry.clone());
+                        if let Some(we) = &world_entry {
+                            item.worlds.push(we.clone());
+                        }
                     }
                 } else {
                     export_idx.insert(key, exports.len());
@@ -448,7 +456,7 @@ fn collect_imports_exports(
                         label: iface_name.to_string(),
                         href: format!("{url_base}/interface/{iface_name}"),
                         version: None,
-                        worlds: vec![world_entry.clone()],
+                        worlds: world_entry.clone().into_iter().collect(),
                         is_internal: true,
                     });
                 }
@@ -559,6 +567,67 @@ pub(crate) fn url_base_for(pkg: &KnownPackage, version: &str) -> String {
         (Some(ns), Some(name)) => format!("/{ns}/{name}/{version}"),
         _ => format!("/{}/{version}", pkg.repository),
     }
+}
+
+/// A single item in an imports or exports list.
+pub(crate) struct ImportExportEntry {
+    /// Display text (e.g. "wasi:cli/environment").
+    pub label: String,
+    /// Optional link URL.
+    pub url: Option<String>,
+}
+
+/// CSS class for import links.
+pub(crate) const IMPORT_LINK_CLASS: &str =
+    "block font-mono text-wit-import hover:underline text-base";
+
+/// CSS class for export links.
+pub(crate) const EXPORT_LINK_CLASS: &str = "block font-mono text-accent hover:underline text-base";
+
+/// CSS class for unlinked items.
+pub(crate) const PLAIN_ITEM_CLASS: &str = "block font-mono text-fg text-base";
+
+/// Render a section heading + list of import/export entries.
+///
+/// Shared between the world detail page and the component fallback page.
+pub(crate) fn render_import_export_section(
+    heading: &str,
+    items: &[ImportExportEntry],
+    is_import: bool,
+) -> Division {
+    let mut div = Division::builder();
+    div.heading_2(|h2| {
+        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+            .text(heading.to_owned())
+    });
+
+    let link_class = if is_import {
+        IMPORT_LINK_CLASS
+    } else {
+        EXPORT_LINK_CLASS
+    };
+
+    let mut ul = html::text_content::UnorderedList::builder();
+    for item in items {
+        ul.list_item(|li| {
+            li.class("py-1");
+            match &item.url {
+                Some(url) => {
+                    li.anchor(|a| {
+                        a.href(url.clone())
+                            .class(link_class.to_owned())
+                            .text(item.label.clone())
+                    });
+                }
+                None => {
+                    li.span(|s| s.class(PLAIN_ITEM_CLASS).text(item.label.clone()));
+                }
+            }
+            li
+        });
+    }
+    div.push(ul.build());
+    div.build()
 }
 
 /// Render the version selector dropdown.

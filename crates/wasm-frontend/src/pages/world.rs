@@ -77,23 +77,53 @@ pub(crate) fn render(
 
 /// Render an imports or exports section, grouped by package namespace.
 fn render_item_section(heading: &str, items: &[WorldItemDoc], is_import: bool) -> Division {
-    let mut div = Division::builder();
-    div.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
-            .text(heading.to_owned())
-    });
+    // Separate interface items (shared rendering) from non-interface items
+    let mut iface_entries: Vec<package_shell::ImportExportEntry> = Vec::new();
+    let mut other_items: Vec<&WorldItemDoc> = Vec::new();
 
-    let link_color = if is_import {
-        "block font-mono text-wit-import hover:underline text-base"
-    } else {
-        "block font-mono text-accent hover:underline text-base"
-    };
-
-    let mut ul = UnorderedList::builder();
     for item in items {
-        ul.push(render_world_item_row(item, link_color));
+        match item {
+            WorldItemDoc::Interface { name, url } => {
+                iface_entries.push(package_shell::ImportExportEntry {
+                    label: strip_version(name).to_owned(),
+                    url: url.clone(),
+                });
+            }
+            _ => other_items.push(item),
+        }
     }
 
+    // If everything is an interface, use the shared renderer directly.
+    if other_items.is_empty() {
+        return package_shell::render_import_export_section(heading, &iface_entries, is_import);
+    }
+
+    // Mixed content: render heading + interfaces via shared code, then
+    // append functions/types with custom rendering.
+    let link_color = if is_import {
+        package_shell::IMPORT_LINK_CLASS
+    } else {
+        package_shell::EXPORT_LINK_CLASS
+    };
+
+    let mut div = Division::builder();
+    if !iface_entries.is_empty() {
+        div.push(package_shell::render_import_export_section(
+            heading,
+            &iface_entries,
+            is_import,
+        ));
+    } else {
+        div.heading_2(|h2| {
+            h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+                .text(heading.to_owned())
+        });
+    }
+
+    let mut ul = UnorderedList::builder();
+    for item in other_items {
+        ul.push(render_world_item_row(item, link_color));
+    }
     div.push(ul.build());
     div.build()
 }

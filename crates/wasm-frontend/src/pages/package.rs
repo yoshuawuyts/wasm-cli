@@ -252,10 +252,12 @@ fn render_world_summaries(detail: &PackageVersion) -> Division {
 
     for world in &detail.worlds {
         container.division(|world_div| {
-            world_div.heading_2(|h2| {
-                h2.class("text-lg font-medium text-fg-muted mb-3")
-                    .text(format!("world {}", world.name))
-            });
+            if world.name != "root" {
+                world_div.heading_2(|h2| {
+                    h2.class("text-lg font-medium text-fg-muted mb-3")
+                        .text(format!("world {}", world.name))
+                });
+            }
 
             if let Some(desc) = &world.description {
                 world_div.paragraph(|p| {
@@ -265,10 +267,10 @@ fn render_world_summaries(detail: &PackageVersion) -> Division {
             }
 
             if !world.imports.is_empty() {
-                world_div.push(render_iface_ref_list("Imports", &world.imports));
+                world_div.push(render_iface_ref_list("Imports", &world.imports, true));
             }
             if !world.exports.is_empty() {
-                world_div.push(render_iface_ref_list("Exports", &world.exports));
+                world_div.push(render_iface_ref_list("Exports", &world.exports, false));
             }
             world_div
         });
@@ -277,43 +279,48 @@ fn render_world_summaries(detail: &PackageVersion) -> Division {
     container.build()
 }
 
-/// Render a list of WIT interface references (fallback).
+/// Render a list of WIT interface references (fallback), styled like world
+/// imports/exports with clickable links.
 fn render_iface_ref_list(
     label: &str,
     interfaces: &[wasm_meta_registry_client::WitInterfaceRef],
+    is_import: bool,
 ) -> Division {
+    let items: Vec<package_shell::ImportExportEntry> = interfaces
+        .iter()
+        .map(|iface| package_shell::ImportExportEntry {
+            label: format_iface_ref_no_version(iface),
+            url: build_iface_href(iface),
+        })
+        .collect();
+
     let mut div = Division::builder();
     div.class("mb-4");
-    div.heading_3(|h3| {
-        h3.class("text-sm font-medium text-fg-muted mb-2")
-            .text(label.to_owned())
-    });
-
-    let mut ul = UnorderedList::builder();
-    ul.class("space-y-0.5");
-    for iface in interfaces {
-        let display = format_iface_ref(iface);
-        ul.list_item(|li| {
-            li.class("py-1.5")
-                .span(|s| s.class("text-base font-mono text-accent").text(display))
-        });
-    }
-    div.push(ul.build());
+    div.push(package_shell::render_import_export_section(
+        label, &items, is_import,
+    ));
     div.build()
 }
 
-/// Format a WIT interface reference as a display string.
-fn format_iface_ref(iface: &wasm_meta_registry_client::WitInterfaceRef) -> String {
+/// Format a WIT interface reference without the version suffix.
+fn format_iface_ref_no_version(iface: &wasm_meta_registry_client::WitInterfaceRef) -> String {
     let mut s = iface.package.clone();
     if let Some(name) = &iface.interface {
         s.push('/');
         s.push_str(name);
     }
-    if let Some(v) = &iface.version {
-        s.push('@');
-        s.push_str(v);
-    }
     s
+}
+
+/// Build a URL for a WIT interface reference.
+fn build_iface_href(iface: &wasm_meta_registry_client::WitInterfaceRef) -> Option<String> {
+    let (ns, name) = iface.package.split_once(':')?;
+    match (&iface.interface, &iface.version) {
+        (Some(iface_name), Some(v)) => Some(format!("/{ns}/{name}/{v}/interface/{iface_name}")),
+        (None, Some(v)) => Some(format!("/{ns}/{name}/{v}")),
+        (Some(iface_name), None) => Some(format!("/{ns}/{name}/interface/{iface_name}")),
+        (None, None) => Some(format!("/{ns}/{name}")),
+    }
 }
 
 /// Extract the first sentence from a doc comment for summary display.
