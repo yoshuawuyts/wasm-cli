@@ -22,7 +22,7 @@ pub(crate) fn render(
     let kind_color = if kind == "component" {
         "text-wit-world"
     } else {
-        "text-wit-iface"
+        "text-wit-module"
     };
 
     let size_text = child

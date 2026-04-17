@@ -1625,8 +1625,8 @@ impl Store {
                     "SELECT wit_text FROM wit_package
                      WHERE package_name = ?1
                        AND wit_text IS NOT NULL
-                     ORDER BY id DESC LIMIT 1",
-                    rusqlite::params![&dep.package],
+                     ORDER BY (version = ?2) DESC, id DESC LIMIT 1",
+                    rusqlite::params![&dep.package, &dep.version],
                     |row| row.get(0),
                 )
                 .ok();
@@ -1976,9 +1976,9 @@ fn extract_component_metadata(
     let summary = payload_to_summary(&payload, wasm_bytes, root_wit.as_ref());
     let name = summary.name.clone();
     let description = summary.description.clone();
-    let json = serde_json::to_string(&summary).unwrap_or_default();
+    let json = serde_json::to_string(&summary).ok();
 
-    (name, description, Some(json))
+    (name, description, json)
 }
 
 /// Convert a `wasm_metadata::Payload` tree into a `ComponentSummary` tree.
@@ -3152,7 +3152,7 @@ mod tests {
 
     #[test]
     fn parse_component_extern_name_full() {
-        let ref_ = super::parse_component_extern_name("wasi:http/types@0.2.3");
+        let ref_ = parse_component_extern_name("wasi:http/types@0.2.3");
         assert_eq!(ref_.package, "wasi:http");
         assert_eq!(ref_.interface.as_deref(), Some("types"));
         assert_eq!(ref_.version.as_deref(), Some("0.2.3"));
@@ -3160,7 +3160,7 @@ mod tests {
 
     #[test]
     fn parse_component_extern_name_no_interface() {
-        let ref_ = super::parse_component_extern_name("wasi:http@0.2.3");
+        let ref_ = parse_component_extern_name("wasi:http@0.2.3");
         assert_eq!(ref_.package, "wasi:http");
         assert_eq!(ref_.interface, None);
         assert_eq!(ref_.version.as_deref(), Some("0.2.3"));
@@ -3168,7 +3168,7 @@ mod tests {
 
     #[test]
     fn parse_component_extern_name_no_version() {
-        let ref_ = super::parse_component_extern_name("wasi:http/types");
+        let ref_ = parse_component_extern_name("wasi:http/types");
         assert_eq!(ref_.package, "wasi:http");
         assert_eq!(ref_.interface.as_deref(), Some("types"));
         assert_eq!(ref_.version, None);
@@ -3176,7 +3176,7 @@ mod tests {
 
     #[test]
     fn parse_component_extern_name_plain() {
-        let ref_ = super::parse_component_extern_name("my-import");
+        let ref_ = parse_component_extern_name("my-import");
         assert_eq!(ref_.package, "my-import");
         assert_eq!(ref_.interface, None);
         assert_eq!(ref_.version, None);
@@ -3184,7 +3184,7 @@ mod tests {
 
     #[test]
     fn parse_component_extern_name_prerelease_version() {
-        let ref_ = super::parse_component_extern_name("wasi:cli/run@0.2.0-rc1");
+        let ref_ = parse_component_extern_name("wasi:cli/run@0.2.0-rc1");
         assert_eq!(ref_.package, "wasi:cli");
         assert_eq!(ref_.interface.as_deref(), Some("run"));
         assert_eq!(ref_.version.as_deref(), Some("0.2.0-rc1"));
@@ -3192,21 +3192,21 @@ mod tests {
 
     #[test]
     fn extract_wit_imports_exports_returns_empty_for_non_wasm() {
-        let (imports, exports) = super::extract_wit_imports_exports(b"not wasm", &(0..8), None);
+        let (imports, exports) = extract_wit_imports_exports(b"not wasm", &(0..8), None);
         assert!(imports.is_empty());
         assert!(exports.is_empty());
     }
 
     #[test]
     fn extract_wit_imports_exports_returns_empty_for_out_of_range() {
-        let (imports, exports) = super::extract_wit_imports_exports(b"short", &(0..100), None);
+        let (imports, exports) = extract_wit_imports_exports(b"short", &(0..100), None);
         assert!(imports.is_empty());
         assert!(exports.is_empty());
     }
 
     #[test]
     fn extract_component_metadata_returns_none_for_invalid_bytes() {
-        let (name, desc, json) = super::extract_component_metadata(b"not wasm");
+        let (name, desc, json) = extract_component_metadata(b"not wasm");
         assert!(name.is_none());
         assert!(desc.is_none());
         assert!(json.is_none());
@@ -3214,7 +3214,7 @@ mod tests {
 
     /// Read the sample-wasi-http-rust component fixture if available.
     fn read_sample_component() -> Option<Vec<u8>> {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples/1-hello-world/vendor/wasm/ghcr-io-bytecodealliance-sample-wasi-http-rust-sample-wasi-http-rust-0.1.6-b33f82f30175.wasm");
         std::fs::read(path).ok()
     }
@@ -3226,7 +3226,7 @@ mod tests {
             return;
         };
 
-        let (name, _desc, json) = super::extract_component_metadata(&bytes);
+        let (name, _desc, json) = extract_component_metadata(&bytes);
 
         // Root component may or may not have an embedded name.
         let _ = name;
@@ -3313,7 +3313,7 @@ mod tests {
         let manifest_id = insert_test_manifest(&conn);
 
         // Extract and store metadata (simulating what try_extract_wit_package does).
-        let (comp_name, comp_desc, producers_json) = super::extract_component_metadata(&bytes);
+        let (comp_name, comp_desc, producers_json) = extract_component_metadata(&bytes);
         WasmComponent::insert(
             &conn,
             manifest_id,

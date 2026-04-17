@@ -375,7 +375,7 @@ impl RegistryClient {
             .await
             .map_err(|e| ApiError::new(format!("failed to read response body: {e}")))?;
         if !status.is_success() {
-            let body = String::from_utf8_lossy(bytes);
+            let body = String::from_utf8_lossy(&bytes);
             return Err(ApiError::new(format!(
                 "registry API returned unexpected status {status} for {url}: {body}"
             )));
