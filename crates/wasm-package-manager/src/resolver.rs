@@ -136,7 +136,7 @@ impl DependencyProvider for DbDependencyProvider<'_> {
             .get_package_dependencies_by_name(package, Some(&ver_str))
             .map_err(|e| ResolveError::Db(e.to_string()))?;
 
-        let mut constraint_map: HashMap<String, WitVersionRange> = HashMap::new();
+        let mut constraints: HashMap<String, WitVersionRange> = HashMap::new();
         for dep in raw_deps {
             let range = match dep.version.as_deref() {
                 Some(v) => {
@@ -157,7 +157,7 @@ impl DependencyProvider for DbDependencyProvider<'_> {
             // Merge duplicate constraints for the same dependency by intersection.
             // This handles the (rare) case of multiple declared edges to the same
             // package; the resolver must satisfy *all* of them, not just the last one.
-            if let Some(existing) = constraint_map.get_mut(&dep.package) {
+            if let Some(existing) = constraints.get_mut(&dep.package) {
                 let merged = existing.intersection(&range);
                 if merged.is_empty() {
                     return Err(ResolveError::NoSolution(format!(
@@ -167,11 +167,11 @@ impl DependencyProvider for DbDependencyProvider<'_> {
                 }
                 *existing = merged;
             } else {
-                constraint_map.insert(dep.package, range);
+                constraints.insert(dep.package, range);
             }
         }
         let constraints: DependencyConstraints<String, WitVersionRange> =
-            constraint_map.into_iter().collect();
+            constraints.into_iter().collect();
         Ok(Dependencies::Available(constraints))
     }
 
@@ -327,13 +327,13 @@ pub(crate) fn resolve_all_from_db(
         return Ok(HashMap::new());
     }
 
-    let mut root_deps_map: HashMap<String, WitVersionRange> = HashMap::new();
+    let mut root_constraints: HashMap<String, WitVersionRange> = HashMap::new();
     let mut root_versions: HashMap<String, WitVersion> = HashMap::new();
     for (name, version) in roots {
         let new_range = Ranges::singleton(*version);
-        match root_deps_map.get(name) {
+        match root_constraints.get(name) {
             None => {
-                root_deps_map.insert(name.clone(), new_range);
+                root_constraints.insert(name.clone(), new_range);
                 root_versions.insert(name.clone(), *version);
             }
             Some(existing_range) => {
@@ -343,14 +343,14 @@ pub(crate) fn resolve_all_from_db(
                         "root package `{name}` has incompatible version requirements",
                     )));
                 }
-                root_deps_map.insert(name.clone(), intersection);
+                root_constraints.insert(name.clone(), intersection);
                 // For same-version duplicates the value is identical;
                 // `root_versions` retains the first insertion unchanged.
             }
         }
     }
     let root_deps: DependencyConstraints<String, WitVersionRange> =
-        root_deps_map.into_iter().collect();
+        root_constraints.into_iter().collect();
 
     let provider = VirtualRootProvider {
         inner: DbDependencyProvider::new(store),
