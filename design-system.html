@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Design System</title>
+    <script>
+      // Apply persisted theme as early as possible to avoid flash.
+      (function () {
+        try {
+          var t = localStorage.getItem("ds-theme");
+          if (t === "light" || t === "dark") {
+            document.documentElement.setAttribute("data-theme", t);
+          }
+        } catch (e) {}
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -22,37 +33,37 @@
               ],
             },
             colors: {
-              canvas: "#F4F4F5",
-              surface: "#FFFFFF",
-              surfaceMuted: "#E8E8EA",
+              canvas: "var(--c-canvas)",
+              surface: "var(--c-surface)",
+              surfaceMuted: "var(--c-surface-muted)",
               ink: {
-                900: "#18181B",
-                700: "#3F3F46",
-                500: "#71717A",
-                400: "#A1A1AA",
-                300: "#D4D4D8",
+                900: "var(--c-ink-900)",
+                700: "var(--c-ink-700)",
+                500: "var(--c-ink-500)",
+                400: "var(--c-ink-400)",
+                300: "var(--c-ink-300)",
               },
-              line: "#D4D4D8",
-              lineSoft: "#E4E4E7",
-              positive: "#1F8A4C",
+              line: "var(--c-line)",
+              lineSoft: "var(--c-line-soft)",
+              positive: "var(--c-positive)",
               cat: {
-                blue: "#D6E4FF",
-                blueInk: "#3D5A99",
-                pink: "#FBD9DF",
-                pinkInk: "#9B4F5E",
-                green: "#D2ECD8",
-                greenInk: "#3F7A52",
-                peach: "#F8E2C2",
-                peachInk: "#8E6529",
-                lilac: "#E4DAF1",
-                lilacInk: "#6B528F",
-                cream: "#F4ECC2",
-                creamInk: "#7A6A2A",
+                blue: "var(--c-cat-blue)",
+                blueInk: "var(--c-cat-blue-ink)",
+                pink: "var(--c-cat-pink)",
+                pinkInk: "var(--c-cat-pink-ink)",
+                green: "var(--c-cat-green)",
+                greenInk: "var(--c-cat-green-ink)",
+                peach: "var(--c-cat-peach)",
+                peachInk: "var(--c-cat-peach-ink)",
+                lilac: "var(--c-cat-lilac)",
+                lilacInk: "var(--c-cat-lilac-ink)",
+                cream: "var(--c-cat-cream)",
+                creamInk: "var(--c-cat-cream-ink)",
               },
             },
             boxShadow: {
-              tooltip: "0 8px 24px -8px rgba(20,22,28,0.35)",
-              card: "0 1px 0 0 rgba(20,22,28,0.04)",
+              tooltip: "var(--shadow-tooltip)",
+              card: "var(--shadow-card)",
             },
             borderRadius: {
               DEFAULT: "3px",
@@ -78,19 +89,114 @@
       };
     </script>
     <style>
+      :root {
+        color-scheme: light dark;
+
+        /* Light mode — calm paper, near-black ink, pastel categoricals */
+        --c-canvas:        #F4F4F5;
+        --c-surface:       #FFFFFF;
+        --c-surface-muted: #E8E8EA;
+        --c-ink-900:       #18181B;
+        --c-ink-700:       #3F3F46;
+        --c-ink-500:       #71717A;
+        --c-ink-400:       #A1A1AA;
+        --c-ink-300:       #D4D4D8;
+        --c-line:          #D4D4D8;
+        --c-line-soft:     #E4E4E7;
+        --c-positive:      #1F8A4C;
+
+        --c-cat-blue:      #D6E4FF;  --c-cat-blue-ink:   #3D5A99;
+        --c-cat-pink:      #FBD9DF;  --c-cat-pink-ink:   #9B4F5E;
+        --c-cat-green:     #D2ECD8;  --c-cat-green-ink:  #3F7A52;
+        --c-cat-peach:     #F8E2C2;  --c-cat-peach-ink:  #8E6529;
+        --c-cat-lilac:     #E4DAF1;  --c-cat-lilac-ink:  #6B528F;
+        --c-cat-cream:     #F4ECC2;  --c-cat-cream-ink:  #7A6A2A;
+
+        /* Tokens used inside the <style> block */
+        --c-rule:          var(--c-ink-900);   /* editorial divider */
+        --c-swatch-border: var(--c-line-soft);
+        --c-scrollbar:     #D4D4D8;
+
+        --shadow-tooltip:  0 8px 24px -8px rgba(20,22,28,0.35);
+        --shadow-card:     0 1px 0 0 rgba(20,22,28,0.04);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          /* Dark mode — keep the same calm, editorial feel:
+             a single warm-neutral hue family, near-black canvas (not jet),
+             soft-white ink (not pure white), and tinted-but-quiet pastels
+             so the page reads as paper-in-low-light, not "tech dark UI". */
+          --c-canvas:        #0F0F11;
+          --c-surface:       #18181B;
+          --c-surface-muted: #1F1F23;
+          --c-ink-900:       #ECECEE;
+          --c-ink-700:       #B5B5BB;
+          --c-ink-500:       #8B8B92;
+          --c-ink-400:       #65656C;
+          --c-ink-300:       #3F3F46;
+          --c-line:          #2E2E33;
+          --c-line-soft:     #26262A;
+          --c-positive:      #4ADE80;
+
+          --c-cat-blue:      #1F2A47;  --c-cat-blue-ink:   #B6CBFF;
+          --c-cat-pink:      #38202A;  --c-cat-pink-ink:   #F2BCC9;
+          --c-cat-green:     #1B3023;  --c-cat-green-ink:  #A8DCB6;
+          --c-cat-peach:     #382C19;  --c-cat-peach-ink:  #ECC68A;
+          --c-cat-lilac:     #2A2240;  --c-cat-lilac-ink:  #CBB7EE;
+          --c-cat-cream:     #2C2814;  --c-cat-cream-ink:  #DCC966;
+
+          --c-rule:          #6B6B72;
+          --c-swatch-border: #2E2E33;
+          --c-scrollbar:     #3F3F46;
+
+          --shadow-tooltip:  0 10px 28px -10px rgba(0,0,0,0.7);
+          --shadow-card:     0 0 0 1px rgba(255,255,255,0.04), 0 1px 0 0 rgba(0,0,0,0.4);
+        }
+      }
+
+      /* Explicit override (toggle) — applies regardless of system preference. */
+      :root[data-theme="dark"] {
+        --c-canvas:        #0F0F11;
+        --c-surface:       #18181B;
+        --c-surface-muted: #1F1F23;
+        --c-ink-900:       #ECECEE;
+        --c-ink-700:       #B5B5BB;
+        --c-ink-500:       #8B8B92;
+        --c-ink-400:       #65656C;
+        --c-ink-300:       #3F3F46;
+        --c-line:          #2E2E33;
+        --c-line-soft:     #26262A;
+        --c-positive:      #4ADE80;
+
+        --c-cat-blue:      #1F2A47;  --c-cat-blue-ink:   #B6CBFF;
+        --c-cat-pink:      #38202A;  --c-cat-pink-ink:   #F2BCC9;
+        --c-cat-green:     #1B3023;  --c-cat-green-ink:  #A8DCB6;
+        --c-cat-peach:     #382C19;  --c-cat-peach-ink:  #ECC68A;
+        --c-cat-lilac:     #2A2240;  --c-cat-lilac-ink:  #CBB7EE;
+        --c-cat-cream:     #2C2814;  --c-cat-cream-ink:  #DCC966;
+
+        --c-rule:          #6B6B72;
+        --c-swatch-border: #2E2E33;
+        --c-scrollbar:     #3F3F46;
+
+        --shadow-tooltip:  0 10px 28px -10px rgba(0,0,0,0.7);
+        --shadow-card:     0 0 0 1px rgba(255,255,255,0.04), 0 1px 0 0 rgba(0,0,0,0.4);
+      }
+
       html, body {
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
-      .hairline { border-color: #E4E4E7; }
+      .hairline { border-color: var(--c-line-soft); }
       .rule {
-        border-color: #18181B !important;
+        border-color: var(--c-rule) !important;
         border-top-width: 1.5px !important;
       }
       .swatch {
         height: 88px;
         border-radius: 5px;
-        border: 1px solid #E4E4E7;
+        border: 1px solid var(--c-swatch-border);
       }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
       .bar {
@@ -104,7 +210,7 @@
         white-space: nowrap;
       }
       ::-webkit-scrollbar { width: 10px; height: 10px; }
-      ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 999px; }
+      ::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius: 999px; }
 
       /* Motion preview helpers */
       .ease-curve {
@@ -112,13 +218,13 @@
         width: 100%;
         display: block;
       }
-      .ease-curve path.track { stroke: #E4E4E7; fill: none; stroke-width: 1; }
-      .ease-curve path.curve { stroke: #18181B; fill: none; stroke-width: 1.5; stroke-linecap: round; }
+      .ease-curve path.track { stroke: var(--c-line-soft); fill: none; stroke-width: 1; }
+      .ease-curve path.curve { stroke: var(--c-ink-900); fill: none; stroke-width: 1.5; stroke-linecap: round; }
       .motion-target {
         height: 32px;
         width: 32px;
         border-radius: 5px;
-        background: #18181B;
+        background: var(--c-ink-900);
         will-change: transform, opacity;
       }
       .motion-track:hover .motion-target { transform: translateX(184px); }
@@ -129,6 +235,19 @@
       @media (prefers-reduced-motion: reduce) {
         .motion-target { transition: none !important; }
       }
+
+      /* Theme toggle: show the icon for the *target* mode (i.e., the
+         opposite of the currently active mode). */
+      .theme-icon-sun  { display: none; }
+      .theme-icon-moon { display: inline-block; }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) .theme-icon-sun  { display: inline-block; }
+        :root:not([data-theme="light"]) .theme-icon-moon { display: none; }
+      }
+      :root[data-theme="dark"] .theme-icon-sun  { display: inline-block; }
+      :root[data-theme="dark"] .theme-icon-moon { display: none; }
+      :root[data-theme="light"] .theme-icon-sun  { display: none; }
+      :root[data-theme="light"] .theme-icon-moon { display: inline-block; }
     </style>
   </head>
   <body class="bg-canvas text-ink-900 font-sans antialiased">
@@ -142,6 +261,25 @@
           <span>v1.0</span>
           <span class="h-1 w-1 rounded-full bg-ink-300"></span>
           <span>Foundations · Components · Patterns</span>
+          <span class="ml-auto"></span>
+          <button
+            id="theme-toggle"
+            type="button"
+            aria-label="Toggle color theme"
+            title="Toggle color theme"
+            class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors"
+          >
+            <!-- sun (visible in dark mode → click to go light) -->
+            <svg class="theme-icon-sun h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <circle cx="8" cy="8" r="3"/>
+              <path d="M8 1.5v1.5M8 13v1.5M1.5 8h1.5M13 8h1.5M3.3 3.3l1.05 1.05M11.65 11.65l1.05 1.05M3.3 12.7l1.05-1.05M11.65 4.35l1.05-1.05"/>
+            </svg>
+            <!-- moon (visible in light mode → click to go dark) -->
+            <svg class="theme-icon-moon h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/>
+            </svg>
+            <span class="theme-label text-[11px]">Theme</span>
+          </button>
         </div>
         <h1 class="mt-3 text-[36px] md:text-[44px] leading-[1.05] font-semibold tracking-tight">
           Design System
@@ -541,11 +679,11 @@
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Outline</h3>
               <div class="flex flex-wrap items-center gap-3">
-                <button class="h-8 px-3 inline-flex items-center gap-2 rounded-lg border-[1.5px] border-ink-900 bg-white text-ink-900 text-[13px] hover:bg-surfaceMuted">
+                <button class="h-8 px-3 inline-flex items-center gap-2 rounded-lg border-[1.5px] border-ink-900 bg-surface text-ink-900 text-[13px] hover:bg-surfaceMuted">
                   Omnis Vehicula
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
-                <button class="h-9 px-3 rounded-lg border-[1.5px] border-ink-900 bg-white text-ink-900 text-[13px] hover:bg-surfaceMuted">Dismiss</button>
+                <button class="h-9 px-3 rounded-lg border-[1.5px] border-ink-900 bg-surface text-ink-900 text-[13px] hover:bg-surfaceMuted">Dismiss</button>
               </div>
             </div>
             <div>
@@ -586,7 +724,7 @@
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Segmented</h3>
               <div class="flex p-1 rounded-lg bg-surfaceMuted w-[200px]">
-                <button class="flex-1 h-7 rounded-md bg-ink-900 text-white text-[13px] font-medium">Lorem</button>
+                <button class="flex-1 h-7 rounded-md bg-ink-900 text-canvas text-[13px] font-medium">Lorem</button>
                 <button class="flex-1 h-7 rounded-md text-[13px] text-ink-500">Ipsum</button>
               </div>
             </div>
@@ -604,7 +742,7 @@
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Pills</h3>
               <div class="flex flex-wrap items-center gap-2 text-[13px]">
-                <a class="inline-flex items-center px-3 h-8 rounded-pill bg-ink-900 text-white font-medium">Tellus</a>
+                <a class="inline-flex items-center px-3 h-8 rounded-pill bg-ink-900 text-canvas font-medium">Tellus</a>
                 <a class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Pellentesque</a>
                 <a class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Vestibulum</a>
                 <a class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Convallis</a>
@@ -697,7 +835,7 @@
             </div>
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Card variant</h3>
-              <div class="w-[160px] p-3 rounded-lg border border-line bg-white">
+              <div class="w-[160px] p-3 rounded-lg border border-line bg-surface">
                 <div class="text-[12px] text-ink-500">Baseline</div>
                 <div class="mt-1 flex items-baseline gap-1.5">
                   <span class="text-[18px] font-semibold tracking-tight leading-tight">22.9 k</span>
@@ -913,18 +1051,18 @@
             <!-- Input -->
             <label class="block">
               <span class="text-[12px] text-ink-500">Label</span>
-              <input type="text" placeholder="Lorem ipsum" class="mt-1 block w-full h-9 px-3 rounded-md border border-line bg-white text-[14px] placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-900 focus:border-ink-900" />
+              <input type="text" placeholder="Lorem ipsum" class="mt-1 block w-full h-9 px-3 rounded-md border border-line bg-surface text-[14px] placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-900 focus:border-ink-900" />
             </label>
             <!-- Input with help -->
             <label class="block">
               <span class="text-[12px] text-ink-500">With helper text</span>
-              <input type="text" value="Aenean lectus" class="mt-1 block w-full h-9 px-3 rounded-md border border-line bg-white text-[14px]" />
+              <input type="text" value="Aenean lectus" class="mt-1 block w-full h-9 px-3 rounded-md border border-line bg-surface text-[14px]" />
               <span class="mt-1 block text-[11px] text-ink-500">Vestibulum ante ipsum primis.</span>
             </label>
             <!-- Error state -->
             <label class="block">
               <span class="text-[12px] text-cat-pinkInk">Error state</span>
-              <input type="text" value="Invalid value" class="mt-1 block w-full h-9 px-3 rounded-md border border-cat-pinkInk bg-white text-[14px]" />
+              <input type="text" value="Invalid value" class="mt-1 block w-full h-9 px-3 rounded-md border border-cat-pinkInk bg-surface text-[14px]" />
               <span class="mt-1 block text-[11px] text-cat-pinkInk">Pellentesque habitant morbi.</span>
             </label>
             <!-- Disabled -->
@@ -937,14 +1075,14 @@
               <span class="text-[12px] text-ink-500">Search</span>
               <div class="mt-1 relative">
                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="search" placeholder="Search…" class="block w-full h-9 pl-9 pr-3 rounded-md border border-line bg-white text-[14px] placeholder:text-ink-400" />
+                <input type="search" placeholder="Search…" class="block w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-[14px] placeholder:text-ink-400" />
               </div>
             </label>
             <!-- Select -->
             <label class="block">
               <span class="text-[12px] text-ink-500">Select</span>
               <div class="mt-1 relative">
-                <select class="appearance-none block w-full h-9 pl-3 pr-8 rounded-md border border-line bg-white text-[14px]">
+                <select class="appearance-none block w-full h-9 pl-3 pr-8 rounded-md border border-line bg-surface text-[14px]">
                   <option>Tellus</option>
                   <option>Pellentesque</option>
                   <option>Vestibulum</option>
@@ -955,21 +1093,21 @@
             <!-- Textarea -->
             <label class="block">
               <span class="text-[12px] text-ink-500">Textarea</span>
-              <textarea rows="3" placeholder="Lorem ipsum dolor sit amet…" class="mt-1 block w-full px-3 py-2 rounded-md border border-line bg-white text-[14px] placeholder:text-ink-400 resize-y"></textarea>
+              <textarea rows="3" placeholder="Lorem ipsum dolor sit amet…" class="mt-1 block w-full px-3 py-2 rounded-md border border-line bg-surface text-[14px] placeholder:text-ink-400 resize-y"></textarea>
             </label>
             <!-- Input group: prefix addon -->
             <label class="block">
               <span class="text-[12px] text-ink-500">Input group · prefix</span>
               <div class="mt-1 flex">
                 <span class="inline-flex items-center px-3 h-9 rounded-l-md border border-r-0 border-line bg-surfaceMuted text-[13px] text-ink-500 mono">https://</span>
-                <input type="text" value="lorem.ipsum" class="block w-full h-9 px-3 rounded-r-md border border-line bg-white text-[14px]" />
+                <input type="text" value="lorem.ipsum" class="block w-full h-9 px-3 rounded-r-md border border-line bg-surface text-[14px]" />
               </div>
             </label>
             <!-- Input group: suffix addon -->
             <label class="block">
               <span class="text-[12px] text-ink-500">Input group · suffix</span>
               <div class="mt-1 flex">
-                <input type="text" value="42" class="block w-full h-9 px-3 rounded-l-md border border-r-0 border-line bg-white text-[14px] tabular-nums" />
+                <input type="text" value="42" class="block w-full h-9 px-3 rounded-l-md border border-r-0 border-line bg-surface text-[14px] tabular-nums" />
                 <span class="inline-flex items-center px-3 h-9 rounded-r-md border border-line bg-surfaceMuted text-[13px] text-ink-500 mono">kg</span>
               </div>
             </label>
@@ -977,19 +1115,19 @@
             <label class="block">
               <span class="text-[12px] text-ink-500">Input group · button</span>
               <div class="mt-1 flex">
-                <input type="text" placeholder="Search registry…" class="block w-full h-9 px-3 rounded-l-md border border-r-0 border-line bg-white text-[14px] placeholder:text-ink-400" />
-                <button type="button" class="inline-flex items-center px-3 h-9 rounded-r-md border-[1.5px] border-ink-900 bg-white text-ink-900 text-[13px] hover:bg-surfaceMuted">Search</button>
+                <input type="text" placeholder="Search registry…" class="block w-full h-9 px-3 rounded-l-md border border-r-0 border-line bg-surface text-[14px] placeholder:text-ink-400" />
+                <button type="button" class="inline-flex items-center px-3 h-9 rounded-r-md border-[1.5px] border-ink-900 bg-surface text-ink-900 text-[13px] hover:bg-surfaceMuted">Search</button>
               </div>
             </label>
             <!-- Input group: button with dropdown -->
             <label class="block">
               <span class="text-[12px] text-ink-500">Input group · button with dropdown</span>
               <div class="mt-1 flex relative">
-                <button type="button" class="inline-flex items-center gap-2 px-3 h-9 rounded-l-md border-[1.5px] border-r-0 border-ink-900 bg-white text-ink-900 text-[13px] hover:bg-surfaceMuted">
+                <button type="button" class="inline-flex items-center gap-2 px-3 h-9 rounded-l-md border-[1.5px] border-r-0 border-ink-900 bg-surface text-ink-900 text-[13px] hover:bg-surfaceMuted">
                   Tellus
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
-                <input type="text" placeholder="Lorem ipsum…" class="block w-full h-9 px-3 rounded-r-md border-[1.5px] border-ink-900 bg-white text-[14px] placeholder:text-ink-400" />
+                <input type="text" placeholder="Lorem ipsum…" class="block w-full h-9 px-3 rounded-r-md border-[1.5px] border-ink-900 bg-surface text-[14px] placeholder:text-ink-400" />
               </div>
               <span class="mt-1 block text-[11px] text-ink-500">Combine an outline button with the field — same border weight on both edges.</span>
             </label>
@@ -997,7 +1135,7 @@
             <label class="block">
               <span class="text-[12px] text-ink-500">Input group · split dropdown</span>
               <div class="mt-1 flex">
-                <input type="text" value="https://lorem.ipsum/dolor" class="block w-full h-9 px-3 rounded-l-md border-[1.5px] border-r-0 border-ink-900 bg-white text-[14px]" />
+                <input type="text" value="https://lorem.ipsum/dolor" class="block w-full h-9 px-3 rounded-l-md border-[1.5px] border-r-0 border-ink-900 bg-surface text-[14px]" />
                 <button type="button" class="inline-flex items-center gap-2 px-3 h-9 border-y-[1.5px] border-ink-900 bg-surfaceMuted text-ink-900 text-[13px] hover:bg-ink-300">
                   Copy
                 </button>
@@ -1010,11 +1148,11 @@
             <label class="block">
               <span class="text-[12px] text-ink-500">Number stepper</span>
               <div class="mt-1 inline-flex">
-                <button type="button" aria-label="Decrement" class="h-9 w-9 grid place-items-center rounded-l-md border-[1.5px] border-r-0 border-ink-900 bg-white text-ink-900 hover:bg-surfaceMuted">
+                <button type="button" aria-label="Decrement" class="h-9 w-9 grid place-items-center rounded-l-md border-[1.5px] border-r-0 border-ink-900 bg-surface text-ink-900 hover:bg-surfaceMuted">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
                 </button>
-                <input type="text" value="12" class="block w-16 h-9 px-2 border-y-[1.5px] border-ink-900 bg-white text-[14px] tabular-nums text-center focus:outline-none" />
-                <button type="button" aria-label="Increment" class="h-9 w-9 grid place-items-center rounded-r-md border-[1.5px] border-l-0 border-ink-900 bg-white text-ink-900 hover:bg-surfaceMuted">
+                <input type="text" value="12" class="block w-16 h-9 px-2 border-y-[1.5px] border-ink-900 bg-surface text-[14px] tabular-nums text-center focus:outline-none" />
+                <button type="button" aria-label="Increment" class="h-9 w-9 grid place-items-center rounded-r-md border-[1.5px] border-l-0 border-ink-900 bg-surface text-ink-900 hover:bg-surfaceMuted">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
                 </button>
               </div>
@@ -1023,7 +1161,7 @@
             <label class="block">
               <span class="text-[12px] text-ink-500">File input</span>
               <div class="mt-1 flex">
-                <button type="button" class="inline-flex items-center gap-2 px-3 h-9 rounded-l-md border-[1.5px] border-r-0 border-ink-900 bg-white text-ink-900 text-[13px] hover:bg-surfaceMuted whitespace-nowrap">
+                <button type="button" class="inline-flex items-center gap-2 px-3 h-9 rounded-l-md border-[1.5px] border-r-0 border-ink-900 bg-surface text-ink-900 text-[13px] hover:bg-surfaceMuted whitespace-nowrap">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.99 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                   Choose file
                 </button>
@@ -1039,10 +1177,10 @@
             <label class="block">
               <span class="text-[12px] text-ink-500">Color</span>
               <div class="mt-1 flex">
-                <span class="inline-flex items-center justify-center h-9 w-9 rounded-l-md border border-r-0 border-line bg-white">
+                <span class="inline-flex items-center justify-center h-9 w-9 rounded-l-md border border-r-0 border-line bg-surface">
                   <span class="block h-5 w-5 rounded border border-line" style="background:#9B4F5E"></span>
                 </span>
-                <input type="text" value="#9B4F5E" class="block w-full h-9 px-3 rounded-r-md border border-line bg-white text-[14px] mono uppercase" />
+                <input type="text" value="#9B4F5E" class="block w-full h-9 px-3 rounded-r-md border border-line bg-surface text-[14px] mono uppercase" />
               </div>
             </label>
             <!-- Date / time -->
@@ -1050,14 +1188,14 @@
               <label class="block">
                 <span class="text-[12px] text-ink-500">Date</span>
                 <div class="mt-1 relative">
-                  <input type="text" value="2026-04-18" class="block w-full h-9 pl-3 pr-9 rounded-md border border-line bg-white text-[14px] mono" />
+                  <input type="text" value="2026-04-18" class="block w-full h-9 pl-3 pr-9 rounded-md border border-line bg-surface text-[14px] mono" />
                   <svg class="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
                 </div>
               </label>
               <label class="block">
                 <span class="text-[12px] text-ink-500">Time</span>
                 <div class="mt-1 relative">
-                  <input type="text" value="14:30" class="block w-full h-9 pl-3 pr-9 rounded-md border border-line bg-white text-[14px] mono" />
+                  <input type="text" value="14:30" class="block w-full h-9 pl-3 pr-9 rounded-md border border-line bg-surface text-[14px] mono" />
                   <svg class="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </div>
               </label>
@@ -1066,8 +1204,8 @@
             <label class="block">
               <span class="text-[12px] text-ink-500">Combobox</span>
               <div class="mt-1 relative">
-                <input type="text" value="Pellen" class="block w-full h-9 px-3 rounded-md border border-line bg-white text-[14px]" />
-                <div class="absolute left-0 right-0 mt-1 rounded-md border border-line bg-white shadow-tooltip overflow-hidden text-[14px] z-10">
+                <input type="text" value="Pellen" class="block w-full h-9 px-3 rounded-md border border-line bg-surface text-[14px]" />
+                <div class="absolute left-0 right-0 mt-1 rounded-md border border-line bg-surface shadow-tooltip overflow-hidden text-[14px] z-10">
                   <div class="px-3 h-9 flex items-center bg-surfaceMuted text-ink-900"><span class="font-medium">Pellen</span><span class="text-ink-500">tesque habitant</span></div>
                   <div class="px-3 h-9 flex items-center text-ink-700"><span class="font-medium">Pellen</span><span class="text-ink-500">tesque morbi</span></div>
                   <div class="px-3 h-9 flex items-center text-ink-700"><span class="font-medium">Pellen</span><span class="text-ink-500">tesque vivamus</span></div>
@@ -1099,13 +1237,13 @@
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Checkbox</h3>
               <div class="space-y-2">
                 <label class="flex items-center gap-2 text-[14px]">
-                  <span class="grid place-items-center h-4 w-4 rounded bg-ink-900 text-white">
+                  <span class="grid place-items-center h-4 w-4 rounded bg-ink-900 text-canvas">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                   </span>
                   Aenean lectus
                 </label>
                 <label class="flex items-center gap-2 text-[14px]">
-                  <span class="h-4 w-4 rounded border border-line bg-white"></span>
+                  <span class="h-4 w-4 rounded border border-line bg-surface"></span>
                   Vestibulum ante
                 </label>
                 <label class="flex items-center gap-2 text-[14px] text-ink-400">
@@ -1124,7 +1262,7 @@
                   Lorem option
                 </label>
                 <label class="flex items-center gap-2 text-[14px]">
-                  <span class="h-4 w-4 rounded-full border border-line bg-white"></span>
+                  <span class="h-4 w-4 rounded-full border border-line bg-surface"></span>
                   Ipsum option
                 </label>
               </div>
@@ -1134,13 +1272,13 @@
               <div class="space-y-3">
                 <label class="flex items-center gap-3 text-[14px]">
                   <span class="relative inline-flex h-5 w-9 items-center rounded-full bg-ink-900">
-                    <span class="inline-block h-4 w-4 rounded-full bg-white translate-x-[18px]"></span>
+                    <span class="inline-block h-4 w-4 rounded-full bg-surface translate-x-[18px]"></span>
                   </span>
                   Enabled
                 </label>
                 <label class="flex items-center gap-3 text-[14px]">
                   <span class="relative inline-flex h-5 w-9 items-center rounded-full bg-ink-300">
-                    <span class="inline-block h-4 w-4 rounded-full bg-white translate-x-[2px]"></span>
+                    <span class="inline-block h-4 w-4 rounded-full bg-surface translate-x-[2px]"></span>
                   </span>
                   Disabled
                 </label>
@@ -1188,7 +1326,7 @@
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Counts</h3>
               <div class="flex flex-wrap items-center gap-2 text-[12px] font-medium">
-                <span class="inline-flex items-center px-1.5 min-w-[20px] h-5 rounded-pill bg-ink-900 text-white justify-center">3</span>
+                <span class="inline-flex items-center px-1.5 min-w-[20px] h-5 rounded-pill bg-ink-900 text-canvas justify-center">3</span>
                 <span class="inline-flex items-center px-1.5 min-w-[20px] h-5 rounded-pill bg-surfaceMuted text-ink-700 justify-center">12</span>
                 <span class="inline-flex items-center px-1.5 min-w-[20px] h-5 rounded-pill bg-cat-pink text-cat-pinkInk justify-center">99+</span>
               </div>
@@ -1226,7 +1364,7 @@
             </p>
           </div>
           <div class="p-12 bg-canvas border border-line rounded-lg flex items-start justify-center">
-            <div class="w-56 rounded-md bg-white border border-line shadow-tooltip py-1 text-[13px]">
+            <div class="w-56 rounded-md bg-surface border border-line shadow-tooltip py-1 text-[13px]">
               <div class="px-3 py-1.5 text-[11px] mono uppercase tracking-wider text-ink-400">Aenean</div>
               <button class="w-full text-left px-3 h-8 hover:bg-surfaceMuted flex items-center gap-2">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
@@ -1269,7 +1407,7 @@
             </p>
           </div>
           <div class="relative bg-ink-900/50 rounded-lg p-8 md:p-12">
-            <div class="mx-auto max-w-md bg-white border border-line rounded-lg shadow-tooltip">
+            <div class="mx-auto max-w-md bg-surface border border-line rounded-lg shadow-tooltip">
               <div class="flex items-start justify-between p-5 border-b border-lineSoft">
                 <div>
                   <div class="text-[15px] font-semibold tracking-tight">Confirm action</div>
@@ -1284,7 +1422,7 @@
                 ac turpis egestas. Vestibulum tortor quam.
               </div>
               <div class="flex items-center justify-end gap-2 p-4 border-t border-lineSoft bg-canvas rounded-b-lg">
-                <button class="h-8 px-3 rounded-lg border border-line bg-white text-[13px] hover:bg-surfaceMuted">Cancel</button>
+                <button class="h-8 px-3 rounded-lg border border-line bg-surface text-[13px] hover:bg-surfaceMuted">Cancel</button>
                 <button class="h-8 px-3 rounded-lg bg-surfaceMuted text-ink-900 text-[13px] hover:bg-ink-300">Confirm</button>
               </div>
             </div>
@@ -1322,15 +1460,15 @@
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Pagination</h3>
               <div class="inline-flex items-center gap-1 text-[13px]">
-                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-white text-ink-500 hover:bg-surfaceMuted">
+                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-surface text-ink-500 hover:bg-surfaceMuted">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
-                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-white hover:bg-surfaceMuted">1</button>
-                <button class="h-8 w-8 grid place-items-center rounded-md bg-ink-900 text-white font-medium">2</button>
-                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-white hover:bg-surfaceMuted">3</button>
+                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-surface hover:bg-surfaceMuted">1</button>
+                <button class="h-8 w-8 grid place-items-center rounded-md bg-ink-900 text-canvas font-medium">2</button>
+                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-surface hover:bg-surfaceMuted">3</button>
                 <span class="px-1 text-ink-400">…</span>
-                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-white hover:bg-surfaceMuted">12</button>
-                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-white text-ink-500 hover:bg-surfaceMuted">
+                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-surface hover:bg-surfaceMuted">12</button>
+                <button class="h-8 w-8 grid place-items-center rounded-md border border-line bg-surface text-ink-500 hover:bg-surfaceMuted">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
               </div>
@@ -1415,7 +1553,7 @@
               tables, search misses, and first-run views.
             </p>
           </div>
-          <div class="border border-line rounded-lg p-12 text-center bg-white">
+          <div class="border border-line rounded-lg p-12 text-center bg-surface">
             <div class="mx-auto h-12 w-12 grid place-items-center rounded-full bg-surfaceMuted text-ink-500">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             </div>
@@ -1823,5 +1961,23 @@
         </div>
       </section>
     </main>
+    <script>
+      (function () {
+        var btn = document.getElementById("theme-toggle");
+        if (!btn) return;
+        var root = document.documentElement;
+        var mq = window.matchMedia("(prefers-color-scheme: dark)");
+        function currentMode() {
+          var t = root.getAttribute("data-theme");
+          if (t === "dark" || t === "light") return t;
+          return mq.matches ? "dark" : "light";
+        }
+        btn.addEventListener("click", function () {
+          var next = currentMode() === "dark" ? "light" : "dark";
+          root.setAttribute("data-theme", next);
+          try { localStorage.setItem("ds-theme", next); } catch (e) {}
+        });
+      })();
+    </script>
   </body>
 </html>
