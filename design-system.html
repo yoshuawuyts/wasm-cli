@@ -62,6 +62,14 @@
                 lilacInk: "var(--c-cat-lilac-ink)",
                 cream: "var(--c-cat-cream)",
                 creamInk: "var(--c-cat-cream-ink)",
+                teal: "var(--c-cat-teal)",
+                tealInk: "var(--c-cat-teal-ink)",
+                rust: "var(--c-cat-rust)",
+                rustInk: "var(--c-cat-rust-ink)",
+                plum: "var(--c-cat-plum)",
+                plumInk: "var(--c-cat-plum-ink)",
+                slate: "var(--c-cat-slate)",
+                slateInk: "var(--c-cat-slate-ink)",
               },
             },
             boxShadow: {
@@ -116,6 +124,10 @@
         --c-cat-peach:     #F8E2C2;  --c-cat-peach-ink:  #8E6529;
         --c-cat-lilac:     #E4DAF1;  --c-cat-lilac-ink:  #6B528F;
         --c-cat-cream:     #F4ECC2;  --c-cat-cream-ink:  #7A6A2A;
+        --c-cat-teal:      #BFE3EE;  --c-cat-teal-ink:   #1F6F87;
+        --c-cat-rust:      #F4D2C0;  --c-cat-rust-ink:   #9F5536;
+        --c-cat-plum:      #E8C5E8;  --c-cat-plum-ink:   #7E2E7E;
+        --c-cat-slate:     #DADCE0;  --c-cat-slate-ink:  #535A66;
 
         /* Tokens used inside the <style> block */
         --c-rule:          var(--c-ink-900);   /* editorial divider */
@@ -141,24 +153,32 @@
           --c-ink-300:       #4A4A50;
           --c-line:          #3A3A40;
           --c-line-soft:     #323238;
-          --c-positive:      #5EE99A;
-          /* Negative needs to *pop* on dark canvas — the pastel
-             pinkInk reads muddy. A brighter coral keeps it warm,
-             not surgical-emergency-red. */
-          --c-negative:      #FF8A9D;
-          /* Focus / accent: a bright cool blue that pops without
-             going neon. Used for focus rings, link-on-dark, selection. */
-          --c-accent:        #7AA2FF;
+          /* Semantics: dark-mode tuned. The bright/saturated values
+             that worked for pastel chips read neon for text. We pull
+             lightness down to ~0.78 (mirrors the L≈0.5 inversion of
+             light mode) and trim chroma so the colors feel confident,
+             not alarmist. Same restraint as light, just inverted. */
+          --c-positive:      #5EC787;
+          --c-negative:      #EE7B8E;
+          /* Focus / accent: a refined cool blue — softer than the
+             corporate-blue glare of pure #7AA2FF. */
+          --c-accent:        #8FB1F5;
 
-          /* Categoricals: keep the *exact* light-mode pastels.
-             Against the dark canvas they read like little colored
-             paper chips — bright, soft, unmistakably pink/blue/green. */
-          --c-cat-blue:      #D6E4FF;  --c-cat-blue-ink:   #3D5A99;
-          --c-cat-pink:      #FBD9DF;  --c-cat-pink-ink:   #9B4F5E;
-          --c-cat-green:     #D2ECD8;  --c-cat-green-ink:  #3F7A52;
-          --c-cat-peach:     #F8E2C2;  --c-cat-peach-ink:  #8E6529;
-          --c-cat-lilac:     #E4DAF1;  --c-cat-lilac-ink:  #6B528F;
-          --c-cat-cream:     #F4ECC2;  --c-cat-cream-ink:  #7A6A2A;
+          /* Categoricals: dark-mode tuned. Low-chroma light pastels
+             collapse against the dark canvas — hue identity gets
+             crushed. So we lift chroma ~2x while holding lightness,
+             and deepen inks to keep 4.5:1 contrast. Still soft, but
+             clearly distinct: pink ≠ plum, blue ≠ slate, teal ≠ green. */
+          --c-cat-blue:      #B8D0FF;  --c-cat-blue-ink:   #1F3F8C;
+          --c-cat-pink:      #FFB8B0;  --c-cat-pink-ink:   #9E2823;
+          --c-cat-green:     #B5E8C0;  --c-cat-green-ink:  #1F6738;
+          --c-cat-peach:     #FBD3A0;  --c-cat-peach-ink:  #7A4E10;
+          --c-cat-lilac:     #C6B1F0;  --c-cat-lilac-ink:  #422684;
+          --c-cat-cream:     #F5E696;  --c-cat-cream-ink:  #6B5610;
+          --c-cat-teal:      #A6DDF0;  --c-cat-teal-ink:   #0F5C7A;
+          --c-cat-rust:      #F5BFA0;  --c-cat-rust-ink:   #87401C;
+          --c-cat-plum:      #DDB2EF;  --c-cat-plum-ink:   #571485;
+          --c-cat-slate:     #C6CDD8;  --c-cat-slate-ink:  #424B5C;
 
           --c-rule:          #6B6B72;
           --c-swatch-border: #3A3A40;
@@ -183,16 +203,20 @@
         --c-ink-300:       #4A4A50;
         --c-line:          #3A3A40;
         --c-line-soft:     #323238;
-        --c-positive:      #5EE99A;
-        --c-negative:      #FF8A9D;
-        --c-accent:        #7AA2FF;
+        --c-positive:      #5EC787;
+        --c-negative:      #EE7B8E;
+        --c-accent:        #8FB1F5;
 
-        --c-cat-blue:      #D6E4FF;  --c-cat-blue-ink:   #3D5A99;
-        --c-cat-pink:      #FBD9DF;  --c-cat-pink-ink:   #9B4F5E;
-        --c-cat-green:     #D2ECD8;  --c-cat-green-ink:  #3F7A52;
-        --c-cat-peach:     #F8E2C2;  --c-cat-peach-ink:  #8E6529;
-        --c-cat-lilac:     #E4DAF1;  --c-cat-lilac-ink:  #6B528F;
-        --c-cat-cream:     #F4ECC2;  --c-cat-cream-ink:  #7A6A2A;
+        --c-cat-blue:      #B8D0FF;  --c-cat-blue-ink:   #1F3F8C;
+        --c-cat-pink:      #FFB8B0;  --c-cat-pink-ink:   #9E2823;
+        --c-cat-green:     #B5E8C0;  --c-cat-green-ink:  #1F6738;
+        --c-cat-peach:     #FBD3A0;  --c-cat-peach-ink:  #7A4E10;
+        --c-cat-lilac:     #C6B1F0;  --c-cat-lilac-ink:  #422684;
+        --c-cat-cream:     #F5E696;  --c-cat-cream-ink:  #6B5610;
+        --c-cat-teal:      #A6DDF0;  --c-cat-teal-ink:   #0F5C7A;
+        --c-cat-rust:      #F5BFA0;  --c-cat-rust-ink:   #87401C;
+        --c-cat-plum:      #DDB2EF;  --c-cat-plum-ink:   #571485;
+        --c-cat-slate:     #C6CDD8;  --c-cat-slate-ink:  #424B5C;
 
         --c-rule:          #6B6B72;
         --c-swatch-border: #3A3A40;
@@ -464,7 +488,7 @@
             <!-- Categorical -->
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Categorical</h3>
-              <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div>
                   <div class="swatch bg-cat-blue flex items-end p-3"><span class="text-[12px] text-cat-blueInk font-medium">Aa</span></div>
                   <div class="mt-2 text-[13px]">Blue</div>
@@ -492,14 +516,38 @@
                 <div>
                   <div class="swatch bg-cat-lilac flex items-end p-3"><span class="text-[12px] text-cat-lilacInk font-medium">Aa</span></div>
                   <div class="mt-2 text-[13px]">Lilac</div>
-                  <div class="text-[12px] text-ink-500 mono">#E4DAF1 / #6B528F</div>
-                  <div class="text-[11px] text-ink-400 mono">oklch(.890 .029 304) / oklch(.461 .088 295)</div>
+                  <div class="text-[12px] text-ink-500 mono">#D5C8EF / #5A3D8C</div>
+                  <div class="text-[11px] text-ink-400 mono">oklch(.852 .051 287) / oklch(.395 .120 287)</div>
                 </div>
                 <div>
                   <div class="swatch bg-cat-cream flex items-end p-3"><span class="text-[12px] text-cat-creamInk font-medium">Aa</span></div>
                   <div class="mt-2 text-[13px]">Cream</div>
                   <div class="text-[12px] text-ink-500 mono">#F4ECC2 / #7A6A2A</div>
                   <div class="text-[11px] text-ink-400 mono">oklch(.937 .055 100) / oklch(.490 .073 96)</div>
+                </div>
+                <div>
+                  <div class="swatch bg-cat-teal flex items-end p-3"><span class="text-[12px] text-cat-tealInk font-medium">Aa</span></div>
+                  <div class="mt-2 text-[13px]">Teal</div>
+                  <div class="text-[12px] text-ink-500 mono">#BFE3EE / #1F6F87</div>
+                  <div class="text-[11px] text-ink-400 mono">oklch(.890 .037 215) / oklch(.470 .080 224)</div>
+                </div>
+                <div>
+                  <div class="swatch bg-cat-rust flex items-end p-3"><span class="text-[12px] text-cat-rustInk font-medium">Aa</span></div>
+                  <div class="mt-2 text-[13px]">Rust</div>
+                  <div class="text-[12px] text-ink-500 mono">#F4D2C0 / #9F5536</div>
+                  <div class="text-[11px] text-ink-400 mono">oklch(.880 .045 50) / oklch(.510 .104 42)</div>
+                </div>
+                <div>
+                  <div class="swatch bg-cat-plum flex items-end p-3"><span class="text-[12px] text-cat-plumInk font-medium">Aa</span></div>
+                  <div class="mt-2 text-[13px]">Plum</div>
+                  <div class="text-[12px] text-ink-500 mono">#E8C5E8 / #7E2E7E</div>
+                  <div class="text-[11px] text-ink-400 mono">oklch(.851 .065 322) / oklch(.408 .135 326)</div>
+                </div>
+                <div>
+                  <div class="swatch bg-cat-slate flex items-end p-3"><span class="text-[12px] text-cat-slateInk font-medium">Aa</span></div>
+                  <div class="mt-2 text-[13px]">Slate</div>
+                  <div class="text-[12px] text-ink-500 mono">#DADCE0 / #535A66</div>
+                  <div class="text-[11px] text-ink-400 mono">oklch(.882 .005 264) / oklch(.450 .015 257)</div>
                 </div>
               </div>
             </div>
@@ -952,6 +1000,10 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
             <div class="bar bg-cat-green text-cat-greenInk">Adipiscing elit</div>
             <div class="bar bg-cat-peach text-cat-peachInk">Sed do eiusmod</div>
             <div class="bar bg-cat-lilac text-cat-lilacInk">Tempor incididunt</div>
+            <div class="bar bg-cat-teal text-cat-tealInk">Ut labore</div>
+            <div class="bar bg-cat-rust text-cat-rustInk">Et dolore magna</div>
+            <div class="bar bg-cat-plum text-cat-plumInk">Aliqua enim</div>
+            <div class="bar bg-cat-slate text-cat-slateInk">Ad minim veniam</div>
           </div>
         </div>
       </section>
@@ -1707,11 +1759,11 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Rules</h3>
               <ul class="space-y-2 text-[13px] text-ink-700 leading-relaxed">
-                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">01</span>The primary region (top of page) sits on <span class="mono text-ink-900">canvas</span>. Use it for the main subject.</li>
-                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">02</span>Secondary regions sit on <span class="mono text-ink-900">surface</span>. The boundary is the surface swap itself — no rule, no border.</li>
+                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">01</span>The primary region (top of page) sits on <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">canvas</code>. Use it for the main subject.</li>
+                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">02</span>Secondary regions sit on <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">surface</code>. The boundary is the surface swap itself — no rule, no border.</li>
                 <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">03</span>Use full-bleed background swap on wide screens so the boundary reads as a true section break, not a card.</li>
                 <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">04</span>Maximum two surface swaps per page. Beyond that, switch to a new page or tabs.</li>
-                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">05</span>Within a region, use <span class="mono text-ink-900">lineSoft</span> for internal subdivisions (table rows, list separators).</li>
+                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">05</span>Within a region, use <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">lineSoft</code> for internal subdivisions (table rows, list separators).</li>
               </ul>
             </div>
           </div>
@@ -1731,7 +1783,7 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
             <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Motion</h2>
             <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
               Motion is functional: it explains state changes, never decorates them.
-              Most transitions sit between 120–260ms on the <span class="mono text-ink-900">standard</span>
+              Most transitions sit between 120–260ms on the <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">standard</code>
               curve. Anything longer needs a reason.
             </p>
           </div>
@@ -1841,11 +1893,11 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Rules</h3>
               <ul class="space-y-2 text-[13px] text-ink-700 leading-relaxed">
-                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">01</span>Animate <span class="mono text-ink-900">transform</span> and <span class="mono text-ink-900">opacity</span> only. Avoid <span class="mono text-ink-900">width</span>, <span class="mono text-ink-900">height</span>, <span class="mono text-ink-900">top</span>.</li>
-                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">02</span>Default to <span class="mono text-ink-900">base</span> + <span class="mono text-ink-900">standard</span>. Pick another token only when intent demands it.</li>
-                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">03</span>Pair entrance and exit asymmetrically: enter on <span class="mono text-ink-900">entrance</span>, leave on <span class="mono text-ink-900">exit</span>, exits 60–80% of the entrance duration.</li>
+                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">01</span>Animate <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">transform</code> and <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">opacity</code> only. Avoid <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">width</code>, <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">height</code>, <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">top</code>.</li>
+                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">02</span>Default to <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">base</code> + <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">standard</code>. Pick another token only when intent demands it.</li>
+                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">03</span>Pair entrance and exit asymmetrically: enter on <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">entrance</code>, leave on <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">exit</code>, exits 60–80% of the entrance duration.</li>
                 <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">04</span>Spring is for human-initiated, direct manipulation only. Never for system events.</li>
-                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">05</span>Honor <span class="mono text-ink-900">prefers-reduced-motion</span> — collapse to instant or to a 60ms cross-fade.</li>
+                <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">05</span>Honor <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">prefers-reduced-motion</code> — collapse to instant or to a 60ms cross-fade.</li>
               </ul>
             </div>
           </div>
