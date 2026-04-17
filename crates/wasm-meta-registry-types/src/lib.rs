@@ -264,7 +264,9 @@ pub struct PackageDetail {
 ///     components: vec![],
 ///     dependencies: vec![],
 ///     referrers: vec![],
+///     layers: vec![],
 ///     wit_text: None,
+///     type_docs: std::collections::HashMap::new(),
 /// };
 ///
 /// assert_eq!(version.digest, "sha256:abcdef1234");
@@ -381,6 +383,7 @@ pub struct WitWorldSummary {
 ///     package: "wasi:io".into(),
 ///     interface: Some("streams".into()),
 ///     version: Some("0.2.2".into()),
+///     docs: None,
 /// };
 ///
 /// assert_eq!(iface.package, "wasi:io");
@@ -796,11 +799,13 @@ mod tests {
                     package: "wasi:io".into(),
                     interface: Some("streams".into()),
                     version: Some("0.2.2".into()),
+                    docs: None,
                 }],
                 exports: vec![WitInterfaceRef {
                     package: "wasi:http".into(),
                     interface: Some("handler".into()),
                     version: Some("0.3.0".into()),
+                    docs: None,
                 }],
             }],
             components: vec![ComponentSummary {
@@ -811,6 +816,20 @@ mod tests {
                     world: "proxy".into(),
                     version: Some("0.3.0".into()),
                 }],
+                producers: vec![],
+                kind: None,
+                size_bytes: None,
+                languages: vec![],
+                children: vec![],
+                source: None,
+                homepage: None,
+                licenses: None,
+                authors: None,
+                revision: None,
+                component_version: None,
+                bill_of_materials: vec![],
+                imports: vec![],
+                exports: vec![],
             }],
             dependencies: vec![PackageDependencyRef {
                 package: "wasi:io".into(),
@@ -821,6 +840,8 @@ mod tests {
                 digest: "sha256:fedcba".into(),
             }],
             wit_text: Some("package wasi:http@0.3.0;".into()),
+            layers: vec![],
+            type_docs: std::collections::HashMap::new(),
         };
 
         let json = serde_json::to_string_pretty(&version).unwrap();
