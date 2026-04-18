@@ -651,7 +651,11 @@
     .id-http-status-3xx { background: var(--c-cat-blue);  color: var(--c-cat-blue-ink); }
     .id-http-status-4xx { background: var(--c-cat-peach); color: var(--c-cat-peach-ink); }
     .id-http-status-5xx { background: var(--c-cat-pink);  color: var(--c-cat-pink-ink); }
-    /* Code block — used by request/response/example panels. */
+    /* Code block — used by request/response/example panels.
+       Token palette mirrors the canonical syntax guide:
+       cli.html .code (.cmd/.fl/.ar/.st/.cm) and the --color-wit-* tokens.
+       Categorical pastel inks are paired with their pastel backgrounds and
+       read muddy on canvas, so we use the saturated WIT/CLI hex values. */
     pre.id-code {
       background: var(--c-surface-muted);
       border: 1px solid var(--c-line-soft);
@@ -664,16 +668,16 @@
       color: var(--c-ink-900);
       margin: 0;
     }
-    pre.id-code .k  { color: var(--c-cat-blue-ink); }
-    pre.id-code .s  { color: var(--c-cat-green-ink); }
-    pre.id-code .n  { color: var(--c-cat-peach-ink); }
+    pre.id-code .k  { color: var(--color-wit-struct); }   /* keywords / object keys / flags-as-keys */
+    pre.id-code .s  { color: var(--color-wit-resource); } /* strings */
+    pre.id-code .n  { color: var(--color-wit-func); }     /* numbers / booleans */
     pre.id-code .c  { color: var(--c-ink-500); font-style: italic; }
-    pre.id-code .p  { color: var(--c-ink-400); }
-    pre.id-code .ty { color: var(--c-cat-plum-ink); }
-    pre.id-code .fn { color: var(--c-cat-rust-ink); }
-    pre.id-code .at { color: var(--c-cat-teal-ink); }
-    pre.id-code .v  { color: var(--c-cat-plum-ink); }
-    pre.id-code .f  { color: var(--c-cat-rust-ink); }
+    pre.id-code .p  { color: var(--c-ink-400); }          /* punctuation */
+    pre.id-code .ty { color: var(--color-wit-world); }    /* types */
+    pre.id-code .fn { color: var(--color-wit-func); }     /* function names */
+    pre.id-code .at { color: var(--color-wit-iface); }    /* attributes / field names */
+    pre.id-code .v  { color: var(--c-ink-900); font-weight: 600; } /* shell verb (curl, wasm, …) */
+    pre.id-code .f  { color: var(--color-wit-struct); }   /* shell flag (-X, --insecure, …) */
     /* Item title — top of an Item Details page. Title + aux row, then tagline. */
     .id-title-head {
       display: flex; align-items: baseline; justify-content: space-between;
@@ -1604,11 +1608,18 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
           <div class="text-[12px] mono uppercase tracking-wider text-ink-500">11</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Table</h2>
           <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
-            Soft 1px row separators. Tabular
-            numerals; right-aligned values; negatives in pinkInk.
+            Soft 1px row separators. Tabular numerals; right-aligned values;
+            negatives in <code class="mono text-[12px]">text-negative</code>.
+            For status / categorical reference tables, use the
+            <a href="#c-item-details" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">.id-http-status</a>
+            pill in the leading column.
           </p>
         </div>
-        <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+        <div class="space-y-10">
+          <!-- Numeric variant — financials, telemetry, anything with totals -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Numeric · right-aligned, tabular</div>
+            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
           <table class="w-full min-w-[560px] text-[13px]">
             <thead>
               <tr class="text-ink-400">
@@ -1650,6 +1661,113 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
               </tr>
             </tbody>
           </table>
+            </div>
+          </div>
+
+          <!-- Status / reference variant — error codes, response codes, enum tables -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Status · pill + mono code + meaning</div>
+            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+              <table class="w-full min-w-[560px] text-[13px]">
+                <thead>
+                  <tr class="text-ink-400">
+                    <th class="text-left font-normal py-3 pr-6 w-[120px]">Status</th>
+                    <th class="text-left font-normal py-3 pr-6 w-[180px]">Code</th>
+                    <th class="text-left font-normal py-3">Meaning</th>
+                  </tr>
+                </thead>
+                <tbody class="text-ink-900">
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-2xx">200</span></td>
+                    <td class="pr-6 mono text-ink-700">ok</td>
+                    <td class="text-ink-700">Request succeeded.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">400</span></td>
+                    <td class="pr-6 mono text-ink-700">invalid_request</td>
+                    <td class="text-ink-700">Malformed parameter or request body.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">401</span></td>
+                    <td class="pr-6 mono text-ink-700">unauthenticated</td>
+                    <td class="text-ink-700">Missing or invalid bearer token.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">404</span></td>
+                    <td class="pr-6 mono text-ink-700">not_found</td>
+                    <td class="text-ink-700">No such package, version, or interface.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">409</span></td>
+                    <td class="pr-6 mono text-ink-700">conflict</td>
+                    <td class="text-ink-700">Version already exists; cannot overwrite.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">429</span></td>
+                    <td class="pr-6 mono text-ink-700">rate_limited</td>
+                    <td class="text-ink-700">Too many requests. Retry after the indicated interval.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-5xx">500</span></td>
+                    <td class="pr-6 mono text-ink-700">internal_error</td>
+                    <td class="text-ink-700">Unexpected server-side failure.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-3 text-[12px] text-ink-500">Tighter row padding
+              (<code class="mono text-[12px]">py-3</code> vs <code class="mono text-[12px]">py-5</code>)
+              than numeric tables — denser data, no need for breathing room around figures. Pill column
+              is fixed-width (<code class="mono text-[12px]">w-[120px]</code>) so the mono code column
+              aligns down the page.</p>
+          </div>
+
+          <!-- Definition variant — no column labels, name + meta on the left, prose on the right -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Definition · no column labels, name + description</div>
+            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+              <table class="w-full min-w-[560px] text-[13px]">
+                <tbody class="text-ink-900">
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-top w-[200px]">
+                      <div class="mono">version</div>
+                      <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · required</div>
+                    </td>
+                    <td class="py-3 text-ink-700">SemVer tag, e.g. <span class="mono">0.2.4</span>.</td>
+                  </tr>
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-top">
+                      <div class="mono">digest</div>
+                      <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · required</div>
+                    </td>
+                    <td class="py-3 text-ink-700">Manifest digest, prefixed with <span class="mono">sha256:</span>.</td>
+                  </tr>
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-top">
+                      <div class="mono">signature</div>
+                      <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · optional</div>
+                    </td>
+                    <td class="py-3 text-ink-700">Detached cosign-compatible signature, base64 encoded.</td>
+                  </tr>
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-top">
+                      <div class="mono">--scope</div>
+                      <div class="text-[11.5px] text-ink-500 mono mt-0.5">user · project · system</div>
+                    </td>
+                    <td class="py-3 text-ink-700">Where to write the registry entry. Defaults to <span class="mono">user</span>.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-3 text-[12px] text-ink-500">Used for request body parameters, command-line
+              arguments and flags, environment variables, schema fields — anywhere the meaning of
+              each row is "name + type/cardinality, then what it does." No <code class="mono text-[12px]">&lt;thead&gt;</code>
+              because column labels would just repeat what each cell already shows. Left column is
+              fixed-width (<code class="mono text-[12px]">w-[200px]</code>) with mono name on the first
+              line and 11.5px <code class="mono text-[12px]">ink-500</code> mono meta below
+              (<code class="mono text-[12px]">type · required|optional</code> or an enum of allowed
+              values); right column is reading-flow prose at <code class="mono text-[12px]">ink-700</code>.</p>
+          </div>
         </div>
       </div>
     </section>

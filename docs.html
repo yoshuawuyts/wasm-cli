@@ -309,12 +309,37 @@
     }
     .src-link:hover{color:var(--c-ink-900);background:var(--c-surface-muted);}
 
-    /* Item table rows */
-    .item-row td{border-top:1px solid var(--c-line-soft);}
-    .item-row:first-child td{border-top:none;}
+    /* Item list — DS C04. Sigil · name+desc · meta. Hairline rules. */
+    .item-list{margin:0;}
+    .item-row{
+      display:grid;grid-template-columns:auto 1fr auto;
+      gap:12px;align-items:baseline;
+      padding:12px 14px;
+      border-top:1px solid var(--c-line-soft);
+      border-radius:4px;
+      color:inherit;text-decoration:none;
+    }
+    .item-row:first-child{border-top:none;}
     .item-row:hover{background:var(--c-surface-muted);}
-    .item-row.deprecated td{color:var(--c-ink-400);}
-    .item-row.deprecated a{color:var(--c-ink-500);}
+    .item-row .name{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:13.5px;color:var(--c-ink-900);font-weight:500;text-decoration:none;
+    }
+    .item-row:hover .name{color:var(--c-ink-900);}
+    .item-row .desc{
+      color:var(--c-ink-700);font-size:13px;line-height:1.55;margin-top:2px;
+    }
+    .item-row .meta{
+      font-size:11px;color:var(--c-ink-500);
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+    }
+    .item-row.deprecated .name,
+    .item-row.deprecated .desc{color:var(--c-ink-400);}
+    .item-row.deprecated .name{text-decoration:line-through;text-decoration-thickness:1px;}
+    .item-row.deprecated .sigil{opacity:.5;}
+    /* Tables sit on surface (the secondary region) — sigils there get the
+       muted treatment so the table reads as calm reference data. */
+    .items-region .item-row{padding-left:0;padding-right:0;}
 
     /* Method entry */
     .method{padding:16px 0 0;border-top:1px solid var(--c-line-soft);}
@@ -522,21 +547,50 @@
     <!-- ============================== -->
     <article class="min-w-0">
 
-      <div class="mt-2 flex items-start justify-between gap-4 flex-wrap">
-        <div class="min-w-0">
-          <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Crate</div>
-          <h1 class="mt-1 text-[36px] md:text-[40px] leading-[1.05] font-semibold tracking-tight mono">
-            wasm_component
-            <a href="#" class="anchor text-[18px] align-middle">§</a>
-          </h1>
+      <!-- ============================== -->
+      <!-- PAGE HEADER (DS C03)           -->
+      <!-- Kicker · Title · Tagline · Metadata strip                     -->
+      <!-- ============================== -->
+      <header class="pb-8 md:pb-12">
+        <div class="flex items-center gap-2 text-[12px] text-ink-500 mono uppercase tracking-wider">
+          <span>v0.4.2</span>
+          <span class="h-1 w-1 rounded-full bg-ink-300"></span>
+          <span>API Reference</span>
+          <span class="h-1 w-1 rounded-full bg-ink-300"></span>
+          <span>Crate</span>
         </div>
-        <div class="flex items-center gap-2 pt-2">
-          <span class="since-tag">1.0.0</span>
-          <a href="#" class="src-link">source</a>
+        <h1 class="mt-3 text-[36px] md:text-[44px] leading-[1.05] font-semibold tracking-tight">
+          wasm_component
+        </h1>
+        <p class="mt-3 max-w-2xl text-[15px] text-ink-700 leading-relaxed">
+          A minimal, ergonomic runtime for WebAssembly Components — a typed
+          <span class="mono text-[13px]">Linker</span>, host bindings, and a
+          wire-compatible ABI for interface types.
+        </p>
+        <!-- Metadata strip -->
+        <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px]">
+          <div class="inline-flex items-center gap-2">
+            <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Version</span>
+            <span class="inline-flex items-center h-7 px-2.5 rounded-md bg-surfaceMuted text-ink-900 mono text-[12.5px]">0.4.2</span>
+          </div>
+          <div class="inline-flex items-center gap-2">
+            <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Edition</span>
+            <span class="inline-flex items-center h-7 px-2.5 rounded-md bg-surfaceMuted text-ink-900 mono text-[12.5px]">2021</span>
+          </div>
+          <div class="inline-flex items-center gap-2">
+            <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Source</span>
+            <a href="#" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900 mono text-[12.5px]">github.com/yosh/wasm</a>
+          </div>
+          <div class="inline-flex items-center gap-2">
+            <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Status</span>
+            <span class="inline-flex items-center gap-1.5 px-2 h-6 rounded-pill bg-cat-green text-cat-greenInk text-[12px] font-medium">
+              <span class="h-1.5 w-1.5 rounded-full bg-cat-greenInk"></span>Stable
+            </span>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div class="mt-6 border-t rule"></div>
+      <div class="border-t rule"></div>
 
       <!-- Overview prose -->
       <section class="pt-8 prose max-w-[72ch]">
@@ -611,333 +665,264 @@
       <!-- MODULES                        -->
       <!-- ============================== -->
       <section id="modules" class="mt-8">
-        <div class="section-head">
-          <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
             Modules
-            <span class="mono text-[11px] text-ink-500 font-normal">8</span>
             <a href="#modules" class="anchor text-[12px]">§</a>
-          </h2>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">8</span>
         </div>
-        <table class="w-full mt-1 text-[13px] border-separate border-spacing-0">
-          <tbody>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">M</span>
-                <a href="#" class="mono ml-1.5 hover:underline">component</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Loading and compiling component artifacts.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">M</span>
-                <a href="#" class="mono ml-1.5 hover:underline">engine</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Global engine configuration and compilation caches.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">M</span>
-                <a href="#" class="mono ml-1.5 hover:underline">linker</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Typed and untyped linking of host-defined imports.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">M</span>
-                <a href="#" class="mono ml-1.5 hover:underline">store</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Per-instance state, fuel, and epoch interruption.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">M</span>
-                <a href="#" class="mono ml-1.5 hover:underline">types</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Reflection for component interface types.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">M</span>
-                <a href="#" class="mono ml-1.5 hover:underline">wasi</a>
-                <span class="ml-1.5 inline-flex items-center h-4 px-1.5 rounded-sm bg-cat-blue text-cat-blueInk mono text-[10px] align-middle">wasi</span>
-              </td>
-              <td class="py-1.5 text-ink-700">WASI Preview 2 bindings.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">M</span>
-                <a href="#" class="mono ml-1.5 hover:underline">testing</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Utilities for unit-testing components.</td>
-            </tr>
-            <tr class="item-row deprecated">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);opacity:.5;">M</span>
-                <a href="#" class="mono ml-1.5 hover:underline line-through decoration-1">legacy</a>
-              </td>
-              <td class="py-1.5">Preview 1 compatibility shims. Removed in 0.5.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">component</span><div class="desc">Loading and compiling component artifacts.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">engine</span><div class="desc">Global engine configuration and compilation caches.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">linker</span><div class="desc">Typed and untyped linking of host-defined imports.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">store</span><div class="desc">Per-instance state, fuel, and epoch interruption.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">types</span><div class="desc">Reflection for component interface types.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div>
+              <span class="name">wasi</span>
+              <span class="ml-1.5 inline-flex items-center h-4 px-1.5 rounded-sm bg-cat-blue text-cat-blueInk mono text-[10px] align-middle">wasi</span>
+              <div class="desc">WASI Preview 2 bindings.</div>
+            </div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">testing</span><div class="desc">Utilities for unit-testing components.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row deprecated">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">legacy</span><div class="desc">Preview 1 compatibility shims. Removed in 0.5.</div></div>
+            <span class="meta">deprecated</span>
+          </a>
+        </div>
       </section>
 
       <!-- ============================== -->
       <!-- MACROS                         -->
       <!-- ============================== -->
       <section id="macros" class="mt-12">
-        <div class="section-head">
-          <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
             Macros
-            <span class="mono text-[11px] text-ink-500 font-normal">2</span>
             <a href="#macros" class="anchor text-[12px]">§</a>
-          </h2>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">2</span>
         </div>
-        <table class="w-full mt-1 text-[13px] border-separate border-spacing-0">
-          <tbody>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plumInk);">!</span>
-                <a href="#" class="mono ml-1.5 hover:underline">bindgen!</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Generate typed host bindings from a <span class="icode">.wit</span> world.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plumInk);">!</span>
-                <a href="#" class="mono ml-1.5 hover:underline">component!</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Declarative builder for defining linker imports inline.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="!">!</span>
+            <div><span class="name">bindgen!</span><div class="desc">Generate typed host bindings from a <span class="icode">.wit</span> world.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="!">!</span>
+            <div><span class="name">component!</span><div class="desc">Declarative builder for defining linker imports inline.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
       </section>
 
       <!-- ============================== -->
       <!-- STRUCTS                        -->
       <!-- ============================== -->
       <section id="structs" class="mt-12">
-        <div class="section-head">
-          <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
             Structs
-            <span class="mono text-[11px] text-ink-500 font-normal">6</span>
             <a href="#structs" class="anchor text-[12px]">§</a>
-          </h2>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">6</span>
         </div>
-        <table class="w-full mt-1 text-[13px] border-separate border-spacing-0">
-          <tbody>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">S</span>
-                <a href="#struct.Component" class="mono ml-1.5 hover:underline">Component</a>
-              </td>
-              <td class="py-1.5 text-ink-700">A compiled WebAssembly component ready to be instantiated.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">S</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Engine</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Shared compilation environment. Cheap to clone.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">S</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Linker</a>
-              </td>
-              <td class="py-1.5 text-ink-700">A collection of host-provided imports available to a component.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">S</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Store</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Owns the resources of an instantiated component.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">S</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Instance</a>
-              </td>
-              <td class="py-1.5 text-ink-700">A linked and initialised component, ready to run.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">S</span>
-                <a href="#" class="mono ml-1.5 hover:underline">TypedFunc</a>
-              </td>
-              <td class="py-1.5 text-ink-700">A statically-typed handle to a component export.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="item-list">
+          <a href="#struct.Component" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Component</span><div class="desc">A compiled WebAssembly component ready to be instantiated.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Engine</span><div class="desc">Shared compilation environment. Cheap to clone.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Linker</span><div class="desc">A collection of host-provided imports available to a component.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Store</span><div class="desc">Owns the resources of an instantiated component.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Instance</span><div class="desc">A linked and initialised component, ready to run.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">TypedFunc</span><div class="desc">A statically-typed handle to a component export.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
       </section>
 
       <!-- ============================== -->
       <!-- ENUMS                          -->
       <!-- ============================== -->
       <section id="enums" class="mt-12">
-        <div class="section-head">
-          <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
             Enums
-            <span class="mono text-[11px] text-ink-500 font-normal">2</span>
             <a href="#enums" class="anchor text-[12px]">§</a>
-          </h2>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">2</span>
         </div>
-        <table class="w-full mt-1 text-[13px] border-separate border-spacing-0">
-          <tbody>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">E</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Error</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Errors that may occur while loading, linking, or running a component.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">E</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Val</a>
-              </td>
-              <td class="py-1.5 text-ink-700">A dynamically-typed component value usable across the ABI boundary.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="E">E</span>
+            <div><span class="name">Error</span><div class="desc">Errors that may occur while loading, linking, or running a component.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="E">E</span>
+            <div><span class="name">Val</span><div class="desc">A dynamically-typed component value usable across the ABI boundary.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
       </section>
 
       <!-- ============================== -->
       <!-- TRAITS                         -->
       <!-- ============================== -->
       <section id="traits" class="mt-12">
-        <div class="section-head">
-          <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
             Traits
-            <span class="mono text-[11px] text-ink-500 font-normal">3</span>
             <a href="#traits" class="anchor text-[12px]">§</a>
-          </h2>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">3</span>
         </div>
-        <table class="w-full mt-1 text-[13px] border-separate border-spacing-0">
-          <tbody>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blueInk);">T</span>
-                <a href="#" class="mono ml-1.5 hover:underline">ComponentType</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Types with a canonical representation in the component model.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blueInk);">T</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Lower</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Marshal a host value into the guest's ABI.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blueInk);">T</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Lift</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Marshal a guest value out of the ABI into a host-owned value.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="T">T</span>
+            <div><span class="name">ComponentType</span><div class="desc">Types with a canonical representation in the component model.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="T">T</span>
+            <div><span class="name">Lower</span><div class="desc">Marshal a host value into the guest's ABI.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="T">T</span>
+            <div><span class="name">Lift</span><div class="desc">Marshal a guest value out of the ABI into a host-owned value.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
       </section>
 
       <!-- ============================== -->
       <!-- FUNCTIONS                      -->
       <!-- ============================== -->
       <section id="functions" class="mt-12">
-        <div class="section-head">
-          <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
             Functions
-            <span class="mono text-[11px] text-ink-500 font-normal">3</span>
             <a href="#functions" class="anchor text-[12px]">§</a>
-          </h2>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">3</span>
         </div>
-        <table class="w-full mt-1 text-[13px] border-separate border-spacing-0">
-          <tbody>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
-                <a href="#" class="mono ml-1.5 hover:underline">version</a>
-              </td>
-              <td class="py-1.5 text-ink-700">The runtime version as a <span class="icode">&amp;'static str</span>.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
-                <a href="#" class="mono ml-1.5 hover:underline">default_engine</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Convenience accessor for a lazily-initialised process-wide engine.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
-                <a href="#" class="mono ml-1.5 hover:underline">validate</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Validate a component binary without compiling it.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="f">f</span>
+            <div><span class="name">version</span><div class="desc">The runtime version as a <span class="icode">&amp;'static str</span>.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="f">f</span>
+            <div><span class="name">default_engine</span><div class="desc">Convenience accessor for a lazily-initialised process-wide engine.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="f">f</span>
+            <div><span class="name">validate</span><div class="desc">Validate a component binary without compiling it.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
       </section>
 
       <!-- ============================== -->
       <!-- TYPE ALIASES                   -->
       <!-- ============================== -->
       <section id="types" class="mt-12">
-        <div class="section-head">
-          <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
             Type Aliases
-            <span class="mono text-[11px] text-ink-500 font-normal">2</span>
             <a href="#types" class="anchor text-[12px]">§</a>
-          </h2>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">2</span>
         </div>
-        <table class="w-full mt-1 text-[13px] border-separate border-spacing-0">
-          <tbody>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">Y</span>
-                <a href="#" class="mono ml-1.5 hover:underline">Result</a>
-              </td>
-              <td class="py-1.5 text-ink-700">A specialised <span class="icode">Result</span> returning <span class="icode">Error</span>.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">Y</span>
-                <a href="#" class="mono ml-1.5 hover:underline">HostFn</a>
-              </td>
-              <td class="py-1.5 text-ink-700">A boxed, object-safe host function callable from a component.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="Y">Y</span>
+            <div><span class="name">Result</span><div class="desc">A specialised <span class="icode">Result</span> returning <span class="icode">Error</span>.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="Y">Y</span>
+            <div><span class="name">HostFn</span><div class="desc">A boxed, object-safe host function callable from a component.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
       </section>
 
       <!-- ============================== -->
       <!-- CONSTANTS                      -->
       <!-- ============================== -->
       <section id="constants" class="mt-12">
-        <div class="section-head">
-          <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
             Constants
-            <span class="mono text-[11px] text-ink-500 font-normal">2</span>
             <a href="#constants" class="anchor text-[12px]">§</a>
-          </h2>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">2</span>
         </div>
-        <table class="w-full mt-1 text-[13px] border-separate border-spacing-0">
-          <tbody>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">C</span>
-                <a href="#" class="mono ml-1.5 hover:underline">VERSION</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Semver string of this crate. See also <a href="#"><span class="icode">version</span></a>.</td>
-            </tr>
-            <tr class="item-row">
-              <td class="py-1.5 pr-4 align-top whitespace-nowrap">
-                <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">C</span>
-                <a href="#" class="mono ml-1.5 hover:underline">DEFAULT_EPOCH_MS</a>
-              </td>
-              <td class="py-1.5 text-ink-700">Default epoch deadline used by <span class="icode">Store::set_epoch_deadline</span>.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="C">C</span>
+            <div><span class="name">VERSION</span><div class="desc">Semver string of this crate. See also <span class="icode">version</span>.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="C">C</span>
+            <div><span class="name">DEFAULT_EPOCH_MS</span><div class="desc">Default epoch deadline used by <span class="icode">Store::set_epoch_deadline</span>.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
       </section>
 
       </div>
