@@ -468,6 +468,74 @@
     :root[data-theme="light"] .theme-icon-moon {
       display: inline-block;
     }
+
+    /* ---- Components ---- */
+
+    /* Sigil — small kind chip used in tree/tables */
+    .sigil {
+      display: inline-grid;
+      place-items: center;
+      height: 18px;
+      width: 18px;
+      border-radius: 3px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    /* Tree-link — sidebar row used in nested command navigation */
+    .tree-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--c-ink-700);
+      text-decoration: none;
+      line-height: 1.4;
+    }
+    .tree-link .mono { font-size: 12.5px; }
+    .tree-link:hover { background: var(--c-surface-muted); color: var(--c-ink-900); }
+    .tree-link.active { background: var(--c-surface-muted); color: var(--c-ink-900); font-weight: 500; }
+    .tree-link .chev {
+      width: 10px;
+      height: 10px;
+      flex-shrink: 0;
+      color: var(--c-ink-400);
+      transition: transform 120ms cubic-bezier(.2, 0, 0, 1);
+    }
+    details[open] > summary .chev { transform: rotate(90deg); }
+    details > summary { list-style: none; cursor: pointer; }
+    details > summary::-webkit-details-marker { display: none; }
+    .tree-children {
+      margin-left: 14px;
+      padding-left: 8px;
+      border-left: 1px solid var(--c-line-soft);
+      margin-top: 1px;
+    }
+
+    /* Right-rail “On this page” table of contents */
+    .toc-link {
+      display: block;
+      padding: 3px 10px;
+      font-size: 12px;
+      color: var(--c-ink-500);
+      border-left: 1.5px solid transparent;
+      line-height: 1.5;
+      text-decoration: none;
+    }
+    .toc-link:hover {
+      color: var(--c-ink-900);
+      border-left-color: var(--c-line);
+    }
+    .toc-link.active {
+      color: var(--c-ink-900);
+      border-left-color: var(--c-ink-900);
+    }
+    .toc-link.indent { padding-left: 22px; }
   </style>
 </head>
 
@@ -539,6 +607,9 @@
       <a href="#regions" class="text-ink-700 hover:text-ink-900">21 — Regions</a>
       <a href="#motion" class="text-ink-700 hover:text-ink-900">22 — Motion</a>
       <a href="#details" class="text-ink-700 hover:text-ink-900">23 — Details</a>
+      <span class="text-ink-400 mono uppercase tracking-wider text-[11px] mt-2">Components</span>
+      <a href="#c-sidebar" class="text-ink-700 hover:text-ink-900">C01 — Nested Sidebar</a>
+      <a href="#c-toc" class="text-ink-700 hover:text-ink-900">C02 — On This Page</a>
     </nav>
 
     <div class="border-t rule"></div>
@@ -2685,6 +2756,266 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
                 </dl>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================== -->
+    <!-- COMPONENTS DIVIDER             -->
+    <!-- ============================== -->
+    <div class="mt-24 mb-2 flex items-baseline gap-3">
+      <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Part Two</span>
+      <span class="h-px flex-1 bg-line-soft" style="background:var(--c-line-soft)"></span>
+    </div>
+    <h2 class="text-[28px] md:text-[32px] font-semibold tracking-tight">Components</h2>
+    <p class="mt-2 max-w-2xl text-[14px] text-ink-700 leading-relaxed">
+      Composed patterns built from the foundations above. Each component documents
+      its anchor markup and the variants it supports.
+    </p>
+    <div class="mt-6 border-t rule"></div>
+
+    <!-- ============================== -->
+    <!-- C01 NESTED SIDEBAR             -->
+    <!-- ============================== -->
+    <section id="c-sidebar" class="pt-12 md:pt-16">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">C01</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Nested Sidebar</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            Hierarchical navigation for reference docs. Top-level entries collapse
+            with native <code class="mono text-[12px]">&lt;details&gt;</code>; sigils
+            classify each row by kind (command, group, flag, env, etc.).
+          </p>
+        </div>
+        <div class="space-y-6">
+          <!-- Live demo -->
+          <div class="border border-line rounded-lg bg-canvas p-4 max-w-[300px]">
+            <!-- Section label -->
+            <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">Commands</div>
+
+            <nav class="space-y-0.5 text-[13px]">
+              <a href="#" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">·</span>
+                <span class="mono">wasm</span>
+                <span class="ml-auto mono text-[10.5px] text-ink-400">root</span>
+              </a>
+
+              <a href="#" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                <span class="mono">init</span>
+              </a>
+              <a href="#" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                <span class="mono">build</span>
+              </a>
+              <a href="#" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                <span class="mono">run</span>
+              </a>
+
+              <details open>
+                <summary class="tree-link active">
+                  <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                    stroke-width="1.5"><path d="m4 2 3 3-3 3" /></svg>
+                  <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">G</span>
+                  <span class="mono">registry</span>
+                  <span class="ml-auto mono text-[10.5px] text-ink-400">7</span>
+                </summary>
+                <div class="tree-children space-y-0.5">
+                  <a href="#" class="tree-link active">
+                    <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">G</span>
+                    <span class="mono">registry</span>
+                    <span class="ml-auto mono text-[10.5px] text-ink-400">overview</span>
+                  </a>
+                  <a href="#" class="tree-link">
+                    <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                    <span class="mono">add</span>
+                  </a>
+                  <a href="#" class="tree-link">
+                    <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                    <span class="mono">remove</span>
+                  </a>
+                  <a href="#" class="tree-link">
+                    <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                    <span class="mono">list</span>
+                  </a>
+                  <a href="#" class="tree-link">
+                    <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                    <span class="mono">publish</span>
+                  </a>
+                </div>
+              </details>
+
+              <details>
+                <summary class="tree-link">
+                  <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                    stroke-width="1.5"><path d="m4 2 3 3-3 3" /></svg>
+                  <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">G</span>
+                  <span class="mono">component</span>
+                  <span class="ml-auto mono text-[10.5px] text-ink-400">5</span>
+                </summary>
+              </details>
+
+              <details>
+                <summary class="tree-link">
+                  <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                    stroke-width="1.5"><path d="m4 2 3 3-3 3" /></svg>
+                  <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">G</span>
+                  <span class="mono">wit</span>
+                  <span class="ml-auto mono text-[10.5px] text-ink-400">4</span>
+                </summary>
+              </details>
+
+              <a href="#" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                <span class="mono">help</span>
+              </a>
+            </nav>
+
+            <!-- Reference shortcuts (different sigil kinds) -->
+            <div class="mt-5 pt-4 border-t hairline">
+              <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">Reference</div>
+              <nav class="space-y-0.5">
+                <a href="#" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blueInk);">F</span>
+                  Global flags <span class="ml-auto mono text-[10.5px] text-ink-400">9</span>
+                </a>
+                <a href="#" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">E</span>
+                  Environment <span class="ml-auto mono text-[10.5px] text-ink-400">12</span>
+                </a>
+                <a href="#" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">X</span>
+                  Exit codes
+                </a>
+              </nav>
+            </div>
+          </div>
+
+          <!-- Sigil legend -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Sigil kinds</div>
+            <div class="flex flex-wrap gap-x-5 gap-y-2 text-[12px]">
+              <div class="flex items-center gap-2">
+                <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                <span class="text-ink-700">Command</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">G</span>
+                <span class="text-ink-700">Group</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blueInk);">F</span>
+                <span class="text-ink-700">Flag</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">E</span>
+                <span class="text-ink-700">Env</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">X</span>
+                <span class="text-ink-700">Exit code</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">·</span>
+                <span class="text-ink-700">Root / misc</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Anatomy / rules -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Anatomy</div>
+            <ul class="text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400">
+              <li>One <code class="mono text-[12px]">&lt;details&gt;</code> per group; rotates the chevron via
+                <code class="mono text-[12px]">details[open]</code>.</li>
+              <li>Children indent 14px with a 1px <code class="mono text-[12px]">--c-line-soft</code> guide on the left.</li>
+              <li>Active state uses <code class="mono text-[12px]">--c-surface-muted</code> + medium weight — no border, no accent.</li>
+              <li>Trailing meta (counts, tags) sits in a <code class="mono text-[12px]">ml-auto</code> slot in
+                10.5px ink-400 mono.</li>
+              <li>Sigil colour signals <em>kind</em>, never status. Use the categorical palette and pair
+                consistently across the surface.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <div class="border-t rule mt-16"></div>
+
+    <!-- ============================== -->
+    <!-- C02 ON THIS PAGE               -->
+    <!-- ============================== -->
+    <section id="c-toc" class="pt-12 md:pt-16">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">C02</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">On This Page</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            Right-rail table of contents for long reference pages. A 1.5px left
+            border lights up on hover and active state — the only visual cue, no
+            background fills.
+          </p>
+        </div>
+        <div class="space-y-6">
+          <!-- Live demo -->
+          <div class="border border-line rounded-lg bg-canvas p-4 max-w-[240px]">
+            <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2 px-2.5">On this page</div>
+            <nav class="space-y-px">
+              <a href="#c-toc" class="toc-link">Overview</a>
+              <a href="#c-toc" class="toc-link">Subcommands</a>
+              <a href="#c-toc" class="toc-link indent">add</a>
+              <a href="#c-toc" class="toc-link indent active">remove</a>
+              <a href="#c-toc" class="toc-link indent">list</a>
+              <a href="#c-toc" class="toc-link indent">login</a>
+              <a href="#c-toc" class="toc-link indent">publish</a>
+              <a href="#c-toc" class="toc-link">Global flags</a>
+              <a href="#c-toc" class="toc-link">Environment</a>
+              <a href="#c-toc" class="toc-link">Exit codes</a>
+              <a href="#c-toc" class="toc-link">Config files</a>
+            </nav>
+          </div>
+
+          <!-- States -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">States</div>
+            <div class="grid grid-cols-3 gap-4 max-w-[480px]">
+              <div>
+                <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Default</div>
+                <a href="#c-toc" class="toc-link">Section title</a>
+              </div>
+              <div>
+                <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Hover</div>
+                <a href="#c-toc" class="toc-link"
+                  style="color:var(--c-ink-900);border-left-color:var(--c-line);">Section title</a>
+              </div>
+              <div>
+                <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Active</div>
+                <a href="#c-toc" class="toc-link active">Section title</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Anatomy / rules -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Anatomy</div>
+            <ul class="text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400">
+              <li>Two depth levels only: top-level entries and one indent
+                (<code class="mono text-[12px]">.indent</code>, +12px).</li>
+              <li>Hover lifts ink to <code class="mono text-[12px]">--c-ink-900</code> and tints the left rail to
+                <code class="mono text-[12px]">--c-line</code>.</li>
+              <li>Active state uses a full <code class="mono text-[12px]">--c-ink-900</code> rail; the rail is the
+                only marker — never combine with a background.</li>
+              <li>Drive the active state from a scroll-spy
+                (<code class="mono text-[12px]">IntersectionObserver</code> with a top rootMargin) so the marker
+                tracks the section currently in view.</li>
+              <li>The rail width is reserved (1.5px transparent border) on every row, so toggling active
+                doesn't shift the label.</li>
+            </ul>
           </div>
         </div>
       </div>
