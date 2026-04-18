@@ -581,6 +581,173 @@
       color: var(--c-ink-500);
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
+
+    /* ── Item details (C05) ─────────────────────────────────────────
+       Reference page for a single endpoint / RPC / schema. Header
+       pill identifies the kind, mono path identifies the symbol, and
+       request/response/status/example sections sit below. */
+    .id-header {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+      padding: 10px 12px;
+      border-radius: 5px;
+      background: var(--c-canvas);
+      border: 1px solid var(--c-line-soft);
+    }
+    .id-kind {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 22px; min-width: 64px; padding: 0 8px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    }
+    .id-kind-unary  { background: var(--c-cat-blue);  color: var(--c-cat-blue-ink); }
+    .id-kind-server { background: var(--c-cat-peach); color: var(--c-cat-peach-ink); }
+    .id-kind-client { background: var(--c-cat-lilac); color: var(--c-cat-lilac-ink); }
+    .id-kind-bidi   { background: var(--c-cat-pink);  color: var(--c-cat-pink-ink); }
+    .id-path {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+    }
+    .id-path .pkg  { color: var(--c-ink-400); }
+    .id-path .svc  { color: var(--c-ink-900); }
+    .id-path .sl   { color: var(--c-ink-400); }
+    .id-path .meth { color: var(--c-cat-plum-ink); font-weight: 600; }
+    .id-path .seg  { color: var(--c-ink-900); }
+    .id-path .par  { color: var(--c-cat-plum-ink); }
+    /* HTTP method pill — same shape as .id-kind, paired with .id-path for REST. */
+    .id-method        { display: inline-flex; align-items: center; justify-content: center;
+                        height: 22px; min-width: 64px; padding: 0 8px; border-radius: 4px;
+                        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+                        font-size: 11px; font-weight: 600; letter-spacing: 0.04em; }
+    .id-method-get    { background: var(--c-cat-blue);  color: var(--c-cat-blue-ink); }
+    .id-method-post   { background: var(--c-cat-green); color: var(--c-cat-green-ink); }
+    .id-method-put    { background: var(--c-cat-peach); color: var(--c-cat-peach-ink); }
+    .id-method-patch  { background: var(--c-cat-lilac); color: var(--c-cat-lilac-ink); }
+    .id-method-delete { background: var(--c-cat-pink);  color: var(--c-cat-pink-ink); }
+    /* Auth-required tag — sits inside the header alongside method/path. */
+    .id-auth-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 24px; padding: 0 8px;
+      border-radius: 9999px;
+      background: var(--c-cat-cream); color: var(--c-cat-cream-ink);
+      font-size: 11px; font-weight: 500;
+      margin-left: auto;
+    }
+    .id-auth-tag::before {
+      content: ''; display: inline-block;
+      height: 6px; width: 6px; border-radius: 999px;
+      background: var(--c-cat-cream-ink);
+    }
+    /* HTTP status pill — used in Responses lists. */
+    .id-http-status {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 22px; min-width: 44px; padding: 0 8px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
+      flex: none;
+    }
+    .id-http-status-2xx { background: var(--c-cat-green); color: var(--c-cat-green-ink); }
+    .id-http-status-3xx { background: var(--c-cat-blue);  color: var(--c-cat-blue-ink); }
+    .id-http-status-4xx { background: var(--c-cat-peach); color: var(--c-cat-peach-ink); }
+    .id-http-status-5xx { background: var(--c-cat-pink);  color: var(--c-cat-pink-ink); }
+    /* Code block — used by request/response/example panels. */
+    pre.id-code {
+      background: var(--c-surface-muted);
+      border: 1px solid var(--c-line-soft);
+      border-radius: 5px;
+      padding: 14px 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      overflow-x: auto;
+      color: var(--c-ink-900);
+      margin: 0;
+    }
+    pre.id-code .k  { color: var(--c-cat-blue-ink); }
+    pre.id-code .s  { color: var(--c-cat-green-ink); }
+    pre.id-code .n  { color: var(--c-cat-peach-ink); }
+    pre.id-code .c  { color: var(--c-ink-500); font-style: italic; }
+    pre.id-code .p  { color: var(--c-ink-400); }
+    pre.id-code .ty { color: var(--c-cat-plum-ink); }
+    pre.id-code .fn { color: var(--c-cat-rust-ink); }
+    pre.id-code .at { color: var(--c-cat-teal-ink); }
+    pre.id-code .v  { color: var(--c-cat-plum-ink); }
+    pre.id-code .f  { color: var(--c-cat-rust-ink); }
+    /* Item title — top of an Item Details page. Title + aux row, then tagline. */
+    .id-title-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .id-title-head h2 {
+      font-size: 24px; font-weight: 600; letter-spacing: -0.02em;
+      display: flex; align-items: baseline; gap: 6px;
+      margin: 0;
+    }
+    .id-title-head .id-anchor {
+      color: var(--c-ink-400); text-decoration: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 14px; margin-left: 6px; opacity: 0;
+      transition: opacity .12s ease;
+    }
+    .id-title-head h2:hover .id-anchor,
+    .id-title-head .id-anchor:hover { opacity: 1; color: var(--c-ink-900); }
+    .id-title-head .id-aux {
+      display: flex; align-items: center; gap: 6px; color: var(--c-ink-500);
+    }
+    .id-since-tag {
+      display: inline-flex; align-items: center;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10.5px; color: var(--c-ink-500);
+      padding: 1px 6px;
+      border: 1px solid var(--c-line-soft); border-radius: 3px;
+    }
+    .id-src-link {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px; color: var(--c-ink-500);
+      text-decoration: none; padding: 2px 6px; border-radius: 3px;
+    }
+    .id-src-link:hover { color: var(--c-ink-900); background: var(--c-surface-muted); }
+    .id-page-tagline {
+      color: var(--c-ink-700); font-size: 14px; line-height: 1.6;
+      margin: 0; max-width: 72ch;
+    }
+    /* Status row — used in the Status section. */
+    .id-status-dot { display: inline-block; height: 8px; width: 8px; border-radius: 999px; }
+    .id-status-ok        { background: var(--c-cat-green-ink); }
+    .id-status-client    { background: var(--c-cat-peach-ink); }
+    .id-status-server    { background: var(--c-cat-pink-ink); }
+    .id-status-cancelled { background: var(--c-cat-slate-ink); }
+    /* Language tab strip. */
+    .id-lang-tabs {
+      display: flex; align-items: center; gap: 2px;
+      border-bottom: 1px solid var(--c-line-soft);
+      margin-bottom: -1px;
+    }
+    .id-lang-tab {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 30px; padding: 0 10px;
+      font-size: 12px;
+      color: var(--c-ink-500);
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-top-left-radius: 4px; border-top-right-radius: 4px;
+      position: relative; top: 1px;
+      cursor: default;
+    }
+    .id-lang-tab.is-active {
+      color: var(--c-ink-900);
+      background: var(--c-surface-muted);
+      border-color: var(--c-line-soft);
+    }
+    .id-lang-tab.is-soon { color: var(--c-ink-400); }
+    .id-lang-tab .dot {
+      display: inline-block; height: 6px; width: 6px; border-radius: 999px;
+      background: var(--c-ink-300);
+    }
+    .id-lang-tab.is-active .dot { background: var(--c-positive); }
+    .id-lang-panel pre.id-code { border-top-left-radius: 0; }
   </style>
 </head>
 
@@ -657,6 +824,7 @@
       <a href="#c-toc" class="text-ink-700 hover:text-ink-900">C02 — On This Page</a>
       <a href="#c-page-header" class="text-ink-700 hover:text-ink-900">C03 — Page Header</a>
       <a href="#c-item-list" class="text-ink-700 hover:text-ink-900">C04 — Item List</a>
+      <a href="#c-item-details" class="text-ink-700 hover:text-ink-900">C05 — Item Details</a>
     </nav>
 
     <div class="border-t rule"></div>
@@ -3550,6 +3718,212 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
                 <code class="mono text-[12px]">.meta</code> to a one-word state
                 (“deprecated”, “removed”) instead of a version.</li>
             </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <div class="border-t rule mt-16"></div>
+
+    <!-- ============================== -->
+    <!-- C05 ITEM DETAILS               -->
+    <!-- ============================== -->
+    <section id="c-item-details" class="pt-12 md:pt-16">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">C05</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Item Details</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            Reference page for a single endpoint, RPC, schema, or command. A
+            method/kind pill anchors the symbol; an optional auth tag, a tagline,
+            an optional structured request-body table, a responses list, and
+            paired example panels stack below in fixed order. Used as the
+            destination from <a href="#c-item-list" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">Item List</a> rows.
+          </p>
+        </div>
+        <div class="space-y-8">
+          <!-- Live demo: HTTP POST (cornerstone — full feature set) -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Cornerstone · POST with auth and request body</div>
+            <article class="space-y-5">
+              <!-- Title — page-level h2 + aux (since/source/man) + page tagline -->
+              <header>
+                <div class="id-title-head">
+                  <h2>
+                    <span>publish a package version</span>
+                    <a href="#c-item-details" class="id-anchor">§</a>
+                  </h2>
+                  <div class="id-aux">
+                    <span class="id-since-tag">v1.4.0</span>
+                    <a href="#" class="id-src-link">source</a>
+                    <a href="#" class="id-src-link">spec</a>
+                  </div>
+                </div>
+                <p class="id-page-tagline">
+                  Push a new version of a package to a registry. The body
+                  references an OCI manifest already uploaded via the standard
+                  distribution endpoints.
+                </p>
+              </header>
+              <!-- Header — method pill, path, auth tag pushed right -->
+              <div class="id-header">
+                <span class="id-method id-method-post">POST</span>
+                <span class="id-path">
+                  <span class="seg">/v1/packages</span><span class="sl">/</span><span class="par">{registry}</span><span class="sl">/</span><span class="par">{*repository}</span>
+                </span>
+                <span class="id-auth-tag">Auth required</span>
+              </div>
+              <!-- Request body — structured table, name/type/required + description -->
+              <div>
+                <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Request body</div>
+                <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+                  <table class="w-full min-w-[560px] text-[13px]">
+                    <tbody class="text-ink-900">
+                      <tr class="border-b border-lineSoft">
+                        <td class="py-3 pr-6 align-top w-[180px]">
+                          <div class="mono">version</div>
+                          <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · required</div>
+                        </td>
+                        <td class="py-3 text-ink-700">SemVer tag, e.g. <span class="mono">0.2.4</span>.</td>
+                      </tr>
+                      <tr class="border-b border-lineSoft">
+                        <td class="py-3 pr-6 align-top">
+                          <div class="mono">digest</div>
+                          <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · required</div>
+                        </td>
+                        <td class="py-3 text-ink-700">Manifest digest, prefixed with <span class="mono">sha256:</span>.</td>
+                      </tr>
+                      <tr class="border-b border-lineSoft">
+                        <td class="py-3 pr-6 align-top">
+                          <div class="mono">signature</div>
+                          <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · optional</div>
+                        </td>
+                        <td class="py-3 text-ink-700">Detached cosign-compatible signature, base64 encoded.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <!-- Responses — divided list with status pill + description -->
+              <div>
+                <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Responses</div>
+                <ul class="text-[13px] divide-y divide-lineSoft border-t-[1.5px] border-lineSoft">
+                  <li class="flex items-center gap-3 py-3">
+                    <span class="id-http-status id-http-status-2xx">201</span>
+                    <span class="text-ink-700">Version accepted; returns the canonical
+                      <a href="#c-item-details" class="underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">PackageVersion</a>.</span>
+                  </li>
+                  <li class="flex items-center gap-3 py-3">
+                    <span class="id-http-status id-http-status-4xx">409</span>
+                    <span class="text-ink-700">A version with this tag already exists.</span>
+                  </li>
+                  <li class="flex items-center gap-3 py-3">
+                    <span class="id-http-status id-http-status-4xx">401</span>
+                    <span class="text-ink-700">Missing or invalid bearer token.</span>
+                  </li>
+                </ul>
+              </div>
+              <!-- Example — paired request/response code -->
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Request</div>
+<pre class="id-code"><span class="v">curl</span> <span class="f">-X</span> POST \
+  <span class="f">-H</span> <span class="s">"Authorization: Bearer $TOKEN"</span> \
+  <span class="f">-H</span> <span class="s">"Content-Type: application/json"</span> \
+  <span class="f">-d</span> <span class="s">'{
+    "version": "0.2.4",
+    "digest":  "sha256:1f08…"
+  }'</span> \
+  https://registry.example.com\
+/v1/packages/wasi/http</pre>
+                </div>
+                <div>
+                  <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Response · 201</div>
+<pre class="id-code">{
+  <span class="k">"version"</span><span class="p">:</span> <span class="s">"0.2.4"</span><span class="p">,</span>
+  <span class="k">"digest"</span><span class="p">:</span>  <span class="s">"sha256:1f08…"</span><span class="p">,</span>
+  <span class="k">"yanked"</span><span class="p">:</span>  <span class="n">false</span><span class="p">,</span>
+  <span class="k">"published_at"</span><span class="p">:</span> <span class="s">"2026-04-18T08:11:02Z"</span>
+}</pre>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Anatomy / rules -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Anatomy</div>
+            <ul class="text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400">
+              <li><strong>Title</strong> — page-level <code class="mono text-[12px]">&lt;h2&gt;</code> in
+                <code class="mono text-[12px]">.id-title-head</code> with an aux row on the right
+                (<code class="mono text-[12px]">.id-since-tag</code> for the version a method/endpoint was
+                introduced, plus <code class="mono text-[12px]">.id-src-link</code> entries for source / spec
+                / man). A single-paragraph <code class="mono text-[12px]">.id-page-tagline</code> sits below
+                — what this thing is, in one sentence, capped at <code class="mono text-[12px]">72ch</code>.
+                Always the first element on the page.</li>
+              <li><strong>Header</strong> — pill (<code class="mono text-[12px]">.id-method</code> for HTTP,
+                <code class="mono text-[12px]">.id-kind</code> for RPC) on the left, mono path
+                (<code class="mono text-[12px]">.id-path</code>) center, optional
+                <code class="mono text-[12px]">.id-auth-tag</code> pushed right via
+                <code class="mono text-[12px]">margin-left: auto</code>. Sits in a hairline-bordered band on
+                <code class="mono text-[12px]">canvas</code> — distinct from cards, anchored to the article.</li>
+              <li><strong>Path coloring</strong> — static segments stay
+                <code class="mono text-[12px] text-ink-900">ink-900</code>, parameters
+                (<code class="mono text-[12px] text-ink-500">{registry}</code>) take
+                <code class="mono text-[12px]" style="color:var(--c-cat-plum-ink);font-weight:600;">plum-ink</code>
+                so the eye can scan placeholders without reading every character. Slashes drop to
+                <code class="mono text-[12px] text-ink-500">ink-400</code> as low-contrast punctuation.</li>
+              <li><strong>Request body</strong> (optional) — structured table, not a code block. Each row:
+                a name + type/required line on the left
+                (<code class="mono text-[12px]">w-[180px]</code>, mono name + 11.5px ink-500 mono meta) and
+                a description on the right. Hairline rules between rows. Use this whenever the body
+                has more than two fields or any optional fields — code blocks become hard to scan past
+                ~3 keys.</li>
+              <li><strong>Responses</strong> — divided list. HTTP uses
+                <code class="mono text-[12px]">.id-http-status</code> pills (2xx green / 3xx blue /
+                4xx peach / 5xx pink). RPC uses <code class="mono text-[12px]">.id-status-dot</code> +
+                fixed-width mono code (<code class="mono text-[12px]">w-20</code> so descriptions align).</li>
+              <li><strong>Example</strong> — for HTTP, paired request/response code panels in a 2-col grid.
+                For RPC, language tabs above a single panel; inactive tabs are
+                <code class="mono text-[12px]">is-soon</code> placeholders so users see where future
+                bindings will land.</li>
+              <li>Sections always appear in this order: <strong>title → header → request body →
+                  responses → example</strong>. Optional sections (request body, auth tag, example, since-tag,
+                source/spec links) drop cleanly without reordering or backfilling — predictability across
+                pages matters more than local optimization.</li>
+            </ul>
+          </div>
+
+          <!-- Pill variants -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Header pill variants</div>
+            <div class="space-y-3">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="text-[11px] mono uppercase tracking-wider text-ink-500 w-16">HTTP</span>
+                <span class="id-method id-method-get">GET</span>
+                <span class="id-method id-method-post">POST</span>
+                <span class="id-method id-method-put">PUT</span>
+                <span class="id-method id-method-patch">PATCH</span>
+                <span class="id-method id-method-delete">DELETE</span>
+              </div>
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="text-[11px] mono uppercase tracking-wider text-ink-500 w-16">gRPC</span>
+                <span class="id-kind id-kind-unary">UNARY</span>
+                <span class="id-kind id-kind-server">SERVER</span>
+                <span class="id-kind id-kind-client">CLIENT</span>
+                <span class="id-kind id-kind-bidi">BIDI</span>
+              </div>
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="text-[11px] mono uppercase tracking-wider text-ink-500 w-16">Tag</span>
+                <span class="id-auth-tag" style="margin-left:0;">Auth required</span>
+              </div>
+            </div>
+            <p class="mt-3 text-[12px] text-ink-500">Method pill (<code class="mono text-[12px]">.id-method-*</code>)
+              and kind pill (<code class="mono text-[12px]">.id-kind-*</code>) share shape and slot —
+              swap by surface, not by stacking. The auth tag is the only header element that uses
+              <code class="mono text-[12px]">cream</code> + the rounded-pill shape, reserving cream for
+              "you need credentials" semantics across the design system.</p>
           </div>
         </div>
       </div>
