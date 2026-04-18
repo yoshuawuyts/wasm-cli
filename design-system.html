@@ -610,6 +610,7 @@
       <span class="text-ink-400 mono uppercase tracking-wider text-[11px] mt-2">Components</span>
       <a href="#c-sidebar" class="text-ink-700 hover:text-ink-900">C01 — Nested Sidebar</a>
       <a href="#c-toc" class="text-ink-700 hover:text-ink-900">C02 — On This Page</a>
+      <a href="#c-page-header" class="text-ink-700 hover:text-ink-900">C03 — Page Header</a>
     </nav>
 
     <div class="border-t rule"></div>
@@ -2893,6 +2894,36 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
                 </a>
               </nav>
             </div>
+
+            <!-- Project links — external endpoints -->
+            <div class="mt-5 pt-4 border-t hairline">
+              <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">Project</div>
+              <nav class="space-y-px">
+                <a href="#" class="tree-link">
+                  <svg class="h-3.5 w-3.5 text-ink-500 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor"
+                    aria-hidden="true">
+                    <path d="M8 .2a8 8 0 0 0-2.5 15.6c.4 0 .55-.17.55-.38v-1.4c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.23 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.83-2.15-.08-.2-.36-1.02.08-2.13 0 0 .67-.22 2.2.82A7.6 7.6 0 0 1 8 4.04c.68 0 1.37.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.11.16 1.93.08 2.13.52.56.83 1.28.83 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.74.54 1.49v2.21c0 .21.15.46.55.38A8 8 0 0 0 8 .2Z" />
+                  </svg>
+                  Repository
+                </a>
+                <a href="#" class="tree-link">
+                  <svg class="h-3.5 w-3.5 text-ink-500 flex-shrink-0" viewBox="0 0 16 16" fill="none"
+                    stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+                    <rect x="2.5" y="3" width="11" height="10" rx="1" />
+                    <path d="M2.5 6.5h11M6 3v10" />
+                  </svg>
+                  Crates.io
+                </a>
+                <a href="#" class="tree-link">
+                  <svg class="h-3.5 w-3.5 text-ink-500 flex-shrink-0" viewBox="0 0 16 16" fill="none"
+                    stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="8" cy="8" r="5.5" />
+                    <path d="M8 5v3.5M8 11v.01" />
+                  </svg>
+                  Issues<span class="ml-auto mono text-[10.5px] text-ink-400">12</span>
+                </a>
+              </nav>
+            </div>
           </div>
 
           <!-- Sigil legend -->
@@ -2938,6 +2969,8 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
                 10.5px ink-400 mono.</li>
               <li>Sigil colour signals <em>kind</em>, never status. Use the categorical palette and pair
                 consistently across the surface.</li>
+              <li>Bottom <strong>Project</strong> section uses lucide-style 14px outline icons (ink-500) instead of
+                sigils — reserved for external links (repo, package registry, issues).</li>
             </ul>
           </div>
         </div>
@@ -2978,6 +3011,14 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
               <a href="#c-toc" class="toc-link">Exit codes</a>
               <a href="#c-toc" class="toc-link">Config files</a>
             </nav>
+            <div class="px-2.5 mt-4">
+              <button type="button"
+                class="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11px] mono text-ink-500 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+                <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round"><path d="m3 7.5 3-3 3 3" /></svg>
+                Back to top
+              </button>
+            </div>
           </div>
 
           <!-- States -->
@@ -3015,6 +3056,8 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
                 tracks the section currently in view.</li>
               <li>The rail width is reserved (1.5px transparent border) on every row, so toggling active
                 doesn't shift the label.</li>
+              <li>End the rail with a quiet <strong>Back to top</strong> button — 11px mono, ink-500, no border;
+                hover reveals the surface-muted background.</li>
             </ul>
           </div>
         </div>

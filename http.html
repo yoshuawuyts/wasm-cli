@@ -300,24 +300,54 @@
     .path .sl  { color: var(--c-ink-400); }
 
     /* Sticky sidebar */
-    .sidebar { position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 80px); overflow-y: auto; }
-    .sidebar .group-label { font-size: 11px; }
-    .sidebar a.endpoint {
-      display: flex; align-items: center; gap: 8px;
-      padding: 5px 8px; border-radius: 4px;
-      color: var(--c-ink-700); font-size: 12.5px;
-    }
-    .sidebar a.endpoint:hover { background: var(--c-surface-muted); }
-    .sidebar a.endpoint .m {
+    .sidebar { position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 80px); overflow-y: auto; padding-right: 4px; }
+    .sidebar .group-label { font-size: 10px; }
+
+    /* Sigil — small kind chip used in tree (port from DS C01). */
+    .sigil {
+      display: inline-grid;
+      place-items: center;
+      height: 18px; width: 18px;
+      border-radius: 3px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
-      width: 38px; flex: none; text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1;
+      flex-shrink: 0;
     }
-    .sidebar .m-get    { color: var(--c-cat-blue-ink); }
-    .sidebar .m-post   { color: var(--c-cat-green-ink); }
-    .sidebar .m-put    { color: var(--c-cat-peach-ink); }
-    .sidebar .m-patch  { color: var(--c-cat-lilac-ink); }
-    .sidebar .m-delete { color: var(--c-cat-pink-ink); }
+
+    /* Tree-link — sidebar row used in nested resource navigation. */
+    .tree-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--c-ink-700);
+      text-decoration: none;
+      line-height: 1.4;
+    }
+    .tree-link .mono { font-size: 12.5px; }
+    .tree-link:hover { background: var(--c-surface-muted); color: var(--c-ink-900); }
+    .tree-link.active { background: var(--c-surface-muted); color: var(--c-ink-900); font-weight: 500; }
+    .tree-link .chev {
+      width: 10px; height: 10px;
+      flex-shrink: 0;
+      color: var(--c-ink-400);
+      transition: transform 120ms cubic-bezier(.2, 0, 0, 1);
+    }
+    details[open] > summary .chev { transform: rotate(90deg); }
+    details > summary { list-style: none; cursor: pointer; }
+    details > summary::-webkit-details-marker { display: none; }
+    .tree-children {
+      margin-left: 14px;
+      padding-left: 8px;
+      border-left: 1px solid var(--c-line-soft);
+      margin-top: 1px;
+    }
+    /* When a search filter forces all groups open, hide the chev rotation cue. */
+    .sidebar.search-active details > summary .chev { opacity: 0.35; }
 
     .theme-icon-sun { display: none; }
     .theme-icon-moon { display: inline-block; }
@@ -504,54 +534,89 @@
       <aside class="sidebar" id="sidebar">
         <nav class="text-[13px]">
           <div class="nav-empty">No matches.</div>
+
+          <!-- ============== Guide (flat) ============== -->
           <div class="nav-group" data-group="Guide">
-          <div class="group-label mono uppercase tracking-wider text-ink-500 mb-2">Guide</div>
-          <ul class="space-y-px mb-5">
-            <li><a href="#overview"   class="endpoint"><span class="m">·</span><span>Overview</span></a></li>
-            <li><a href="#auth"       class="endpoint"><span class="m">·</span><span>Authentication</span></a></li>
-            <li><a href="#errors"     class="endpoint"><span class="m">·</span><span>Errors</span></a></li>
-            <li><a href="#pagination" class="endpoint"><span class="m">·</span><span>Pagination</span></a></li>
-          </ul>
+            <div class="group-label mono uppercase tracking-wider text-ink-500 mb-2">Guide</div>
+            <div class="space-y-0.5 mb-5">
+              <a href="#overview"   class="tree-link"><span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">i</span><span>Overview</span></a>
+              <a href="#auth"       class="tree-link"><span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">i</span><span>Authentication</span></a>
+              <a href="#errors"     class="tree-link"><span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">i</span><span>Errors</span></a>
+              <a href="#pagination" class="tree-link"><span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">i</span><span>Pagination</span></a>
+            </div>
           </div>
 
           <div class="my-4 border-t-[1.5px] border-rule group-divider"></div>
 
-          <div class="nav-group" data-group="Health">
-          <div class="group-label mono uppercase tracking-wider text-ink-500 mb-2">Health</div>
-          <ul class="space-y-px mb-5">
-            <li><a href="#op-health" class="endpoint"><span class="m m-get">GET</span><span>/v1/health</span></a></li>
-          </ul>
-          </div>
+          <!-- ============== Endpoints (nested by resource) ============== -->
+          <div class="nav-group" data-group="Endpoints">
+            <div class="group-label mono uppercase tracking-wider text-ink-500 mb-2">Endpoints</div>
+            <div class="space-y-0.5">
 
-          <div class="nav-group" data-group="Packages">
-          <div class="group-label mono uppercase tracking-wider text-ink-500 mb-2">Packages</div>
-          <ul class="space-y-px mb-5">
-            <li><a href="#op-detail"   class="endpoint"><span class="m m-get">GET</span><span>Package detail</span></a></li>
-            <li><a href="#op-versions" class="endpoint"><span class="m m-get">GET</span><span>List versions</span></a></li>
-            <li><a href="#op-version"  class="endpoint"><span class="m m-get">GET</span><span>Get version</span></a></li>
-            <li><a href="#op-publish"  class="endpoint"><span class="m m-post">POST</span><span>Publish</span></a></li>
-            <li><a href="#op-yank"     class="endpoint"><span class="m m-delete">DEL</span><span>Yank version</span></a></li>
-          </ul>
-          </div>
+              <!-- /v1/health — single endpoint, no nesting -->
+              <a href="#op-health" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">G</span>
+                <span class="mono">/v1/health</span>
+              </a>
 
-          <div class="nav-group" data-group="Search">
-          <div class="group-label mono uppercase tracking-wider text-ink-500 mb-2">Search</div>
-          <ul class="space-y-px mb-5">
-            <li><a href="#op-by-import" class="endpoint"><span class="m m-get">GET</span><span>By import</span></a></li>
-            <li><a href="#op-by-export" class="endpoint"><span class="m m-get">GET</span><span>By export</span></a></li>
-          </ul>
+              <!-- /v1/packages — group with 5 children -->
+              <details open>
+                <summary class="tree-link">
+                  <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4 2 3 3-3 3" /></svg>
+                  <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilac-ink);">/</span>
+                  <span class="mono">/v1/packages</span>
+                  <span class="ml-auto mono text-[10.5px] text-ink-400">5</span>
+                </summary>
+                <div class="tree-children space-y-0.5">
+                  <a href="#op-detail"   class="tree-link"><span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">G</span><span>Detail</span></a>
+                  <a href="#op-versions" class="tree-link"><span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">G</span><span>List versions</span></a>
+                  <a href="#op-version"  class="tree-link"><span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">G</span><span>Get version</span></a>
+                  <a href="#op-publish"  class="tree-link"><span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">P</span><span>Publish</span></a>
+                  <a href="#op-yank"     class="tree-link"><span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pink-ink);">D</span><span>Yank</span></a>
+                </div>
+              </details>
+
+              <!-- /v1/search — group with 2 children -->
+              <details open>
+                <summary class="tree-link">
+                  <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4 2 3 3-3 3" /></svg>
+                  <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilac-ink);">/</span>
+                  <span class="mono">/v1/search</span>
+                  <span class="ml-auto mono text-[10.5px] text-ink-400">2</span>
+                </summary>
+                <div class="tree-children space-y-0.5">
+                  <a href="#op-by-import" class="tree-link"><span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">G</span><span>By import</span></a>
+                  <a href="#op-by-export" class="tree-link"><span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">G</span><span>By export</span></a>
+                </div>
+              </details>
+
+            </div>
           </div>
 
           <div class="my-4 border-t-[1.5px] border-rule group-divider"></div>
 
+          <!-- ============== Schemas (flat) ============== -->
           <div class="nav-group" data-group="Schemas">
-          <div class="group-label mono uppercase tracking-wider text-ink-500 mb-2">Schemas</div>
-          <ul class="space-y-px">
-            <li><a href="#schema-package"   class="endpoint"><span class="m">{}</span><span>Package</span></a></li>
-            <li><a href="#schema-detail"    class="endpoint"><span class="m">{}</span><span>PackageDetail</span></a></li>
-            <li><a href="#schema-version"   class="endpoint"><span class="m">{}</span><span>PackageVersion</span></a></li>
-            <li><a href="#schema-error"     class="endpoint"><span class="m">{}</span><span>Error</span></a></li>
-          </ul>
+            <div class="group-label mono uppercase tracking-wider text-ink-500 mb-2">Schemas</div>
+            <div class="space-y-0.5">
+              <a href="#schema-package" class="tree-link"><span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peach-ink);">{}</span><span class="mono">Package</span></a>
+              <a href="#schema-detail"  class="tree-link"><span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peach-ink);">{}</span><span class="mono">PackageDetail</span></a>
+              <a href="#schema-version" class="tree-link"><span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peach-ink);">{}</span><span class="mono">PackageVersion</span></a>
+              <a href="#schema-error"   class="tree-link"><span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peach-ink);">{}</span><span class="mono">Error</span></a>
+            </div>
+          </div>
+
+          <!-- ============== Sigil legend ============== -->
+          <div class="mt-5 pt-4 border-t hairline" style="border-color: var(--c-line-soft);">
+            <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">Legend</div>
+            <div class="grid grid-cols-2 gap-y-1.5 gap-x-2 text-[11.5px] text-ink-700">
+              <div class="flex items-center gap-2"><span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilac-ink);">/</span>Resource</div>
+              <div class="flex items-center gap-2"><span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">G</span>GET</div>
+              <div class="flex items-center gap-2"><span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">P</span>POST</div>
+              <div class="flex items-center gap-2"><span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pink-ink);">D</span>DELETE</div>
+              <div class="flex items-center gap-2"><span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peach-ink);">{}</span>Schema</div>
+              <div class="flex items-center gap-2"><span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">i</span>Guide</div>
+            </div>
           </div>
         </nav>
       </aside>
@@ -1350,7 +1415,7 @@
       });
     })();
 
-    // Sidebar search — filter endpoint links live, hide empty groups.
+    // Sidebar search — filter tree-link rows live, force-open <details> while filtering.
     (function () {
       var wrap = document.getElementById("search");
       var input = document.getElementById("search-input");
@@ -1359,62 +1424,102 @@
       if (!input || !sidebar) return;
 
       var groups = sidebar.querySelectorAll(".nav-group");
-      var items = sidebar.querySelectorAll(".nav-group li");
-      // Cache original label text for highlighting.
-      items.forEach(function (li) {
-        var label = li.querySelector("a > span:last-child");
-        if (label) li.__label = label.textContent;
+      // Every clickable row: <a class="tree-link"> + <summary class="tree-link"> for groups.
+      var rows = sidebar.querySelectorAll(".tree-link");
+      var detailsEls = sidebar.querySelectorAll("details");
+
+      // Cache original label (last text-bearing span) and which group it belongs to.
+      groups.forEach(function (g) {
+        var name = g.getAttribute("data-group") || "";
+        g.querySelectorAll(".tree-link").forEach(function (row) {
+          row.dataset.group = name;
+          // Pick the last span that isn't the sigil/chev/count.
+          var spans = row.querySelectorAll("span");
+          var label = null;
+          for (var i = spans.length - 1; i >= 0; i--) {
+            if (!spans[i].classList.contains("sigil") && !spans[i].classList.contains("chev")) {
+              label = spans[i]; break;
+            }
+          }
+          if (label) {
+            row.__label = label.textContent;
+            row.__labelEl = label;
+          }
+        });
       });
+
+      // Remember original open-state of each <details> so we can restore on clear.
+      detailsEls.forEach(function (d) { d.__openByUser = d.open; });
 
       function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
       function escapeHtml(s) { return s.replace(/[&<>]/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]; }); }
 
       function apply() {
         var q = input.value.trim().toLowerCase();
-        wrap.classList.toggle("has-value", q.length > 0);
+        var filtering = q.length > 0;
+        wrap.classList.toggle("has-value", filtering);
+        sidebar.classList.toggle("search-active", filtering);
         var anyVisible = false;
         var re = q ? new RegExp(escapeRe(q), "ig") : null;
 
-        items.forEach(function (li) {
-          var label = li.__label || "";
-          var hay = (label + " " + (li.dataset.group || "")).toLowerCase();
-          var hit = !q || hay.indexOf(q) !== -1;
-          li.style.display = hit ? "" : "none";
-          var span = li.querySelector("a > span:last-child");
-          if (span) {
-            if (hit && q) {
-              span.innerHTML = escapeHtml(label).replace(re, function (m) {
+        // Filter every row.
+        rows.forEach(function (row) {
+          var label = row.__label || "";
+          var hay = (label + " " + (row.dataset.group || "")).toLowerCase();
+          var hit = !filtering || hay.indexOf(q) !== -1;
+          row.style.display = hit ? "" : "none";
+          if (row.__labelEl) {
+            if (hit && filtering) {
+              row.__labelEl.innerHTML = escapeHtml(label).replace(re, function (m) {
                 return '<span class="nav-hit">' + escapeHtml(m) + '</span>';
               });
             } else {
-              span.textContent = label;
+              row.__labelEl.textContent = label;
             }
           }
-          if (hit) anyVisible = true;
+          if (hit && row.tagName === "A") anyVisible = true;
         });
 
+        // For each <details>: if filtering, force-open when any descendant row matches;
+        // also reveal the <summary> row whenever any descendant matches (even if the
+        // summary itself didn't hit the query). Restore user state on clear.
+        detailsEls.forEach(function (d) {
+          if (!filtering) { d.open = d.__openByUser; return; }
+          var anyChild = Array.from(d.querySelectorAll(".tree-children .tree-link"))
+            .some(function (a) { return a.style.display !== "none"; });
+          if (anyChild) {
+            d.open = true;
+            var s = d.querySelector("summary.tree-link");
+            if (s) s.style.display = "";
+            anyVisible = true;
+          }
+        });
+
+        // Hide groups whose every row is filtered out.
         groups.forEach(function (g) {
-          var visible = g.querySelectorAll("li:not([style*='display: none'])").length > 0;
+          var visible = Array.from(g.querySelectorAll(".tree-link"))
+            .some(function (r) { return r.style.display !== "none"; });
           g.classList.toggle("is-hidden", !visible);
         });
-        sidebar.classList.toggle("is-empty", q.length > 0 && !anyVisible);
+        sidebar.classList.toggle("is-empty", filtering && !anyVisible);
       }
-
-      // Stash group on each li for matching.
-      groups.forEach(function (g) {
-        var name = g.getAttribute("data-group") || "";
-        g.querySelectorAll("li").forEach(function (li) { li.dataset.group = name; });
-      });
 
       input.addEventListener("input", apply);
       input.addEventListener("keydown", function (e) {
         if (e.key === "Escape") { input.value = ""; apply(); input.blur(); }
         if (e.key === "Enter") {
-          var first = sidebar.querySelector(".nav-group:not(.is-hidden) li:not([style*='display: none']) a");
+          var first = sidebar.querySelector(".nav-group:not(.is-hidden) a.tree-link:not([style*='display: none'])");
           if (first) { e.preventDefault(); first.click(); }
         }
       });
       if (clear) clear.addEventListener("click", function () { input.value = ""; apply(); input.focus(); });
+
+      // Track user's manual open/close so we can restore after clearing the search.
+      detailsEls.forEach(function (d) {
+        d.addEventListener("toggle", function () {
+          if (!sidebar.classList.contains("search-active")) d.__openByUser = d.open;
+        });
+      });
 
       // Global "/" shortcut to focus.
       document.addEventListener("keydown", function (e) {
