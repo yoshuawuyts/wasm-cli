@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark">
+  <style>html{background:#F4F4F5}@media(prefers-color-scheme:dark){html:not([data-theme=light]){background:#1C1C20}}html[data-theme=dark]{background:#1C1C20}html[data-theme=light]{background:#F4F4F5}</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm — the package manager for components</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("ds-theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.style.background = t === "dark" ? "#1C1C20" : "#F4F4F5";
+        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.style.background = "#1C1C20";
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["-apple-system", "BlinkMacSystemFont", "system-ui", "\"Segoe UI\"", "\"Helvetica Neue\"", "Helvetica", "Arial", "sans-serif"],
+            mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
+          },
+          colors: {
+            canvas: "var(--c-canvas)",
+            surface: { DEFAULT: "var(--c-surface)", muted: "var(--c-surface-muted)" },
+            surfaceMuted: "var(--c-surface-muted)",
+            ink: {
+              900: "var(--c-ink-900)", 700: "var(--c-ink-700)", 500: "var(--c-ink-500)",
+              400: "var(--c-ink-400)", 300: "var(--c-ink-300)",
+            },
+            line: "var(--c-line)",
+            lineSoft: "var(--c-line-soft)",
+            rule: "var(--c-rule)",
+            positive: "var(--c-positive)",
+            negative: "var(--c-negative)",
+            accent: "var(--c-accent)",
+            cat: {
+              blue: "var(--c-cat-blue)", blueInk: "var(--c-cat-blue-ink)",
+              pink: "var(--c-cat-pink)", pinkInk: "var(--c-cat-pink-ink)",
+              green: "var(--c-cat-green)", greenInk: "var(--c-cat-green-ink)",
+              peach: "var(--c-cat-peach)", peachInk: "var(--c-cat-peach-ink)",
+              lilac: "var(--c-cat-lilac)", lilacInk: "var(--c-cat-lilac-ink)",
+              cream: "var(--c-cat-cream)", creamInk: "var(--c-cat-cream-ink)",
+              teal: "var(--c-cat-teal)", tealInk: "var(--c-cat-teal-ink)",
+              rust: "var(--c-cat-rust)", rustInk: "var(--c-cat-rust-ink)",
+              plum: "var(--c-cat-plum)", plumInk: "var(--c-cat-plum-ink)",
+              slate: "var(--c-cat-slate)", slateInk: "var(--c-cat-slate-ink)",
+            },
+          },
+          boxShadow: {
+            tooltip: "var(--shadow-tooltip)",
+            card: "var(--shadow-card)",
+          },
+          borderRadius: { DEFAULT: "3px", sm: "2px", md: "4px", lg: "5px", pill: "9999px" },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --c-canvas: #F4F4F5;
+      --c-surface: #FFFFFF;
+      --c-surface-muted: #E8E8EA;
+      --c-ink-900: #18181B;
+      --c-ink-700: #3F3F46;
+      --c-ink-500: #71717A;
+      --c-ink-400: #A1A1AA;
+      --c-ink-300: #D4D4D8;
+      --c-line: #D4D4D8;
+      --c-line-soft: #E4E4E7;
+      --c-positive: #1F8A4C;
+      --c-negative: #9B4F5E;
+      --c-accent: #18181B;
+
+      --c-cat-blue: #D6E4FF;       --c-cat-blue-ink: #3D5A99;
+      --c-cat-pink: #FBD9DF;       --c-cat-pink-ink: #9B4F5E;
+      --c-cat-green: #D2ECD8;      --c-cat-green-ink: #3F7A52;
+      --c-cat-peach: #F8E2C2;      --c-cat-peach-ink: #8E6529;
+      --c-cat-lilac: #E4DAF1;      --c-cat-lilac-ink: #6B528F;
+      --c-cat-cream: #F4ECC2;      --c-cat-cream-ink: #7A6A2A;
+      --c-cat-teal: #BFE3EE;       --c-cat-teal-ink: #1F6F87;
+      --c-cat-rust: #F4D2C0;       --c-cat-rust-ink: #9F5536;
+      --c-cat-plum: #E8C5E8;       --c-cat-plum-ink: #7E2E7E;
+      --c-cat-slate: #DADCE0;      --c-cat-slate-ink: #535A66;
+
+      --c-rule: var(--c-ink-900);
+      --c-scrollbar: #D4D4D8;
+      --shadow-tooltip: 0 8px 24px -8px rgba(20, 22, 28, 0.35);
+      --shadow-card: 0 1px 0 0 rgba(20, 22, 28, 0.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --c-canvas: #1C1C20;
+        --c-surface: #26262B;
+        --c-surface-muted: #2F2F35;
+        --c-ink-900: #ECECEE;
+        --c-ink-700: #B5B5BB;
+        --c-ink-500: #8B8B92;
+        --c-ink-400: #76767D;
+        --c-ink-300: #4A4A50;
+        --c-line: #3A3A40;
+        --c-line-soft: #323238;
+        --c-positive: #5EC787;
+        --c-negative: #EE7B8E;
+        --c-accent: #8FB1F5;
+
+        --c-cat-blue: #B8D0FF;     --c-cat-blue-ink: #1F3F8C;
+        --c-cat-pink: #FFB8B0;     --c-cat-pink-ink: #9E2823;
+        --c-cat-green: #B5E8C0;    --c-cat-green-ink: #1F6738;
+        --c-cat-peach: #FBD3A0;    --c-cat-peach-ink: #7A4E10;
+        --c-cat-lilac: #C6B1F0;    --c-cat-lilac-ink: #422684;
+        --c-cat-cream: #F5E696;    --c-cat-cream-ink: #6B5610;
+        --c-cat-teal: #A6DDF0;     --c-cat-teal-ink: #0F5C7A;
+        --c-cat-rust: #F5BFA0;     --c-cat-rust-ink: #87401C;
+        --c-cat-plum: #DDB2EF;     --c-cat-plum-ink: #571485;
+        --c-cat-slate: #C6CDD8;    --c-cat-slate-ink: #424B5C;
+
+        --c-rule: #6B6B72;
+        --c-scrollbar: #4A4A50;
+        --shadow-tooltip: 0 10px 28px -10px rgba(0, 0, 0, 0.7);
+        --shadow-card: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 1px 0 0 rgba(0, 0, 0, 0.5), 0 8px 16px -12px rgba(0, 0, 0, 0.6);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --c-canvas: #1C1C20;
+      --c-surface: #26262B;
+      --c-surface-muted: #2F2F35;
+      --c-ink-900: #ECECEE;
+      --c-ink-700: #B5B5BB;
+      --c-ink-500: #8B8B92;
+      --c-ink-400: #76767D;
+      --c-ink-300: #4A4A50;
+      --c-line: #3A3A40;
+      --c-line-soft: #323238;
+      --c-positive: #5EC787;
+      --c-negative: #EE7B8E;
+      --c-accent: #8FB1F5;
+      --c-cat-blue: #B8D0FF;     --c-cat-blue-ink: #1F3F8C;
+      --c-cat-pink: #FFB8B0;     --c-cat-pink-ink: #9E2823;
+      --c-cat-green: #B5E8C0;    --c-cat-green-ink: #1F6738;
+      --c-cat-peach: #FBD3A0;    --c-cat-peach-ink: #7A4E10;
+      --c-cat-lilac: #C6B1F0;    --c-cat-lilac-ink: #422684;
+      --c-cat-cream: #F5E696;    --c-cat-cream-ink: #6B5610;
+      --c-cat-teal: #A6DDF0;     --c-cat-teal-ink: #0F5C7A;
+      --c-cat-rust: #F5BFA0;     --c-cat-rust-ink: #87401C;
+      --c-cat-plum: #DDB2EF;     --c-cat-plum-ink: #571485;
+      --c-cat-slate: #C6CDD8;    --c-cat-slate-ink: #424B5C;
+      --c-rule: #6B6B72;
+      --c-scrollbar: #4A4A50;
+      --shadow-tooltip: 0 10px 28px -10px rgba(0, 0, 0, 0.7);
+      --shadow-card: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 1px 0 0 rgba(0, 0, 0, 0.5), 0 8px 16px -12px rgba(0, 0, 0, 0.6);
+    }
+
+    html, body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+    .rule { border-color: var(--c-rule) !important; border-top-width: 1.5px !important; }
+
+    .bar {
+      height: 26px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius: 999px; }
+
+    ::selection {
+      background: color-mix(in oklab, var(--c-accent) 35%, transparent);
+      color: var(--c-ink-900);
+    }
+
+    :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+    :focus:not(:focus-visible) { outline: none; }
+
+    /* Theme toggle visibility */
+    .theme-icon-sun { display: none; }
+    .theme-icon-moon { display: inline-block; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .theme-icon-sun { display: inline-block; }
+      :root:not([data-theme="light"]) .theme-icon-moon { display: none; }
+    }
+    :root[data-theme="dark"] .theme-icon-sun { display: inline-block; }
+    :root[data-theme="dark"] .theme-icon-moon { display: none; }
+    :root[data-theme="light"] .theme-icon-sun { display: none; }
+    :root[data-theme="light"] .theme-icon-moon { display: inline-block; }
+
+    /* Spark column shapes for tiny activity charts */
+    .sparkcol {
+      display: inline-block;
+      width: 4px;
+      border-radius: 1px;
+      background: currentColor;
+      vertical-align: bottom;
+      opacity: 0.85;
+    }
+
+    /* Subtle hover lift on package cards */
+    .pkg-card { transition: background-color 180ms cubic-bezier(0.2,0,0,1), border-color 180ms cubic-bezier(0.2,0,0,1); }
+    .pkg-card:hover { background-color: var(--c-surface); }
+  </style>
+</head>
+
+<body class="bg-canvas text-ink-900 font-sans antialiased">
+
+  <!-- ============================== -->
+  <!-- TOP NAV                        -->
+  <!-- ============================== -->
+  <header class="border-b border-lineSoft">
+    <div class="mx-auto max-w-[1280px] px-4 md:px-8 h-14 flex items-center gap-6">
+      <a href="#" class="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7l3 10 3-7 3 7 3-10" />
+          <path d="M15 7l3 10 3-10" />
+        </svg>
+        wasm
+      </a>
+      <nav class="hidden md:flex items-center gap-5 text-[13px] text-ink-700">
+        <a href="#" class="hover:text-ink-900">Packages</a>
+        <a href="#" class="hover:text-ink-900">Authors</a>
+        <a href="#" class="hover:text-ink-900">Registries</a>
+        <a href="#" class="hover:text-ink-900">Docs</a>
+        <a href="#" class="hover:text-ink-900">Spec</a>
+      </nav>
+      <div class="ml-auto flex items-center gap-2">
+        <div class="hidden md:flex items-center gap-2 h-8 w-[280px] px-2.5 rounded-md border border-line bg-surface text-ink-500">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input type="text" placeholder="Search 12 480 packages…"
+            class="flex-1 bg-transparent text-[13px] text-ink-900 placeholder:text-ink-500 outline-none">
+          <kbd class="inline-flex items-center px-1.5 h-5 rounded-sm border border-line bg-canvas text-ink-500 mono text-[11px]">⌘K</kbd>
+        </div>
+        <button id="theme-toggle" type="button" aria-label="Toggle color theme"
+          class="inline-flex items-center justify-center h-8 w-8 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+          <svg class="theme-icon-sun h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+            stroke-width="1.5" stroke-linecap="round">
+            <circle cx="8" cy="8" r="3" />
+            <path d="M8 1.5v1.5M8 13v1.5M1.5 8h1.5M13 8h1.5M3.3 3.3l1.05 1.05M11.65 11.65l1.05 1.05M3.3 12.7l1.05-1.05M11.65 4.35l1.05-1.05" />
+          </svg>
+          <svg class="theme-icon-moon h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z" />
+          </svg>
+        </button>
+        <a href="#"
+          class="h-8 px-3 inline-flex items-center gap-2 rounded-lg border-[1.5px] border-ink-900 bg-surface text-ink-900 text-[13px] hover:bg-surfaceMuted">
+          Sign in
+        </a>
+        <a href="#"
+          class="h-8 px-3 inline-flex items-center gap-2 rounded-lg bg-ink-900 text-canvas text-[13px] hover:opacity-90">
+          Publish
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-[1280px] px-4 md:px-8">
+
+    <!-- ============================== -->
+    <!-- HERO                           -->
+    <!-- ============================== -->
+    <section class="pt-12 md:pt-20 pb-12 md:pb-16">
+      <div class="grid md:grid-cols-[1fr_440px] gap-10 md:gap-16 items-end">
+        <div>
+          <div class="flex items-center gap-2 text-[12px] text-ink-500 mono uppercase tracking-wider">
+            <span>v0.4.0</span>
+            <span class="h-1 w-1 rounded-full bg-ink-300"></span>
+            <span>Stable · WASI 0.2</span>
+          </div>
+          <h1 class="mt-4 text-[44px] md:text-[64px] leading-[1.0] font-semibold tracking-tight">
+            The package manager<br>
+            for components.
+          </h1>
+          <p class="mt-5 max-w-2xl text-[16px] md:text-[17px] text-ink-700 leading-relaxed">
+            Resolve, vendor, and compose WebAssembly components from any registry.
+            Reproducible builds, semantic versioning, and an append-only index — so
+            the dependency you shipped is the dependency you keep.
+          </p>
+          <div class="mt-7 flex flex-wrap items-center gap-3">
+            <a href="#"
+              class="h-9 px-4 inline-flex items-center gap-2 rounded-lg bg-ink-900 text-canvas text-[13px] hover:opacity-90">
+              Get started
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+              </svg>
+            </a>
+            <a href="#"
+              class="h-9 px-4 inline-flex items-center gap-2 rounded-lg border-[1.5px] border-ink-900 bg-surface text-ink-900 text-[13px] hover:bg-surfaceMuted">
+              Browse packages
+            </a>
+            <a href="#" class="text-[13px] text-ink-500 hover:text-ink-900 ml-1 inline-flex items-center gap-1">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 19c-5 1.5-5-2.5-7-3" />
+                <path d="M15 22v-4a3.4 3.4 0 0 0-1-2.6c3 0 6-2 6-5.5a4.3 4.3 0 0 0-1.2-3 4 4 0 0 0-.1-3s-1-.3-3.3 1.2a11.4 11.4 0 0 0-6 0C7 3.6 6 3.9 6 3.9a4 4 0 0 0-.1 3 4.3 4.3 0 0 0-1.2 3c0 3.5 3 5.5 6 5.5a3.4 3.4 0 0 0-1 2.6V22" />
+              </svg>
+              Source on GitHub
+            </a>
+          </div>
+        </div>
+        <!-- Install card -->
+        <div class="rounded-lg border border-line bg-surface shadow-card overflow-hidden">
+          <div class="flex items-center gap-1 px-3 h-9 border-b border-lineSoft">
+            <button class="h-7 px-2.5 rounded-md text-[12px] mono text-ink-900 bg-surfaceMuted">macOS</button>
+            <button class="h-7 px-2.5 rounded-md text-[12px] mono text-ink-500 hover:bg-surfaceMuted">Linux</button>
+            <button class="h-7 px-2.5 rounded-md text-[12px] mono text-ink-500 hover:bg-surfaceMuted">Windows</button>
+            <span class="ml-auto text-[11px] text-ink-500 mono">install.sh</span>
+          </div>
+          <div class="p-4">
+            <pre class="mono text-[13px] leading-relaxed text-ink-900 whitespace-pre overflow-x-auto"><span class="text-ink-400">$</span> curl -sSf https://wasm.dev/install.sh | sh
+
+<span class="text-ink-400">$</span> wasm <span class="text-cat-blueInk">init</span> hello-world
+<span class="text-ink-500">  Created hello-world/wasm.toml</span>
+
+<span class="text-ink-400">$</span> wasm <span class="text-cat-blueInk">add</span> wasi:http@0.2
+<span class="text-ink-500">  Resolved 4 packages in 312 ms</span>
+<span class="text-positive">  ✓ Locked</span> wasi:http <span class="text-ink-500">0.2.3</span>
+<span class="text-positive">  ✓ Locked</span> wasi:io   <span class="text-ink-500">0.2.3</span>
+
+<span class="text-ink-400">$</span> wasm <span class="text-cat-blueInk">build</span>
+<span class="text-positive">  ✓ Compiled</span> hello-world <span class="text-ink-500">v0.1.0</span> <span class="text-ink-400">(2.18s)</span></pre>
+          </div>
+          <div class="flex items-center justify-between px-3 h-9 border-t border-lineSoft text-[12px] text-ink-500">
+            <span class="mono">SHA256: 9e4a…c0f1</span>
+            <button class="inline-flex items-center gap-1.5 hover:text-ink-900">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              Copy
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="border-t rule"></div>
+
+    <!-- ============================== -->
+    <!-- METRICS STRIP                  -->
+    <!-- ============================== -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-px bg-lineSoft border-x border-b border-lineSoft">
+      <div class="bg-canvas p-6">
+        <div class="text-[12px] text-ink-500 mono uppercase tracking-wider">Packages</div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span class="text-[28px] font-semibold tracking-tight tabular-nums">12 480</span>
+          <span class="text-[12px] font-medium text-positive">+184 this week</span>
+        </div>
+      </div>
+      <div class="bg-canvas p-6">
+        <div class="text-[12px] text-ink-500 mono uppercase tracking-wider">Authors</div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span class="text-[28px] font-semibold tracking-tight tabular-nums">2 314</span>
+          <span class="text-[12px] font-medium text-positive">+27</span>
+        </div>
+      </div>
+      <div class="bg-canvas p-6">
+        <div class="text-[12px] text-ink-500 mono uppercase tracking-wider">Downloads · 30d</div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span class="text-[28px] font-semibold tracking-tight tabular-nums">38.4 M</span>
+          <span class="text-[12px] font-medium text-positive">+12.1%</span>
+        </div>
+      </div>
+      <div class="bg-canvas p-6">
+        <div class="text-[12px] text-ink-500 mono uppercase tracking-wider">Index integrity</div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span class="text-[28px] font-semibold tracking-tight tabular-nums">100<span class="text-ink-500">%</span></span>
+          <span class="inline-flex items-center gap-1 text-[12px] font-medium text-positive">
+            <span class="h-1.5 w-1.5 rounded-full bg-positive"></span> verified
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== -->
+    <!-- CATEGORIES                     -->
+    <!-- ============================== -->
+    <section class="pt-14 md:pt-20">
+      <div class="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Browse</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Categories</h2>
+        </div>
+        <a href="#" class="text-[13px] text-ink-700 hover:text-ink-900 inline-flex items-center gap-1">
+          All categories
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+          </svg>
+        </a>
+      </div>
+      <div class="mt-5 flex flex-wrap items-center gap-2 text-[13px]">
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-ink-900 text-canvas font-medium">All <span class="ml-1.5 text-ink-300 tabular-nums">12 480</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-blue text-cat-blueInk">HTTP & networking <span class="ml-1.5 opacity-70 tabular-nums">1 248</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-green text-cat-greenInk">CLI & shell <span class="ml-1.5 opacity-70 tabular-nums">906</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-peach text-cat-peachInk">Storage <span class="ml-1.5 opacity-70 tabular-nums">512</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-lilac text-cat-lilacInk">Cryptography <span class="ml-1.5 opacity-70 tabular-nums">388</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-teal text-cat-tealInk">Observability <span class="ml-1.5 opacity-70 tabular-nums">271</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-rust text-cat-rustInk">Parsers <span class="ml-1.5 opacity-70 tabular-nums">464</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-pink text-cat-pinkInk">Databases <span class="ml-1.5 opacity-70 tabular-nums">198</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-cream text-cat-creamInk">ML & inference <span class="ml-1.5 opacity-70 tabular-nums">142</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-plum text-cat-plumInk">Compression <span class="ml-1.5 opacity-70 tabular-nums">87</span></a>
+        <a class="inline-flex items-center px-3 h-8 rounded-pill bg-cat-slate text-cat-slateInk">Runtime ABIs <span class="ml-1.5 opacity-70 tabular-nums">63</span></a>
+      </div>
+    </section>
+
+    <!-- ============================== -->
+    <!-- FEATURED PACKAGES              -->
+    <!-- ============================== -->
+    <section class="pt-12 md:pt-16">
+      <div class="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Curated</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Featured packages</h2>
+          <p class="mt-2 max-w-xl text-[13px] text-ink-500 leading-relaxed">
+            Hand-picked components from the registry, spanning HTTP, storage, and the
+            WASI standard library.
+          </p>
+        </div>
+        <div class="flex items-center gap-1 p-1 rounded-lg bg-surfaceMuted">
+          <button class="h-7 px-2.5 rounded-md bg-ink-900 text-canvas text-[12px] font-medium">Featured</button>
+          <button class="h-7 px-2.5 rounded-md text-[12px] text-ink-500 hover:text-ink-900">Trending</button>
+          <button class="h-7 px-2.5 rounded-md text-[12px] text-ink-500 hover:text-ink-900">New</button>
+        </div>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+        <!-- Card 1 -->
+        <a href="#" class="pkg-card block p-5 rounded-lg border border-lineSoft bg-canvas">
+          <div class="flex items-start justify-between gap-3">
+            <div class="bar bg-cat-blue text-cat-blueInk">wasi:http</div>
+            <span class="text-[11px] text-ink-500 mono">0.2.3</span>
+          </div>
+          <div class="mt-4">
+            <div class="text-[15px] font-semibold tracking-tight">wasi:http</div>
+            <div class="text-[12px] text-ink-500 mono">wasi · published 3d ago</div>
+          </div>
+          <p class="mt-3 text-[13px] text-ink-700 leading-relaxed">
+            Standard HTTP request and response types for components — incoming
+            handlers, outgoing clients, headers, and trailers.
+          </p>
+          <div class="mt-5 flex items-center justify-between text-[12px] text-ink-500">
+            <span class="inline-flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span class="tabular-nums">4.2 M</span>
+            </span>
+            <span class="text-cat-blueInk inline-flex items-end gap-px h-4">
+              <span class="sparkcol" style="height:30%"></span>
+              <span class="sparkcol" style="height:55%"></span>
+              <span class="sparkcol" style="height:42%"></span>
+              <span class="sparkcol" style="height:70%"></span>
+              <span class="sparkcol" style="height:62%"></span>
+              <span class="sparkcol" style="height:88%"></span>
+              <span class="sparkcol" style="height:100%"></span>
+            </span>
+          </div>
+        </a>
+
+        <!-- Card 2 -->
+        <a href="#" class="pkg-card block p-5 rounded-lg border border-lineSoft bg-canvas">
+          <div class="flex items-start justify-between gap-3">
+            <div class="bar bg-cat-green text-cat-greenInk">wasi:cli</div>
+            <span class="text-[11px] text-ink-500 mono">0.2.3</span>
+          </div>
+          <div class="mt-4">
+            <div class="text-[15px] font-semibold tracking-tight">wasi:cli</div>
+            <div class="text-[12px] text-ink-500 mono">wasi · published 3d ago</div>
+          </div>
+          <p class="mt-3 text-[13px] text-ink-700 leading-relaxed">
+            Command-line interface primitives — stdio streams, environment access,
+            argument parsing, and exit codes.
+          </p>
+          <div class="mt-5 flex items-center justify-between text-[12px] text-ink-500">
+            <span class="inline-flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span class="tabular-nums">3.8 M</span>
+            </span>
+            <span class="text-cat-greenInk inline-flex items-end gap-px h-4">
+              <span class="sparkcol" style="height:50%"></span>
+              <span class="sparkcol" style="height:48%"></span>
+              <span class="sparkcol" style="height:60%"></span>
+              <span class="sparkcol" style="height:55%"></span>
+              <span class="sparkcol" style="height:78%"></span>
+              <span class="sparkcol" style="height:72%"></span>
+              <span class="sparkcol" style="height:90%"></span>
+            </span>
+          </div>
+        </a>
+
+        <!-- Card 3 -->
+        <a href="#" class="pkg-card block p-5 rounded-lg border border-lineSoft bg-canvas">
+          <div class="flex items-start justify-between gap-3">
+            <div class="bar bg-cat-peach text-cat-peachInk">fermyon:spin-sdk</div>
+            <span class="text-[11px] text-ink-500 mono">3.1.0</span>
+          </div>
+          <div class="mt-4">
+            <div class="text-[15px] font-semibold tracking-tight">fermyon:spin-sdk</div>
+            <div class="text-[12px] text-ink-500 mono">fermyon · published 1w ago</div>
+          </div>
+          <p class="mt-3 text-[13px] text-ink-700 leading-relaxed">
+            High-level SDK for building Spin applications — HTTP triggers, key-value
+            stores, and outbound networking.
+          </p>
+          <div class="mt-5 flex items-center justify-between text-[12px] text-ink-500">
+            <span class="inline-flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span class="tabular-nums">812 k</span>
+            </span>
+            <span class="text-cat-peachInk inline-flex items-end gap-px h-4">
+              <span class="sparkcol" style="height:42%"></span>
+              <span class="sparkcol" style="height:64%"></span>
+              <span class="sparkcol" style="height:58%"></span>
+              <span class="sparkcol" style="height:80%"></span>
+              <span class="sparkcol" style="height:70%"></span>
+              <span class="sparkcol" style="height:92%"></span>
+              <span class="sparkcol" style="height:84%"></span>
+            </span>
+          </div>
+        </a>
+
+        <!-- Card 4 -->
+        <a href="#" class="pkg-card block p-5 rounded-lg border border-lineSoft bg-canvas">
+          <div class="flex items-start justify-between gap-3">
+            <div class="bar bg-cat-lilac text-cat-lilacInk">wasmcloud:secrets</div>
+            <span class="text-[11px] text-ink-500 mono">1.0.4</span>
+          </div>
+          <div class="mt-4">
+            <div class="text-[15px] font-semibold tracking-tight">wasmcloud:secrets</div>
+            <div class="text-[12px] text-ink-500 mono">wasmcloud · published 2d ago</div>
+          </div>
+          <p class="mt-3 text-[13px] text-ink-700 leading-relaxed">
+            A capability provider for fetching, rotating, and revoking secrets across
+            environments without baking them into binaries.
+          </p>
+          <div class="mt-5 flex items-center justify-between text-[12px] text-ink-500">
+            <span class="inline-flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span class="tabular-nums">214 k</span>
+            </span>
+            <span class="text-cat-lilacInk inline-flex items-end gap-px h-4">
+              <span class="sparkcol" style="height:60%"></span>
+              <span class="sparkcol" style="height:48%"></span>
+              <span class="sparkcol" style="height:72%"></span>
+              <span class="sparkcol" style="height:65%"></span>
+              <span class="sparkcol" style="height:54%"></span>
+              <span class="sparkcol" style="height:80%"></span>
+              <span class="sparkcol" style="height:74%"></span>
+            </span>
+          </div>
+        </a>
+
+        <!-- Card 5 -->
+        <a href="#" class="pkg-card block p-5 rounded-lg border border-lineSoft bg-canvas">
+          <div class="flex items-start justify-between gap-3">
+            <div class="bar bg-cat-teal text-cat-tealInk">microsoft:wit-bindgen</div>
+            <span class="text-[11px] text-ink-500 mono">0.36.0</span>
+          </div>
+          <div class="mt-4">
+            <div class="text-[15px] font-semibold tracking-tight">microsoft:wit-bindgen</div>
+            <div class="text-[12px] text-ink-500 mono">microsoft · published 5d ago</div>
+          </div>
+          <p class="mt-3 text-[13px] text-ink-700 leading-relaxed">
+            Generate guest and host bindings from WIT files for Rust, C, Go, JS,
+            and Python. The reference implementation.
+          </p>
+          <div class="mt-5 flex items-center justify-between text-[12px] text-ink-500">
+            <span class="inline-flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span class="tabular-nums">1.6 M</span>
+            </span>
+            <span class="text-cat-tealInk inline-flex items-end gap-px h-4">
+              <span class="sparkcol" style="height:38%"></span>
+              <span class="sparkcol" style="height:50%"></span>
+              <span class="sparkcol" style="height:64%"></span>
+              <span class="sparkcol" style="height:58%"></span>
+              <span class="sparkcol" style="height:82%"></span>
+              <span class="sparkcol" style="height:76%"></span>
+              <span class="sparkcol" style="height:95%"></span>
+            </span>
+          </div>
+        </a>
+
+        <!-- Card 6 -->
+        <a href="#" class="pkg-card block p-5 rounded-lg border border-lineSoft bg-canvas">
+          <div class="flex items-start justify-between gap-3">
+            <div class="bar bg-cat-rust text-cat-rustInk">cosmonic:nats</div>
+            <span class="text-[11px] text-ink-500 mono">2.4.1</span>
+          </div>
+          <div class="mt-4">
+            <div class="text-[15px] font-semibold tracking-tight">cosmonic:nats</div>
+            <div class="text-[12px] text-ink-500 mono">cosmonic-labs · published 6d ago</div>
+          </div>
+          <p class="mt-3 text-[13px] text-ink-700 leading-relaxed">
+            NATS messaging client component — pub/sub, request/reply, and JetStream
+            with at-least-once delivery semantics.
+          </p>
+          <div class="mt-5 flex items-center justify-between text-[12px] text-ink-500">
+            <span class="inline-flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span class="tabular-nums">348 k</span>
+            </span>
+            <span class="text-cat-rustInk inline-flex items-end gap-px h-4">
+              <span class="sparkcol" style="height:55%"></span>
+              <span class="sparkcol" style="height:62%"></span>
+              <span class="sparkcol" style="height:48%"></span>
+              <span class="sparkcol" style="height:72%"></span>
+              <span class="sparkcol" style="height:80%"></span>
+              <span class="sparkcol" style="height:68%"></span>
+              <span class="sparkcol" style="height:86%"></span>
+            </span>
+          </div>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- ============================== -->
+    <!-- TWO-COLUMN: Recently updated + Top authors -->
+    <!-- ============================== -->
+    <section class="pt-14 md:pt-20 grid lg:grid-cols-[1fr_360px] gap-10 lg:gap-12">
+
+      <!-- Recently updated table -->
+      <div>
+        <div class="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Index</div>
+            <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Recently updated</h2>
+          </div>
+          <div class="flex items-center gap-1 text-[13px] text-ink-500">
+            <button class="h-7 px-2.5 rounded text-ink-900 font-medium">All</button>
+            <button class="h-7 px-2.5 rounded">HTTP</button>
+            <button class="h-7 px-2.5 rounded">CLI</button>
+            <button class="h-7 px-2.5 rounded">Storage</button>
+          </div>
+        </div>
+
+        <div class="mt-5 overflow-x-auto border-t-[1.5px] border-lineSoft">
+          <table class="w-full min-w-[640px] text-[13px]">
+            <thead>
+              <tr class="text-ink-400">
+                <th class="text-left font-normal py-3 pr-4">Package</th>
+                <th class="text-left font-normal py-3 px-4 w-[110px]">Version</th>
+                <th class="text-left font-normal py-3 px-4 w-[140px]">Author</th>
+                <th class="text-right font-normal py-3 px-4 w-[110px]">Downloads</th>
+                <th class="text-right font-normal py-3 pl-4 w-[100px]">Updated</th>
+              </tr>
+            </thead>
+            <tbody class="text-ink-900">
+              <tr class="border-t-[1.5px] border-lineSoft">
+                <td class="py-4 pr-4">
+                  <div class="font-medium">wasi:http</div>
+                  <div class="text-[12px] text-ink-500 mono">Standard HTTP types</div>
+                </td>
+                <td class="py-4 px-4 mono tabular-nums">0.2.3</td>
+                <td class="py-4 px-4 text-ink-700">wasi</td>
+                <td class="py-4 px-4 text-right tabular-nums">4 218 442</td>
+                <td class="py-4 pl-4 text-right text-ink-500">3d</td>
+              </tr>
+              <tr class="border-t-[1.5px] border-lineSoft">
+                <td class="py-4 pr-4">
+                  <div class="font-medium">fermyon:spin-sdk</div>
+                  <div class="text-[12px] text-ink-500 mono">Spin runtime SDK</div>
+                </td>
+                <td class="py-4 px-4 mono tabular-nums">3.1.0</td>
+                <td class="py-4 px-4 text-ink-700">fermyon</td>
+                <td class="py-4 px-4 text-right tabular-nums">812 906</td>
+                <td class="py-4 pl-4 text-right text-ink-500">1w</td>
+              </tr>
+              <tr class="border-t-[1.5px] border-lineSoft">
+                <td class="py-4 pr-4">
+                  <div class="font-medium">microsoft:wit-bindgen</div>
+                  <div class="text-[12px] text-ink-500 mono">WIT bindings generator</div>
+                </td>
+                <td class="py-4 px-4 mono tabular-nums">0.36.0</td>
+                <td class="py-4 px-4 text-ink-700">microsoft</td>
+                <td class="py-4 px-4 text-right tabular-nums">1 612 037</td>
+                <td class="py-4 pl-4 text-right text-ink-500">5d</td>
+              </tr>
+              <tr class="border-t-[1.5px] border-lineSoft">
+                <td class="py-4 pr-4">
+                  <div class="font-medium">wasmcloud:secrets</div>
+                  <div class="text-[12px] text-ink-500 mono">Capability provider</div>
+                </td>
+                <td class="py-4 px-4 mono tabular-nums">1.0.4</td>
+                <td class="py-4 px-4 text-ink-700">wasmcloud</td>
+                <td class="py-4 px-4 text-right tabular-nums">214 880</td>
+                <td class="py-4 pl-4 text-right text-ink-500">2d</td>
+              </tr>
+              <tr class="border-t-[1.5px] border-lineSoft">
+                <td class="py-4 pr-4">
+                  <div class="font-medium">cosmonic:nats</div>
+                  <div class="text-[12px] text-ink-500 mono">Messaging client</div>
+                </td>
+                <td class="py-4 px-4 mono tabular-nums">2.4.1</td>
+                <td class="py-4 px-4 text-ink-700">cosmonic-labs</td>
+                <td class="py-4 px-4 text-right tabular-nums">348 014</td>
+                <td class="py-4 pl-4 text-right text-ink-500">6d</td>
+              </tr>
+              <tr class="border-t-[1.5px] border-lineSoft">
+                <td class="py-4 pr-4">
+                  <div class="font-medium">wasmcp:auth-oidc</div>
+                  <div class="text-[12px] text-ink-500 mono">OIDC authentication</div>
+                </td>
+                <td class="py-4 px-4 mono tabular-nums">0.7.2</td>
+                <td class="py-4 px-4 text-ink-700">wasmcp</td>
+                <td class="py-4 px-4 text-right tabular-nums">62 511</td>
+                <td class="py-4 pl-4 text-right text-ink-500">9d</td>
+              </tr>
+              <tr class="border-t-[1.5px] border-lineSoft">
+                <td class="py-4 pr-4">
+                  <div class="font-medium">a-skua:json</div>
+                  <div class="text-[12px] text-ink-500 mono">Streaming JSON parser</div>
+                </td>
+                <td class="py-4 px-4 mono tabular-nums">1.2.0</td>
+                <td class="py-4 px-4 text-ink-700">a-skua</td>
+                <td class="py-4 px-4 text-right tabular-nums">88 240</td>
+                <td class="py-4 pl-4 text-right text-ink-500">2w</td>
+              </tr>
+              <tr class="border-t-[1.5px] border-lineSoft">
+                <td class="py-4 pr-4">
+                  <div class="font-medium">twitchax:image</div>
+                  <div class="text-[12px] text-ink-500 mono">Image decode &amp; resize</div>
+                </td>
+                <td class="py-4 px-4 mono tabular-nums">0.5.1</td>
+                <td class="py-4 px-4 text-ink-700">twitchax</td>
+                <td class="py-4 px-4 text-right tabular-nums">41 982</td>
+                <td class="py-4 pl-4 text-right text-ink-500">2w</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between text-[13px] text-ink-500">
+          <span>Showing 8 of 12 480</span>
+          <a href="#" class="text-ink-900 hover:underline">Browse the full index →</a>
+        </div>
+      </div>
+
+      <!-- Top authors aside -->
+      <aside>
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Community</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Top authors</h2>
+        </div>
+
+        <ul class="mt-5 divide-y divide-lineSoft border-t-[1.5px] border-lineSoft">
+          <li class="py-3 flex items-center gap-3">
+            <div class="h-8 w-8 rounded-md bg-cat-blue text-cat-blueInk grid place-items-center text-[12px] font-semibold mono">wa</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[13px] font-medium">wasi</div>
+              <div class="text-[12px] text-ink-500 mono">42 packages · 8.4 M dl</div>
+            </div>
+            <span class="text-[11px] font-medium text-positive">+12.1%</span>
+          </li>
+          <li class="py-3 flex items-center gap-3">
+            <div class="h-8 w-8 rounded-md bg-cat-teal text-cat-tealInk grid place-items-center text-[12px] font-semibold mono">ms</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[13px] font-medium">microsoft</div>
+              <div class="text-[12px] text-ink-500 mono">28 packages · 3.2 M dl</div>
+            </div>
+            <span class="text-[11px] font-medium text-positive">+6.4%</span>
+          </li>
+          <li class="py-3 flex items-center gap-3">
+            <div class="h-8 w-8 rounded-md bg-cat-peach text-cat-peachInk grid place-items-center text-[12px] font-semibold mono">fe</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[13px] font-medium">fermyon</div>
+              <div class="text-[12px] text-ink-500 mono">19 packages · 1.8 M dl</div>
+            </div>
+            <span class="text-[11px] font-medium text-positive">+4.0%</span>
+          </li>
+          <li class="py-3 flex items-center gap-3">
+            <div class="h-8 w-8 rounded-md bg-cat-lilac text-cat-lilacInk grid place-items-center text-[12px] font-semibold mono">wc</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[13px] font-medium">wasmcloud</div>
+              <div class="text-[12px] text-ink-500 mono">31 packages · 1.1 M dl</div>
+            </div>
+            <span class="text-[11px] font-medium text-positive">+2.8%</span>
+          </li>
+          <li class="py-3 flex items-center gap-3">
+            <div class="h-8 w-8 rounded-md bg-cat-rust text-cat-rustInk grid place-items-center text-[12px] font-semibold mono">co</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[13px] font-medium">cosmonic-labs</div>
+              <div class="text-[12px] text-ink-500 mono">14 packages · 612 k dl</div>
+            </div>
+            <span class="text-[11px] font-medium text-positive">+1.6%</span>
+          </li>
+          <li class="py-3 flex items-center gap-3">
+            <div class="h-8 w-8 rounded-md bg-cat-pink text-cat-pinkInk grid place-items-center text-[12px] font-semibold mono">ba</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[13px] font-medium">bytecodealliance</div>
+              <div class="text-[12px] text-ink-500 mono">11 packages · 488 k dl</div>
+            </div>
+            <span class="text-[11px] font-medium text-positive">+0.9%</span>
+          </li>
+        </ul>
+
+        <a href="#" class="mt-5 inline-flex items-center gap-1 text-[13px] text-ink-700 hover:text-ink-900">
+          All authors
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+          </svg>
+        </a>
+      </aside>
+    </section>
+
+    <!-- ============================== -->
+    <!-- WHY / PRINCIPLES               -->
+    <!-- ============================== -->
+    <section class="pt-14 md:pt-20">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Why wasm</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Built for components.</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            A package manager designed around the WebAssembly Component Model — not
+            retrofitted from an older ecosystem.
+          </p>
+        </div>
+        <div class="grid sm:grid-cols-2 gap-px bg-lineSoft border border-lineSoft rounded-lg overflow-hidden">
+          <div class="bg-canvas p-6">
+            <div class="h-8 w-8 grid place-items-center rounded-md bg-cat-blue text-cat-blueInk">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <div class="mt-3 text-[15px] font-semibold tracking-tight">Reproducible by default</div>
+            <p class="mt-1.5 text-[13px] text-ink-700 leading-relaxed">
+              Every dependency is locked by content hash. The build you ship today
+              is the build you can ship in five years.
+            </p>
+          </div>
+          <div class="bg-canvas p-6">
+            <div class="h-8 w-8 grid place-items-center rounded-md bg-cat-green text-cat-greenInk">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7l9 6 9-6" />
+                <path d="M3 7v10l9 6 9-6V7" />
+                <path d="M3 7l9-4 9 4" />
+              </svg>
+            </div>
+            <div class="mt-3 text-[15px] font-semibold tracking-tight">Federated registries</div>
+            <p class="mt-1.5 text-[13px] text-ink-700 leading-relaxed">
+              Pull from any OCI-compatible registry — host your own, mirror upstream,
+              or compose private and public packages in one manifest.
+            </p>
+          </div>
+          <div class="bg-canvas p-6">
+            <div class="h-8 w-8 grid place-items-center rounded-md bg-cat-peach text-cat-peachInk">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12h18" />
+                <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z" />
+              </svg>
+            </div>
+            <div class="mt-3 text-[15px] font-semibold tracking-tight">Semantic versioning</div>
+            <p class="mt-1.5 text-[13px] text-ink-700 leading-relaxed">
+              Versions are strict semver — breaking changes require a major bump,
+              and once published, a version cannot be overwritten, only yanked.
+            </p>
+          </div>
+          <div class="bg-canvas p-6">
+            <div class="h-8 w-8 grid place-items-center rounded-md bg-cat-lilac text-cat-lilacInk">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+            </div>
+            <div class="mt-3 text-[15px] font-semibold tracking-tight">Compose, don't link</div>
+            <p class="mt-1.5 text-[13px] text-ink-700 leading-relaxed">
+              Components are wired together at the WIT interface boundary —
+              no shared globals, no symbol clashes, no surprise side effects.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== -->
+    <!-- CTA STRIP                      -->
+    <!-- ============================== -->
+    <section class="mt-16 md:mt-24 mb-16 md:mb-24 rounded-lg border border-line bg-surface shadow-card overflow-hidden">
+      <div class="grid md:grid-cols-[1fr_auto] gap-6 p-8 md:p-10 items-center">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">For maintainers</div>
+          <h3 class="mt-2 text-[24px] font-semibold tracking-tight">Publish your component.</h3>
+          <p class="mt-2 max-w-xl text-[13px] text-ink-700 leading-relaxed">
+            Sign in with GitHub, add your registry namespace, and run
+            <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">wasm publish</code>.
+            The index is append-only and signed end-to-end.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 md:justify-end">
+          <a href="#"
+            class="h-9 px-4 inline-flex items-center gap-2 rounded-lg bg-ink-900 text-canvas text-[13px] hover:opacity-90">
+            Open the publishing guide
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+            </svg>
+          </a>
+          <a href="#"
+            class="h-9 px-4 inline-flex items-center gap-2 rounded-lg border-[1.5px] border-ink-900 bg-surface text-ink-900 text-[13px] hover:bg-surfaceMuted">
+            Read the spec
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============================== -->
+  <!-- FOOTER                         -->
+  <!-- ============================== -->
+  <footer class="border-t border-lineSoft">
+    <div class="mx-auto max-w-[1280px] px-4 md:px-8 py-10 grid grid-cols-2 md:grid-cols-5 gap-8 text-[13px]">
+      <div class="col-span-2">
+        <div class="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7l3 10 3-7 3 7 3-10" />
+            <path d="M15 7l3 10 3-10" />
+          </svg>
+          wasm
+        </div>
+        <p class="mt-3 max-w-sm text-ink-500 leading-relaxed">
+          A package manager and registry for WebAssembly components. Open source under
+          the Apache-2.0 license.
+        </p>
+        <div class="mt-4 inline-flex items-center gap-2 text-[12px] text-ink-500 mono">
+          <span class="h-1.5 w-1.5 rounded-full bg-positive"></span>
+          All systems operational
+        </div>
+      </div>
+      <div>
+        <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Product</div>
+        <ul class="mt-3 space-y-2 text-ink-700">
+          <li><a href="#" class="hover:text-ink-900">Packages</a></li>
+          <li><a href="#" class="hover:text-ink-900">Authors</a></li>
+          <li><a href="#" class="hover:text-ink-900">Registries</a></li>
+          <li><a href="#" class="hover:text-ink-900">Changelog</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Develop</div>
+        <ul class="mt-3 space-y-2 text-ink-700">
+          <li><a href="#" class="hover:text-ink-900">Documentation</a></li>
+          <li><a href="#" class="hover:text-ink-900">CLI reference</a></li>
+          <li><a href="#" class="hover:text-ink-900">Spec</a></li>
+          <li><a href="#" class="hover:text-ink-900">GitHub Action</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Community</div>
+        <ul class="mt-3 space-y-2 text-ink-700">
+          <li><a href="#" class="hover:text-ink-900">GitHub</a></li>
+          <li><a href="#" class="hover:text-ink-900">Discord</a></li>
+          <li><a href="#" class="hover:text-ink-900">Mastodon</a></li>
+          <li><a href="#" class="hover:text-ink-900">Status</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="mx-auto max-w-[1280px] px-4 md:px-8 py-5 border-t border-lineSoft flex items-center justify-between text-[12px] text-ink-500">
+      <span class="mono">© 2026 wasm contributors · v0.4.0</span>
+      <div class="flex items-center gap-5">
+        <a href="#" class="hover:text-ink-900">Privacy</a>
+        <a href="#" class="hover:text-ink-900">Terms</a>
+        <a href="#" class="hover:text-ink-900">Security</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var btn = document.getElementById("theme-toggle");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        var html = document.documentElement;
+        var current = html.getAttribute("data-theme");
+        var systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var nextDark;
+        if (current === "dark") nextDark = false;
+        else if (current === "light") nextDark = true;
+        else nextDark = !systemDark;
+        var next = nextDark ? "dark" : "light";
+        html.setAttribute("data-theme", next);
+        try { localStorage.setItem("ds-theme", next); } catch (e) { }
+      });
+    })();
+  </script>
+</body>
+
+</html>
